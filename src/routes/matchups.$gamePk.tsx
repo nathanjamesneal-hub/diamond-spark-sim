@@ -4,6 +4,8 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { simulateGame } from "@/lib/sim.functions";
+import { formatDateTimeInAppTz } from "@/lib/timezone";
+
 
 const simQuery = (gamePk: number) =>
   queryOptions({
