@@ -1,35 +1,25 @@
-## Plan to unblock the app
+## What's happening
 
-### Goal
-Stop the root “Rain delay” screen from taking over the app on mobile/editor preview, especially on `/` and `/auth`, so you can reach the sign-in screen and navigate normally.
+The "Missing Supabase environment variable(s)" message comes from `src/integrations/supabase/client.ts` when `import.meta.env.VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are missing from the bundle. Both keys ARE present in `.env` now (added at 13:07), but the preview console errors are stamped 13:05 — the bundle the browser is running was built BEFORE the env file existed, so `VITE_*` got inlined as `undefined`.
 
-### What I found
-- The current live signal is still `Error in route match: __root__/`, meaning the shared root shell is crashing, not just one page.
-- `/auth` is already marked client-only, so the likely crash path is shared UI that renders on every page — especially `SiteHeader` or router-level error handling.
-- The header currently calls auth/admin checks after mount and has no error guards around those calls.
-- The root error boundary exists, but there is no router-level `defaultErrorComponent` fallback if the root boundary itself or shared shell fails.
+On top of that:
 
-### Changes to make
-1. **Harden the shared header**
-   - Wrap `supabase.auth.getUser()`, `onAuthStateChange`, admin RPC checks, and sign-out in safe `try/catch` handling.
-   - Ensure failed auth/admin checks do not throw into the root route.
-   - Treat admin lookup failures as “not admin” instead of crashing the page.
+- `.gitignore` ignores `.env`, so on this Vite/TanStack stack the managed Supabase env is not version-controlled and any sandbox refresh without a fresh `.env` write reproduces this.
+- The hydration mismatch (SSR "16 games" vs client "0 games") is a downstream symptom: SSR fetched the schedule fine, then the client bundle threw inside `site-header.tsx` → `supabase.auth.getUser()` because `VITE_SUPABASE_*` was undefined, the root error boundary swallowed it, and the suspense query re-rendered with the empty fallback.
 
-2. **Add a router-level fallback error boundary**
-   - Add `defaultErrorComponent` in `src/router.tsx` with the same “Rain delay” recovery actions.
-   - This catches cases where a route/shared shell error bypasses or breaks the root route boundary.
+## Plan
 
-3. **Make root fallback safer**
-   - Keep diagnostics, but guard error rendering so unusual non-Error values cannot crash the fallback itself.
-   - Use reliable hard-navigation fallback for “Go home”.
+1. **Force a fresh rebuild of the preview bundle** so the now-present `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are inlined. Restart the dev server (`code--restart_dev_server`) — no code change needed for this step.
 
-4. **Verify the mobile flow**
-   - Open `/` and `/auth` in a mobile viewport.
-   - Confirm the sign-in screen is reachable and the Rain delay screen is gone.
-   - Check console/runtime signals for any remaining root route error.
+2. **Remove `.env` from `.gitignore`** for this Vite/TanStack stack so the managed Supabase env survives sandbox refreshes (the keys in `.env` are the publishable + URL, safe to commit; service role stays in secrets, not `.env`).
 
-### Out of scope
-- No Diamond Engine changes.
-- No projection/data pipeline changes.
-- No schema/RLS changes.
-- No visual redesign beyond safer error recovery UI.
+3. **Verify with Playwright on a mobile viewport (402×717)**: load `/`, `/auth`, `/standings`, `/odds`. Confirm no "Missing Supabase" string, no "Rain delay" boundary, and the header renders sign-in/sign-out correctly.
+
+4. **If step 3 still shows missing env**, harden `src/integrations/supabase/client.ts` to render a friendlier inline message instead of throwing through the root error boundary (so a future env hiccup doesn't take down every tab).
+
+No schema, RLS, Diamond Engine, or feature-logic changes. Frontend/infra only.
+
+## Out of scope
+
+- Edits to `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts` (auto-generated — only step 4 would touch `client.ts` and only its error rendering, not the env reads).
+- Any change to projections, sim engine, lineup pipeline, or admin routes.
