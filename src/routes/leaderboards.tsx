@@ -9,6 +9,7 @@ const leadersQuery = queryOptions({
 });
 
 export const Route = createFileRoute("/leaderboards")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "MLB Leaderboards — Diamond" },
