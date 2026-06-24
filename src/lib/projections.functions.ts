@@ -188,6 +188,8 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
 
 // =================== Diamond Scores (display-only) ===================
 
+export type LineupBadgeStatus = "official" | "aggregated" | "low_confidence" | "locked";
+
 export type DiamondHitterCard = {
   player_id: string;
   mlb_id: number | null;
@@ -200,6 +202,11 @@ export type DiamondHitterCard = {
   first_pitch_at: string | null;
   batting_order: number | null;
   lineup_status: "locked" | "verified" | "waiting";
+  lineup_source: string | null;
+  lineup_confidence: number | null;
+  badge: LineupBadgeStatus;
+  last_refresh_at: string | null;
+  source_count: number | null;
   model_version: string;
   diamond_score: number | null;
   contact_score: number | null;
@@ -234,6 +241,9 @@ export type DiamondPitcherCard = {
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
+  lineup_confidence: number | null;
+  lineup_source: string | null;
+  badge: LineupBadgeStatus;
 };
 
 
@@ -241,13 +251,16 @@ export type DiamondScoresPayload = {
   date: string;
   activeVersion: string | null;
   modelVersions: string[];
-  games: { id: string; label: string; mlb_game_id: number | null }[];
+  games: { id: string; label: string; mlb_game_id: number | null; confidence: number | null; hitters_set: number; hitters_expected: number; last_refresh_at: string | null; primary_source: string | null; status: string | null }[];
   teams: { id: string; abbrev: string }[];
   hitters: DiamondHitterCard[];
   pitchers: DiamondPitcherCard[];
   missingHitterFields: string[];
   missingPitcherFields: string[];
+  slateConfirmed: number;
+  slateTotal: number;
 };
+
 
 const MISSING_HITTER_FIELDS = [
   "hit_over_0_5_probability",
