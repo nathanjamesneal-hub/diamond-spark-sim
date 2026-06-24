@@ -9,8 +9,10 @@ const nav = [
   { to: "/odds", label: "Odds" },
   { to: "/standings", label: "Standings" },
   { to: "/slate", label: "Projections" },
+  { to: "/diamond-scores", label: "Diamond" },
   { to: "/calibration", label: "Calibration" },
   { to: "/leaderboards", label: "Leaders" },
+
 ] as const;
 
 export function SiteHeader() {
