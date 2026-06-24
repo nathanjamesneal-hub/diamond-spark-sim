@@ -514,6 +514,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
+          ...(() => {
+            const pc = pitcherComponentsFromInputs(proj?.inputs);
+            return { pitcher_components: pc.components, pitcher_fallbacks: pc.fallbacks };
+          })(),
           lineup_confidence: gls?.confidence ?? null,
           lineup_source: gls?.primary_source ?? null,
           badge: badgeFor(gls?.confidence ?? null, gls?.status === "locked"),
