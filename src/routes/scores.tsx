@@ -38,10 +38,9 @@ export const Route = createFileRoute("/scores")({
 });
 
 function shiftDate(iso: string, days: number): string {
-  const d = new Date(iso + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return shiftIsoDate(iso, days);
 }
+
 
 function ScoresPage() {
   const search = Route.useSearch();
