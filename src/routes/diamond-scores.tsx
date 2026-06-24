@@ -402,7 +402,31 @@ function buildPitcherReason(p: DiamondPitcherCard): string {
   return parts.join(" · ");
 }
 
+function LineupBadge({
+  badge, source, confidence,
+}: {
+  badge: "official" | "aggregated" | "low_confidence" | "locked";
+  source: string | null;
+  confidence: number | null;
+}) {
+  const map = {
+    official: { label: "Official MLB", cls: "bg-edge/20 text-edge", icon: "🟢" },
+    aggregated: { label: source ? `Aggregated · ${source}` : "Aggregated", cls: "bg-primary/15 text-primary", icon: "🟡" },
+    low_confidence: { label: "Low confidence", cls: "bg-destructive/15 text-destructive", icon: "🟠" },
+    locked: { label: "Locked", cls: "bg-secondary text-foreground", icon: "🔒" },
+  } as const;
+  const m = map[badge];
+  return (
+    <span className={`mono inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${m.cls}`}>
+      <span>{m.icon}</span>
+      <span>{m.label}</span>
+      {confidence != null ? <span className="opacity-70">· {confidence}</span> : null}
+    </span>
+  );
+}
+
 function Mini({ label, v }: { label: string; v: string }) {
+
   return (
     <div className="rounded-md bg-secondary/40 py-1">
       <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
