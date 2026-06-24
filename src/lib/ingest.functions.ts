@@ -181,6 +181,7 @@ export const importLineups = createServerFn({ method: "POST" })
             .in("mlb_id", battingOrder);
           const pByMlb = new Map((playerRows ?? []).map((p: any) => [p.mlb_id, p.id]));
 
+          const nowIso = new Date().toISOString();
           const lineupRows = battingOrder
             .map((mlbId, idx) => ({
               game_id: game.id,
@@ -188,8 +189,13 @@ export const importLineups = createServerFn({ method: "POST" })
               team_id: s.teamId,
               batting_order: idx + 1,
               confirmed: true,
+              lineup_status: "confirmed",
+              lineup_source: "mlb",
+              imported_at: nowIso,
+              confirmed_at: nowIso,
             }))
             .filter((r) => r.player_id);
+
 
           if (lineupRows.length) {
             const { error } = await supabaseAdmin
