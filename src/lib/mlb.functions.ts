@@ -231,9 +231,15 @@ export const getSchedule = createServerFn({ method: "GET" })
   .inputValidator((data: { date?: string }) => data ?? {})
   .handler(async ({ data }): Promise<{ date: string; games: GameSummary[] }> => {
     const date = data.date ?? todayIsoDate();
-    const json = await mlbFetch<any>(
-      `/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher`,
-    );
+    let json: any;
+    try {
+      json = await mlbFetch<any>(
+        `/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher`,
+      );
+    } catch (err) {
+      console.error("getSchedule: MLB schedule fetch failed", err);
+      return { date, games: [] };
+    }
     const games: GameSummary[] = [];
     for (const d of json.dates ?? []) {
       for (const g of d.games ?? []) {
