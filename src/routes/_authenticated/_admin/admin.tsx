@@ -139,6 +139,38 @@ function AdminPanel() {
           </div>
         ) : null}
       </div>
+
+      <PitchingBacklogPanel />
+    </div>
+  );
+}
+
+const PITCHING_BACKLOG_FIELDS = [
+  "k_projection",
+  "k_over_3_5_probability",
+  "k_over_4_5_probability",
+  "k_over_5_5_probability",
+  "k_over_6_5_probability",
+  "earned_runs_projection",
+  "er_under_2_5_probability",
+  "hits_allowed_projection",
+  "walks_projection",
+];
+
+function PitchingBacklogPanel() {
+  return (
+    <div className="mt-10 rounded-lg border border-border/60 bg-card/40 p-5">
+      <div className="mono text-[11px] uppercase tracking-widest text-edge">Pitching engine backlog</div>
+      <h2 className="font-display text-xl font-semibold">Missing persisted pitcher fields</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        These fields are referenced by the pitcher card UI but are not yet written by the engine. Cards
+        render "not persisted" until the engine produces and stores them.
+      </p>
+      <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+        {PITCHING_BACKLOG_FIELDS.map((f) => (
+          <li key={f} className="mono text-[11px] text-muted-foreground">· {f}</li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -161,7 +161,7 @@ function DiamondScoresPage() {
 
         <TabsContent value="hitters" className="mt-4">
           {filteredHitters.length === 0 ? (
-            <Empty msg="No hitter projections for this date/filter yet. Run the Diamond Engine after Lineups are imported." />
+            <Empty msg="No hitter projections for this date/filter yet." withPipelineLink />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredHitters.map((h) => (
@@ -174,7 +174,7 @@ function DiamondScoresPage() {
 
         <TabsContent value="pitchers" className="mt-4">
           {filteredPitchers.length === 0 ? (
-            <Empty msg="No pitcher projections for this date/filter yet." />
+            <Empty msg="No pitcher projections for this date/filter yet." withPipelineLink />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredPitchers.map((p) => (
@@ -351,18 +351,18 @@ function PitcherCardView({ p }: { p: DiamondPitcherCard }) {
       </div>
 
       <div className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3">
-        <Stat label="K proj" v="n/a" muted />
-        <Stat label="K 3.5+" v="n/a" muted />
-        <Stat label="K 4.5+" v="n/a" muted />
-        <Stat label="K 5.5+" v="n/a" muted />
-        <Stat label="K 6.5+" v="n/a" muted />
+        <NotPersistedStat label="K proj" />
+        <NotPersistedStat label="K 3.5+" />
+        <NotPersistedStat label="K 4.5+" />
+        <NotPersistedStat label="K 5.5+" />
+        <NotPersistedStat label="K 6.5+" />
         <Stat label="Outs" v={p.projected_outs == null ? "—" : p.projected_outs.toFixed(1)} />
         <Stat label="QS %" v={pct(p.quality_start_probability)} />
         <Stat label="Win %" v={pct(p.pitcher_win_probability)} />
-        <Stat label="ER proj" v="n/a" muted />
-        <Stat label="ER<2.5" v="n/a" muted />
-        <Stat label="H allow" v="n/a" muted />
-        <Stat label="BB proj" v="n/a" muted />
+        <NotPersistedStat label="ER proj" />
+        <NotPersistedStat label="ER<2.5" />
+        <NotPersistedStat label="H allow" />
+        <NotPersistedStat label="BB proj" />
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
@@ -494,10 +494,29 @@ function DateBtn({ children, onClick }: { children: React.ReactNode; onClick: ()
   );
 }
 
-function Empty({ msg }: { msg: string }) {
+function Empty({ msg, withPipelineLink }: { msg: string; withPipelineLink?: boolean }) {
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-card/40 p-8 text-center text-sm text-muted-foreground">
-      {msg}
+      <div>{msg}</div>
+      {withPipelineLink ? (
+        <div className="mt-2">
+          See{" "}
+          <Link to="/lineup-status" className="text-primary hover:underline">/lineup-status</Link>{" "}
+          to see what's missing and push games through the pipeline.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NotPersistedStat({ label }: { label: string }) {
+  return (
+    <div
+      className="flex items-center justify-between rounded bg-secondary/20 px-2 py-1"
+      title="Not available yet — field not persisted"
+    >
+      <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      <span className="mono text-[10px] italic text-muted-foreground">not persisted</span>
     </div>
   );
 }

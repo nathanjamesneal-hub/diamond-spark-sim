@@ -98,7 +98,9 @@ function EmptySlate() {
     <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-10 text-center">
       <div className="mono text-xs uppercase tracking-widest text-muted-foreground">Slate empty</div>
       <p className="mt-2 text-sm text-muted-foreground">
-        No projections for today yet. An admin needs to import the schedule + lineups and run the engine.
+        No projections for today yet. See{" "}
+        <Link to="/lineup-status" className="text-primary hover:underline">/lineup-status</Link>{" "}
+        to see what's missing and push games through the pipeline.
       </p>
     </div>
   );
