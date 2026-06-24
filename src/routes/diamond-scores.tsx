@@ -222,13 +222,17 @@ function HitterCardView({ h }: { h: DiamondHitterCard }) {
     <div className="rounded-lg border border-border/70 bg-card p-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <Link
-            to="/players/$playerId"
-            params={{ playerId: h.player_id }}
-            className="block truncate font-display text-base font-bold hover:text-primary"
-          >
-            {h.player_name}
-          </Link>
+          {h.mlb_id != null ? (
+            <Link
+              to="/players/$playerId"
+              params={{ playerId: String(h.mlb_id) }}
+              className="block truncate font-display text-base font-bold hover:text-primary"
+            >
+              {h.player_name}
+            </Link>
+          ) : (
+            <div className="block truncate font-display text-base font-bold">{h.player_name}</div>
+          )}
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             {h.team_abbrev} vs {h.opp_abbrev}
             {h.batting_order ? ` · #${h.batting_order}` : ""} · {h.lineup_status}
