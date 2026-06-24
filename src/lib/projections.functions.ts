@@ -362,6 +362,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
         hitters.push({
           player_id: l.player_id,
+          mlb_id: playerMlbId.get(l.player_id) ?? null,
           player_name: playerName.get(l.player_id) ?? "Unknown",
           team_abbrev: teamAbbrev.get(l.team_id ?? "") ?? "",
           opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
