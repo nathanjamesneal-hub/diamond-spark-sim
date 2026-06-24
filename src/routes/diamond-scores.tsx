@@ -87,8 +87,19 @@ function DiamondScoresPage() {
           <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">Diamond Scores</div>
           <h1 className="font-display text-3xl font-bold tracking-tight">{data.date}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Active model: <span className="mono">{data.activeVersion ?? "—"}</span> · Display-only view of stored projections.
+            Active model: <span className="mono">{data.activeVersion ?? "—"}</span> · Aggregated from multiple lineup sources.
           </p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Lineups · {data.slateConfirmed} / {data.slateTotal} confirmed
+            </div>
+            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full bg-edge transition-all"
+                style={{ width: data.slateTotal ? `${(data.slateConfirmed / data.slateTotal) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <DateBtn onClick={() => setSearch({ date: shiftIsoDate(data.date, -1) })}>← Prev</DateBtn>
@@ -96,6 +107,7 @@ function DiamondScoresPage() {
           <DateBtn onClick={() => setSearch({ date: shiftIsoDate(data.date, 1) })}>Next →</DateBtn>
         </div>
       </div>
+
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <FilterSelect
