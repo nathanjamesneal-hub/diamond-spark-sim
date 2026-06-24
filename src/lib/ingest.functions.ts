@@ -344,7 +344,7 @@ export const runDiamondEngine = createServerFn({ method: "POST" })
       }));
     }
 
-    const sideForTeam = (game: any, teamId: string): TeamSide =>
+    const sideForTeam = (game: any, teamId: string | null): TeamSide =>
       teamId === game.home_team_id ? "home" : "away";
 
     // TODO(alpha-0.3): pitcher "DNA" is temporary and hitter-shaped. Replace
