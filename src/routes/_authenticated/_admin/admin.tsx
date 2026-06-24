@@ -84,12 +84,19 @@ function AdminPanel() {
               <div className="min-w-0 flex-1">
                 <div className="font-display font-semibold">{op.label}</div>
                 <div className="text-xs text-muted-foreground">{op.desc}</div>
+                {op.key === "dna" ? (
+                  <label className="mono mt-2 inline-flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
+                    <input type="checkbox" checked={dnaOnlyMissing} onChange={(e) => setDnaOnlyMissing(e.target.checked)} />
+                    Only players missing DNA
+                  </label>
+                ) : null}
                 {s?.last ? (
                   <div className={`mono mt-1 text-[11px] ${s.last.ok ? "text-edge" : "text-destructive"}`}>
                     {s.last.at} · {s.last.msg}
                   </div>
                 ) : null}
               </div>
+
               <button
                 onClick={() => run(op.key, op.go)} disabled={s?.running}
                 className="mono rounded-md bg-primary px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-primary-foreground disabled:opacity-50"
