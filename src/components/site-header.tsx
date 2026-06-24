@@ -5,10 +5,10 @@ import type { User } from "@supabase/supabase-js";
 
 const nav = [
   { to: "/", label: "Today" },
-  { to: "/slate", label: "Slate" },
   { to: "/scores", label: "Scores" },
   { to: "/odds", label: "Odds" },
   { to: "/standings", label: "Standings" },
+  { to: "/slate", label: "Projections" },
   { to: "/calibration", label: "Calibration" },
   { to: "/leaderboards", label: "Leaders" },
 ] as const;
