@@ -1,69 +1,50 @@
 
-# Display-Only UI Layers — Model Stays Untouched
+# Home Dashboard + Nav Cleanup
 
-## Guardrails (non-negotiable)
+## Scope
 
-These files/areas are **read-only** for this work. No edits, no refactors, no "tiny cleanups":
+Two presentation-only edits. No engine, registry, sim, schema, or data-fetching logic touched.
 
-- `src/lib/engines/v0_1_0/engine.ts` — Diamond Engine v0.1.0
-- `src/lib/engines/alpha_0_3/engine.ts` — Alpha 0.3 formulas
-- `src/lib/engines/registry.ts` — model registry behavior
-- `src/lib/sim/**` — Monte Carlo simulation logic
-- `src/lib/game-environment.ts`
-- Supabase tables: `projections`, `projection_results`, `calibration_summary`, `model_versions`, `player_dna`, `lineups` — no schema changes, no migrations
-- `model_versions` rows — `alpha-0.3` stays inactive; `0.1.0` stays active
-- No backfills, no recomputes, no upserts that would overwrite historical projection rows
+## 1. Home page (`src/routes/index.tsx`)
 
-If implementing a section reveals a missing column or missing data, I stop and ask before touching schema or the engine.
+Keep the existing live scoreboard (featured matchup + all-games grid + EmptyState) intact. Replace the placeholder `ComingSoonStrip` at the bottom with a real **navigation dashboard**: four cards, mobile-first grid (1 col → 2 col @ sm → 4 col @ lg), each linking to its section.
 
-## What gets built (display layers only)
+Cards:
 
-Each route is a pure read view that fetches via existing server functions / Supabase reads and renders. No projection math in components, no writes outside what existing ingest jobs already do.
+| Card | Link | Short copy |
+|---|---|---|
+| Live Scores | `/scores` | Live status, score, inning, and game state from MLB. |
+| Odds | `/odds` | Sportsbook odds across DraftKings, FanDuel, MGM, and more. |
+| Standings | `/standings` | AL & NL division standings, run diff, streaks, L10. |
+| Diamond Projections | `/slate` | Diamond Score, hit/TB/HR/RBI/SB/run %, confidence, model version. |
 
-1. **Live Scores** (`/scores`)
-   - Source: MLB Stats API via the existing `src/lib/mlb.functions.ts` reader (or a new read-only server fn that wraps the same endpoint if one doesn't exist yet).
-   - Shows today's slate: matchup, score, inning/state, probable pitchers. Auto-refresh on a polling interval while the page is open.
-   - No writes to `games` or `starting_pitchers` from this page.
+Each card uses `<Link to=...>`, has a kicker label, title, one-line description, and a small "Open →" affordance. Uses existing tokens (`border-border/70`, `bg-card`, `font-display`, `mono`, `text-primary`/`text-edge`). No new icons library — keep it text-driven to match the current aesthetic.
 
-2. **Odds** (`/odds`)
-   - Source: existing `src/lib/odds.functions.ts` integration. Render whatever it already returns (moneyline / total / spread per game).
-   - No new odds provider, no new secrets.
+The four cards render above the existing all-games grid so the homepage opens as a true dashboard. `ComingSoonStrip` is removed.
 
-3. **Standings** (`/standings`)
-   - Source: existing standings reader (MLB API via `mlb.functions.ts`). Render division tables.
+## 2. Header nav (`src/components/site-header.tsx`)
 
-4. **Diamond Projections** (`/slate`, `/players/$playerId`, `/matchups/$gamePk`)
-   - Source: `projections` table via existing `src/lib/projections.functions.ts`. Read only.
-   - Filter by the currently active `model_versions` row (today: `0.1.0`). Show `diamond_score`, per-stat probabilities, confidence, and Alpha-only fields **only** when the row's `model_version = 'alpha-0.3'` (so historical Alpha rows still render correctly if they exist).
-   - No recomputation in the component. The number on screen is exactly the number in the row.
+Current order: Today, Slate, Scores, Odds, Standings, Calibration, Leaders + Admin (conditional).
 
-5. **Calibration** (`/calibration`)
-   - Source: `calibration_summary` table, read only. Group by `model_version` / `stat` / `confidence_bucket`. Render observed vs predicted.
+Reorder/relabel to match the requested set:
 
-## Routes touched
+`Today · Scores · Odds · Standings · Projections · Calibration · Leaders · Admin (if admin)`
 
-All under `src/routes/` — presentation only:
+- "Projections" links to `/slate` (Slate route is the projections view).
+- Leaders stays (already there; not in the request but removing it would regress navigation).
+- Admin stays conditional on `has_role('admin')` — unchanged logic.
 
-- `scores.tsx`, `odds.tsx`, `standings.tsx`, `calibration.tsx`, `slate.tsx`, `players.$playerId.tsx`, `matchups.$gamePk.tsx`
+Mobile bar inherits the same array (already does).
 
-Most already exist. This pass wires them to the existing read functions and polishes layout — it does not introduce new server fns that compute projections.
+## 3. Verification
 
-## Data-fetching pattern
+- `bun run typecheck` (or `tsgo` per repo convention) after the two edits.
+- Visual: load `/` and confirm the four dashboard cards render and link correctly; confirm header shows the new order and Admin link still gates on role.
 
-- Public routes (`scores`, `odds`, `standings`) → public server fn using the server publishable client + `TO anon` SELECT policies that already exist. Loader primes with `ensureQueryData`, component reads via `useSuspenseQuery`.
-- Authenticated routes already under `_authenticated/` keep using `requireSupabaseAuth` reads.
-- No loader calls a protected server fn from a public route.
+## Non-goals
 
-## Explicit non-goals this pass
+- No changes to `src/routes/scores.tsx`, `odds.tsx`, `standings.tsx`, `slate.tsx`, `calibration.tsx`, or their query functions.
+- No engine, registry, sim, or Supabase schema changes.
+- No new dependencies.
 
-- No new migrations.
-- No edits to engine, registry, or sim files.
-- No flipping `alpha-0.3` to active.
-- No ingest job changes (no new writes to `projections`, no recompute).
-- No new third-party integrations or secrets.
-
-## Checkpoints
-
-After each section I'll confirm: (a) no files under the guardrail list changed, (b) numbers displayed match a direct `select` against the source table, (c) typecheck passes.
-
-Confirm and I'll start with Live Scores, then Odds, Standings, Diamond Projections, Calibration.
+Confirm and I'll ship.
