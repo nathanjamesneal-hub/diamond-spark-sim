@@ -13,7 +13,6 @@ const nav = [
   { to: "/lineup-status", label: "Pipeline" },
   { to: "/calibration", label: "Calibration" },
   { to: "/leaderboards", label: "Leaders" },
-
 ] as const;
 
 export function SiteHeader() {
@@ -22,22 +21,64 @@ export function SiteHeader() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
+    let active = true;
+    try {
+      supabase.auth
+        .getUser()
+        .then(({ data }) => {
+          if (active) setUser(data.user ?? null);
+        })
+        .catch((e) => console.warn("[site-header] getUser failed", e));
+    } catch (e) {
+      console.warn("[site-header] getUser threw", e);
+    }
+
+    let unsub: (() => void) | undefined;
+    try {
+      const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+        if (active) setUser(session?.user ?? null);
+      });
+      unsub = () => sub.subscription.unsubscribe();
+    } catch (e) {
+      console.warn("[site-header] onAuthStateChange failed", e);
+    }
+    return () => {
+      active = false;
+      try { unsub?.(); } catch {}
+    };
   }, []);
 
   useEffect(() => {
     if (!user) { setIsAdmin(false); return; }
+    let active = true;
     supabase.rpc("has_role", { _user_id: user.id, _role: "admin" })
-      .then(({ data }) => setIsAdmin(!!data));
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn("[site-header] has_role failed", error);
+          setIsAdmin(false);
+          return;
+        }
+        setIsAdmin(!!data);
+      })
+      .catch((e) => {
+        console.warn("[site-header] has_role threw", e);
+        if (active) setIsAdmin(false);
+      });
+    return () => { active = false; };
   }, [user]);
 
   async function signOut() {
-    await supabase.auth.signOut();
-    navigate({ to: "/" });
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("[site-header] signOut failed", e);
+    }
+    try {
+      navigate({ to: "/" });
+    } catch {
+      if (typeof window !== "undefined") window.location.href = "/";
+    }
   }
 
   return (
