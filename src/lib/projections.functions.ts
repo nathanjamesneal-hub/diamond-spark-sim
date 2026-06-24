@@ -190,6 +190,7 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
 
 export type DiamondHitterCard = {
   player_id: string;
+  mlb_id: number | null;
   player_name: string;
   team_abbrev: string;
   opp_abbrev: string;
@@ -218,6 +219,7 @@ export type DiamondHitterCard = {
 
 export type DiamondPitcherCard = {
   player_id: string;
+  mlb_id: number | null;
   player_name: string;
   team_abbrev: string;
   opp_abbrev: string;
@@ -233,6 +235,7 @@ export type DiamondPitcherCard = {
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
 };
+
 
 export type DiamondScoresPayload = {
   date: string;
