@@ -124,6 +124,57 @@ export type Database = {
           },
         ]
       }
+      cron_runs: {
+        Row: {
+          affected_game_ids: string[]
+          created_at: string
+          date: string | null
+          duration_ms: number | null
+          engine_ran: boolean
+          error: string | null
+          finished_at: string | null
+          games_changed: number
+          id: string
+          notes: string | null
+          players_changed: number
+          projections_regenerated: number
+          providers: Json
+          started_at: string
+        }
+        Insert: {
+          affected_game_ids?: string[]
+          created_at?: string
+          date?: string | null
+          duration_ms?: number | null
+          engine_ran?: boolean
+          error?: string | null
+          finished_at?: string | null
+          games_changed?: number
+          id?: string
+          notes?: string | null
+          players_changed?: number
+          projections_regenerated?: number
+          providers?: Json
+          started_at?: string
+        }
+        Update: {
+          affected_game_ids?: string[]
+          created_at?: string
+          date?: string | null
+          duration_ms?: number | null
+          engine_ran?: boolean
+          error?: string | null
+          finished_at?: string | null
+          games_changed?: number
+          id?: string
+          notes?: string | null
+          players_changed?: number
+          projections_regenerated?: number
+          providers?: Json
+          started_at?: string
+        }
+        Relationships: []
+      }
       favorites: {
         Row: {
           created_at: string
@@ -151,6 +202,56 @@ export type Database = {
         }
         Relationships: []
       }
+      game_lineup_status: {
+        Row: {
+          confidence: number
+          created_at: string
+          game_id: string
+          hitters_expected: number
+          hitters_set: number
+          last_refresh_at: string
+          notes: Json | null
+          primary_source: string | null
+          source_count: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          game_id: string
+          hitters_expected?: number
+          hitters_set?: number
+          last_refresh_at?: string
+          notes?: Json | null
+          primary_source?: string | null
+          source_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          game_id?: string
+          hitters_expected?: number
+          hitters_set?: number
+          last_refresh_at?: string
+          notes?: Json | null
+          primary_source?: string | null
+          source_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_lineup_status_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: true
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       games: {
         Row: {
           away_team_id: string | null
@@ -161,6 +262,7 @@ export type Database = {
           game_status: string | null
           home_team_id: string | null
           id: string
+          lineups_locked_at: string | null
           mlb_game_id: number
           updated_at: string
           weather: Json | null
@@ -174,6 +276,7 @@ export type Database = {
           game_status?: string | null
           home_team_id?: string | null
           id?: string
+          lineups_locked_at?: string | null
           mlb_game_id: number
           updated_at?: string
           weather?: Json | null
@@ -187,6 +290,7 @@ export type Database = {
           game_status?: string | null
           home_team_id?: string | null
           id?: string
+          lineups_locked_at?: string | null
           mlb_game_id?: number
           updated_at?: string
           weather?: Json | null
@@ -208,12 +312,67 @@ export type Database = {
           },
         ]
       }
+      lineup_sources: {
+        Row: {
+          content_hash: string
+          created_at: string
+          game_id: string
+          id: string
+          imported_at: string
+          payload: Json
+          source: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          game_id: string
+          id?: string
+          imported_at?: string
+          payload: Json
+          source: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          game_id?: string
+          id?: string
+          imported_at?: string
+          payload?: Json
+          source?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_sources_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_sources_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lineups: {
         Row: {
           batting_order: number
           confirmed: boolean
+          confirmed_at: string | null
           created_at: string
           game_id: string
+          imported_at: string
+          lineup_source: string
+          lineup_status: string
           locked_at: string | null
           player_id: string
           team_id: string | null
@@ -222,8 +381,12 @@ export type Database = {
         Insert: {
           batting_order: number
           confirmed?: boolean
+          confirmed_at?: string | null
           created_at?: string
           game_id: string
+          imported_at?: string
+          lineup_source?: string
+          lineup_status?: string
           locked_at?: string | null
           player_id: string
           team_id?: string | null
@@ -232,8 +395,12 @@ export type Database = {
         Update: {
           batting_order?: number
           confirmed?: boolean
+          confirmed_at?: string | null
           created_at?: string
           game_id?: string
+          imported_at?: string
+          lineup_source?: string
+          lineup_status?: string
           locked_at?: string | null
           player_id?: string
           team_id?: string | null
@@ -487,6 +654,9 @@ export type Database = {
           hr_probability: number | null
           id: string
           inputs: Json | null
+          lineup_confidence: number | null
+          lineup_source: string | null
+          lineup_status: string | null
           matchup_grade: number | null
           model_version: string
           pitcher_grade: number | null
@@ -495,6 +665,7 @@ export type Database = {
           power_score: number | null
           projected_outs: number | null
           projection_role: string
+          projection_status: string
           quality_start_probability: number | null
           rbi_probability: number | null
           run_probability: number | null
@@ -514,6 +685,9 @@ export type Database = {
           hr_probability?: number | null
           id?: string
           inputs?: Json | null
+          lineup_confidence?: number | null
+          lineup_source?: string | null
+          lineup_status?: string | null
           matchup_grade?: number | null
           model_version: string
           pitcher_grade?: number | null
@@ -522,6 +696,7 @@ export type Database = {
           power_score?: number | null
           projected_outs?: number | null
           projection_role?: string
+          projection_status?: string
           quality_start_probability?: number | null
           rbi_probability?: number | null
           run_probability?: number | null
@@ -541,6 +716,9 @@ export type Database = {
           hr_probability?: number | null
           id?: string
           inputs?: Json | null
+          lineup_confidence?: number | null
+          lineup_source?: string | null
+          lineup_status?: string | null
           matchup_grade?: number | null
           model_version?: string
           pitcher_grade?: number | null
@@ -549,6 +727,7 @@ export type Database = {
           power_score?: number | null
           projected_outs?: number | null
           projection_role?: string
+          projection_status?: string
           quality_start_probability?: number | null
           rbi_probability?: number | null
           run_probability?: number | null
