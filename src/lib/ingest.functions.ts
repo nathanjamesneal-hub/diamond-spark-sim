@@ -662,3 +662,172 @@ export const createModelVersion = createServerFn({ method: "POST" })
     if (error) return { ok: false, error: error.message };
     return { ok: true, count: 1, details: `Created ${data.version}${data.activate ? " (active)" : ""}.` };
   });
+
+// ---------- Recompute Player DNA ----------
+// Input prep only: pulls MLB season stats and maps them to the existing
+// 0-100 DNA sub-scores. Diamond Engine formulas (v0_1_0, alpha_0_3) are
+// unchanged — they simply read these refreshed values.
+
+function clamp(n: number, lo = 1, hi = 99): number {
+  if (!Number.isFinite(n)) return 50;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function parseIp(ip: string | number | null | undefined): number {
+  // MLB returns IP as e.g. "12.2" meaning 12 + 2/3 innings
+  if (ip == null) return 0;
+  const s = String(ip);
+  const [whole, frac = "0"] = s.split(".");
+  const w = Number(whole) || 0;
+  const f = Number(frac) || 0;
+  return w + (f === 1 ? 1 / 3 : f === 2 ? 2 / 3 : 0);
+}
+
+function hitterDna(bat: any): { contact: number; power: number; speed: number; discipline: number; consistency: number } | null {
+  const pa = Number(bat?.plateAppearances ?? 0);
+  if (pa < 50) return null;
+  const ab = Number(bat?.atBats ?? 0) || 1;
+  const games = Number(bat?.gamesPlayed ?? 0) || 1;
+  const h = Number(bat?.hits ?? 0);
+  const so = Number(bat?.strikeOuts ?? 0);
+  const bb = Number(bat?.baseOnBalls ?? 0);
+  const hr = Number(bat?.homeRuns ?? 0);
+  const sb = Number(bat?.stolenBases ?? 0);
+  const tri = Number(bat?.triples ?? 0);
+  const avg = Number(bat?.avg ?? h / ab);
+  const slg = Number(bat?.slg ?? 0);
+  const iso = Math.max(0, slg - avg);
+  const kRate = so / pa;
+  const bbRate = bb / pa;
+  const hrRate = hr / pa;
+  const sbRate = sb / games;
+  const triRate = tri / games;
+
+  const contactA = 50 + 500 * (avg - 0.245);
+  const contactB = 50 + 200 * (0.77 - kRate);
+  const contact = clamp((contactA + contactB) / 2);
+
+  const powerA = 50 + 600 * (iso - 0.15);
+  const powerB = 50 + 1500 * (hrRate - 0.03);
+  const power = clamp((powerA + powerB) / 2);
+
+  const speedA = 50 + 600 * (sbRate - 0.05);
+  const speedB = 50 + 4000 * (triRate - 0.005);
+  const speed = clamp((speedA + speedB) / 2);
+
+  const discA = 50 + 500 * (bbRate - 0.085);
+  const discB = 50 + 300 * ((bb - so) / pa - -0.1);
+  const discipline = clamp((discA + discB) / 2);
+
+  const consistency = clamp(50 + 0.3 * (games - 60));
+
+  return { contact, power, speed, discipline, consistency };
+}
+
+function pitcherDna(pit: any): { contact: number; power: number; speed: number; discipline: number; consistency: number } | null {
+  const ip = parseIp(pit?.inningsPitched);
+  if (ip < 10) return null;
+  const games = Number(pit?.gamesStarted ?? pit?.gamesPlayed ?? 0) || 1;
+  const so = Number(pit?.strikeOuts ?? 0);
+  const bb = Number(pit?.baseOnBalls ?? 0);
+  const hr = Number(pit?.homeRuns ?? 0);
+  const k9 = (so * 9) / ip;
+  const bb9 = (bb * 9) / ip;
+  const hr9 = (hr * 9) / ip;
+  const ipPerStart = ip / games;
+
+  const contact = clamp(50 + 8 * (k9 - 8.5));     // higher K/9 → higher "contact-suppression"
+  const power = clamp(50 - 25 * (hr9 - 1.2));     // fewer HR/9 → higher
+  const speed = 35;
+  const discipline = clamp(50 - 10 * (bb9 - 3.2)); // fewer BB/9 → higher
+  const consistency = clamp(50 + 8 * (ipPerStart - 5.0));
+
+  return { contact, power, speed, discipline, consistency };
+}
+
+async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let i = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      results[idx] = await worker(items[idx]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+export const recomputePlayerDNA = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { season?: number; onlyMissing?: boolean; playerIds?: string[] }) => data ?? {})
+  .handler(async ({ data, context }): Promise<ImportResult> => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Resolve season: latest games.date year, else current year.
+    let season = data.season;
+    if (!season) {
+      const { data: latest } = await supabaseAdmin
+        .from("games").select("date").order("date", { ascending: false }).limit(1).maybeSingle();
+      season = latest?.date ? Number(String(latest.date).slice(0, 4)) : new Date().getUTCFullYear();
+    }
+
+    // Target players
+    let query = supabaseAdmin.from("players").select("id, mlb_id, position").eq("active", true);
+    if (data.playerIds?.length) query = query.in("id", data.playerIds);
+    const { data: players, error: pErr } = await query;
+    if (pErr) return { ok: false, error: pErr.message };
+
+    let targets = (players ?? []).filter((p: any) => p.mlb_id);
+
+    if (data.onlyMissing) {
+      const { data: dnaRows } = await supabaseAdmin
+        .from("player_dna").select("player_id").not("last_recomputed_at", "is", null);
+      const have = new Set((dnaRows ?? []).map((r: any) => r.player_id));
+      targets = targets.filter((p: any) => !have.has(p.id));
+    }
+
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    const upserts: any[] = [];
+    const now = new Date().toISOString();
+
+    await runWithConcurrency(targets, 6, async (p: any) => {
+      const isPitcher = (p.position ?? "").toUpperCase() === "P";
+      const group = isPitcher ? "pitching" : "hitting";
+      try {
+        const json = await mlb<any>(`/people/${p.mlb_id}/stats?stats=season&group=${group}&season=${season}`);
+        const stat = json?.stats?.[0]?.splits?.[0]?.stat;
+        if (!stat) { skipped++; return; }
+        const dna = isPitcher ? pitcherDna(stat) : hitterDna(stat);
+        if (!dna) { skipped++; return; }
+        upserts.push({
+          player_id: p.id,
+          contact: dna.contact, power: dna.power, speed: dna.speed,
+          discipline: dna.discipline, consistency: dna.consistency,
+          last_recomputed_at: now,
+          updated_at: now,
+        });
+        updated++;
+      } catch {
+        errors++;
+      }
+    });
+
+    // Upsert in chunks
+    for (let i = 0; i < upserts.length; i += 200) {
+      const chunk = upserts.slice(i, i + 200);
+      const { error } = await supabaseAdmin.from("player_dna").upsert(chunk, { onConflict: "player_id" });
+      if (error) return { ok: false, error: error.message };
+    }
+
+    return {
+      ok: true,
+      count: updated,
+      details: `season ${season} · updated ${updated}, skipped ${skipped} (insufficient PA/IP), errors ${errors} of ${targets.length}.`,
+    };
+  });
+
