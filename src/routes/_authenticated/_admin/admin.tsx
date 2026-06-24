@@ -4,8 +4,9 @@ import { useState } from "react";
 import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
-  createModelVersion,
+  createModelVersion, recomputePlayerDNA,
 } from "@/lib/ingest.functions";
+
 
 export const Route = createFileRoute("/_authenticated/_admin/admin")({
   head: () => ({ meta: [{ title: "Admin · Diamond" }] }),
