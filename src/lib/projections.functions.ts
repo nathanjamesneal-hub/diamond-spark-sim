@@ -185,3 +185,252 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
       recent_results: (results ?? []) as any,
     };
   });
+
+// =================== Diamond Scores (display-only) ===================
+
+export type DiamondHitterCard = {
+  player_id: string;
+  player_name: string;
+  team_abbrev: string;
+  opp_abbrev: string;
+  game_id: string;
+  mlb_game_id: number | null;
+  game_status: string | null;
+  first_pitch_at: string | null;
+  batting_order: number | null;
+  lineup_status: "locked" | "verified" | "waiting";
+  model_version: string;
+  diamond_score: number | null;
+  contact_score: number | null;
+  power_score: number | null;
+  speed_score: number | null;
+  pitcher_grade: number | null;
+  matchup_grade: number | null;
+  confidence: number | null;
+  hit_probability: number | null;
+  total_base_probability: number | null;
+  hr_probability: number | null;
+  rbi_probability: number | null;
+  run_probability: number | null;
+  sb_probability: number | null;
+  inputs_narrative: string | null;
+};
+
+export type DiamondPitcherCard = {
+  player_id: string;
+  player_name: string;
+  team_abbrev: string;
+  opp_abbrev: string;
+  game_id: string;
+  mlb_game_id: number | null;
+  game_status: string | null;
+  first_pitch_at: string | null;
+  model_version: string;
+  diamond_score: number | null;
+  confidence: number | null;
+  projected_outs: number | null;
+  quality_start_probability: number | null;
+  pitcher_win_probability: number | null;
+  inputs_narrative: string | null;
+};
+
+export type DiamondScoresPayload = {
+  date: string;
+  activeVersion: string | null;
+  modelVersions: string[];
+  games: { id: string; label: string; mlb_game_id: number | null }[];
+  teams: { id: string; abbrev: string }[];
+  hitters: DiamondHitterCard[];
+  pitchers: DiamondPitcherCard[];
+  missingHitterFields: string[];
+  missingPitcherFields: string[];
+};
+
+const MISSING_HITTER_FIELDS = [
+  "hit_over_0_5_probability",
+  "hit_over_1_5_probability",
+  "total_bases_projection",
+  "tb_over_0_5_probability",
+  "tb_over_1_5_probability",
+  "tb_over_2_5_probability",
+];
+const MISSING_PITCHER_FIELDS = [
+  "strikeout_projection",
+  "k_over_3_5_probability",
+  "k_over_4_5_probability",
+  "k_over_5_5_probability",
+  "k_over_6_5_probability",
+  "earned_runs_projection",
+  "er_under_2_5_probability",
+  "hits_allowed_projection",
+  "walks_projection",
+];
+
+function narrativeFromInputs(inputs: unknown): string | null {
+  if (!inputs || typeof inputs !== "object") return null;
+  const obj = inputs as Record<string, unknown>;
+  if (typeof obj.narrative === "string") return obj.narrative;
+  if (typeof obj.explanation === "string") return obj.explanation;
+  if (typeof obj.summary === "string") return obj.summary;
+  return null;
+}
+
+export const getDiamondScores = createServerFn({ method: "GET" })
+  .inputValidator((data: { date?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<DiamondScoresPayload> => {
+    const sb = publicClient();
+    const date = data.date ?? todayIso();
+
+    const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
+    const activeVersion = active?.version ?? null;
+
+    const { data: games } = await sb
+      .from("games").select("id, mlb_game_id, first_pitch_at, home_team_id, away_team_id, game_status")
+      .eq("date", date);
+
+    const empty: DiamondScoresPayload = {
+      date, activeVersion, modelVersions: [], games: [], teams: [],
+      hitters: [], pitchers: [],
+      missingHitterFields: MISSING_HITTER_FIELDS,
+      missingPitcherFields: MISSING_PITCHER_FIELDS,
+    };
+    if (!games?.length) return empty;
+
+    const gameIds = games.map((g) => g.id);
+    const { data: teamsRows } = await sb.from("teams").select("id, abbreviation");
+    const teamAbbrev = new Map((teamsRows ?? []).map((t) => [t.id, t.abbreviation]));
+
+    const [{ data: lineups }, { data: pitchers }, { data: projections }] = await Promise.all([
+      sb.from("lineups")
+        .select("game_id, player_id, team_id, batting_order, locked_at, confirmed")
+        .in("game_id", gameIds),
+      sb.from("starting_pitchers")
+        .select("game_id, player_id, team_id, confirmed")
+        .in("game_id", gameIds),
+      sb.from("projections")
+        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, created_at")
+        .in("game_id", gameIds)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    // Latest projection per (player, game, model_version)
+    const latest = new Map<string, any>();
+    const versions = new Set<string>();
+    for (const p of projections ?? []) {
+      versions.add(p.model_version);
+      const k = `${p.player_id}:${p.game_id}:${p.model_version}`;
+      if (!latest.has(k)) latest.set(k, p);
+    }
+
+    const playerIds = new Set<string>();
+    for (const l of lineups ?? []) playerIds.add(l.player_id);
+    for (const sp of pitchers ?? []) playerIds.add(sp.player_id);
+
+    const { data: playerRows } = await sb
+      .from("players").select("id, name, team_id")
+      .in("id", Array.from(playerIds));
+    const playerName = new Map((playerRows ?? []).map((p) => [p.id, p.name]));
+
+    const gameById = new Map(games.map((g) => [g.id, g]));
+    const teamsInPlay = new Map<string, string>();
+    for (const g of games) {
+      if (g.home_team_id) teamsInPlay.set(g.home_team_id, teamAbbrev.get(g.home_team_id) ?? "");
+      if (g.away_team_id) teamsInPlay.set(g.away_team_id, teamAbbrev.get(g.away_team_id) ?? "");
+    }
+
+    const gameOptions = games.map((g) => ({
+      id: g.id,
+      mlb_game_id: g.mlb_game_id ?? null,
+      label: `${teamAbbrev.get(g.away_team_id ?? "") ?? "?"} @ ${teamAbbrev.get(g.home_team_id ?? "") ?? "?"}`,
+    }));
+
+    const hitters: DiamondHitterCard[] = [];
+    for (const l of lineups ?? []) {
+      const g = gameById.get(l.game_id);
+      if (!g) continue;
+      const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
+      const versionsForPlayer = (projections ?? [])
+        .filter((p) => p.player_id === l.player_id && p.game_id === l.game_id);
+      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      for (const v of versionList) {
+        const proj = latest.get(`${l.player_id}:${l.game_id}:${v}`);
+        if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
+        hitters.push({
+          player_id: l.player_id,
+          player_name: playerName.get(l.player_id) ?? "Unknown",
+          team_abbrev: teamAbbrev.get(l.team_id ?? "") ?? "",
+          opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+          game_id: l.game_id,
+          mlb_game_id: g.mlb_game_id ?? null,
+          game_status: g.game_status ?? null,
+          first_pitch_at: g.first_pitch_at ?? null,
+          batting_order: l.batting_order ?? null,
+          lineup_status: l.locked_at ? "locked" : l.confirmed ? "verified" : "waiting",
+          model_version: v,
+          diamond_score: proj?.diamond_score ?? null,
+          contact_score: proj?.contact_score ?? null,
+          power_score: proj?.power_score ?? null,
+          speed_score: proj?.speed_score ?? null,
+          pitcher_grade: proj?.pitcher_grade ?? null,
+          matchup_grade: proj?.matchup_grade ?? null,
+          confidence: proj?.confidence ?? null,
+          hit_probability: proj?.hit_probability ?? null,
+          total_base_probability: proj?.total_base_probability ?? null,
+          hr_probability: proj?.hr_probability ?? null,
+          rbi_probability: proj?.rbi_probability ?? null,
+          run_probability: proj?.run_probability ?? null,
+          sb_probability: proj?.sb_probability ?? null,
+          inputs_narrative: narrativeFromInputs(proj?.inputs),
+        });
+      }
+    }
+
+    const pitcherCards: DiamondPitcherCard[] = [];
+    for (const sp of pitchers ?? []) {
+      const g = gameById.get(sp.game_id);
+      if (!g) continue;
+      const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
+      const versionsForPlayer = (projections ?? [])
+        .filter((p) => p.player_id === sp.player_id && p.game_id === sp.game_id);
+      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      for (const v of versionList) {
+        const proj = latest.get(`${sp.player_id}:${sp.game_id}:${v}`);
+        if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
+        pitcherCards.push({
+          player_id: sp.player_id,
+          player_name: playerName.get(sp.player_id) ?? "Unknown",
+          team_abbrev: teamAbbrev.get(sp.team_id ?? "") ?? "",
+          opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+          game_id: sp.game_id,
+          mlb_game_id: g.mlb_game_id ?? null,
+          game_status: g.game_status ?? null,
+          first_pitch_at: g.first_pitch_at ?? null,
+          model_version: v,
+          diamond_score: proj?.diamond_score ?? null,
+          confidence: proj?.confidence ?? null,
+          projected_outs: proj?.projected_outs ?? null,
+          quality_start_probability: proj?.quality_start_probability ?? null,
+          pitcher_win_probability: proj?.pitcher_win_probability ?? null,
+          inputs_narrative: narrativeFromInputs(proj?.inputs),
+        });
+      }
+    }
+
+    hitters.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+    pitcherCards.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+
+    return {
+      date,
+      activeVersion,
+      modelVersions: Array.from(versions).sort(),
+      games: gameOptions,
+      teams: Array.from(teamsInPlay.entries()).map(([id, abbrev]) => ({ id, abbrev })).sort((a, b) => a.abbrev.localeCompare(b.abbrev)),
+      hitters,
+      pitchers: pitcherCards,
+      missingHitterFields: MISSING_HITTER_FIELDS,
+      missingPitcherFields: MISSING_PITCHER_FIELDS,
+    };
+  });
+
