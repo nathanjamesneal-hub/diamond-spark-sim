@@ -417,13 +417,17 @@ export async function runDiamondEngineForGames(
     });
   }
 
-  for (const sp of isAlpha03(version) ? (sps ?? []) : []) {
+  // Pitcher projections always run (independent of active hitter version).
+  // We use the Alpha 0.3 pitcher engine directly so v0.1.0 hitter math is
+  // unchanged but pitchers still get a real Diamond Pitcher Score.
+  const { project: projectPitcherAlpha } = await import("@/lib/engines/alpha_0_3/engine");
+  for (const sp of sps ?? []) {
     const game = games.find((x: any) => x.id === sp.game_id);
     if (!game) continue;
     const dna = dnaByPlayer.get(sp.player_id) ?? {
       contact: 50, power: 50, speed: 35, discipline: 50, consistency: 50,
     };
-    const out = projectForModelVersion(version, {
+    const out = projectPitcherAlpha({
       role: "pitcher",
       teamSide: sideForTeam(game, sp.team_id),
       gameEnvironment: environmentByGame.get(sp.game_id),
@@ -436,6 +440,8 @@ export async function runDiamondEngineForGames(
     });
     const gls = glsByGame.get(sp.game_id);
     projections.push({
+      // Tag pitcher rows with the active hitter version so the slate filter
+      // (which keys off the active model_version) keeps them visible.
       player_id: sp.player_id, game_id: sp.game_id, model_version: version,
       projection_role: out.role,
       diamond_score: out.diamond_score, contact_score: out.contact_score,
@@ -459,6 +465,14 @@ export async function runDiamondEngineForGames(
   }
 
   if (projections.length) {
+    // Supersede prior active rows for the targeted games + model_version
+    // so a rerun replaces both hitter and pitcher cards cleanly.
+    await supabaseAdmin
+      .from("projections")
+      .update({ projection_status: "superseded" })
+      .in("game_id", targetGameIds)
+      .eq("model_version", version)
+      .eq("projection_status", "active");
     const { error } = await supabaseAdmin.from("projections").insert(projections);
     if (error) throw new Error(error.message);
   }
