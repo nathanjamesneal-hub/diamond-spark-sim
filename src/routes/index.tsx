@@ -5,12 +5,20 @@ import { ScoreCard } from "@/components/score-card";
 
 const scheduleQuery = queryOptions({
   queryKey: ["schedule", "today"],
-  queryFn: () => getSchedule({ data: {} }),
+  queryFn: async () => {
+    try {
+      return await getSchedule({ data: {} });
+    } catch (err) {
+      console.error("[index] getSchedule failed; rendering empty slate", err);
+      const today = new Date().toISOString().slice(0, 10);
+      return { date: today, games: [] as GameSummary[] };
+    }
+  },
   refetchInterval: 15_000,
   refetchOnWindowFocus: false,
   retry: 2,
   retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-  throwOnError: (_err, query) => query.state.data === undefined,
+  throwOnError: false,
 });
 
 export const Route = createFileRoute("/")({
@@ -32,7 +40,10 @@ export const Route = createFileRoute("/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(scheduleQuery),
   component: TodayPage,
   errorComponent: ({ error }) => (
-    <div className="p-8 text-sm text-muted-foreground">Couldn't load today's slate: {error.message}</div>
+    <div className="mx-auto max-w-2xl p-8 text-sm">
+      <div className="font-display text-lg text-foreground">Couldn't load today's slate.</div>
+      <div className="mt-1 text-muted-foreground">{error?.message ?? String(error)}</div>
+    </div>
   ),
   notFoundComponent: () => <div className="p-8">No games today.</div>,
 });
