@@ -9,38 +9,267 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StandingsRouteImport } from './routes/standings'
+import { Route as SlateRouteImport } from './routes/slate'
+import { Route as ScoresRouteImport } from './routes/scores'
+import { Route as OddsRouteImport } from './routes/odds'
+import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
+import { Route as CalibrationRouteImport } from './routes/calibration'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
+import { Route as PlayersPlayerIdRouteImport } from './routes/players.$playerId'
+import { Route as MatchupsGamePkRouteImport } from './routes/matchups.$gamePk'
+import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
+import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 
+const StandingsRoute = StandingsRouteImport.update({
+  id: '/standings',
+  path: '/standings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlateRoute = SlateRouteImport.update({
+  id: '/slate',
+  path: '/slate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScoresRoute = ScoresRouteImport.update({
+  id: '/scores',
+  path: '/scores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OddsRoute = OddsRouteImport.update({
+  id: '/odds',
+  path: '/odds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardsRoute = LeaderboardsRouteImport.update({
+  id: '/leaderboards',
+  path: '/leaderboards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalibrationRoute = CalibrationRouteImport.update({
+  id: '/calibration',
+  path: '/calibration',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
+  id: '/teams/$teamId',
+  path: '/teams/$teamId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayersPlayerIdRoute = PlayersPlayerIdRouteImport.update({
+  id: '/players/$playerId',
+  path: '/players/$playerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatchupsGamePkRoute = MatchupsGamePkRouteImport.update({
+  id: '/matchups/$gamePk',
+  path: '/matchups/$gamePk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedBetsRoute = AuthenticatedBetsRouteImport.update({
+  id: '/bets',
+  path: '/bets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/calibration': typeof CalibrationRoute
+  '/leaderboards': typeof LeaderboardsRoute
+  '/odds': typeof OddsRoute
+  '/scores': typeof ScoresRoute
+  '/slate': typeof SlateRoute
+  '/standings': typeof StandingsRoute
+  '/bets': typeof AuthenticatedBetsRoute
+  '/matchups/$gamePk': typeof MatchupsGamePkRoute
+  '/players/$playerId': typeof PlayersPlayerIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/admin': typeof AuthenticatedAdminAdminRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/calibration': typeof CalibrationRoute
+  '/leaderboards': typeof LeaderboardsRoute
+  '/odds': typeof OddsRoute
+  '/scores': typeof ScoresRoute
+  '/slate': typeof SlateRoute
+  '/standings': typeof StandingsRoute
+  '/bets': typeof AuthenticatedBetsRoute
+  '/matchups/$gamePk': typeof MatchupsGamePkRoute
+  '/players/$playerId': typeof PlayersPlayerIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/admin': typeof AuthenticatedAdminAdminRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/calibration': typeof CalibrationRoute
+  '/leaderboards': typeof LeaderboardsRoute
+  '/odds': typeof OddsRoute
+  '/scores': typeof ScoresRoute
+  '/slate': typeof SlateRoute
+  '/standings': typeof StandingsRoute
+  '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/_authenticated/bets': typeof AuthenticatedBetsRoute
+  '/matchups/$gamePk': typeof MatchupsGamePkRoute
+  '/players/$playerId': typeof PlayersPlayerIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/calibration'
+    | '/leaderboards'
+    | '/odds'
+    | '/scores'
+    | '/slate'
+    | '/standings'
+    | '/bets'
+    | '/matchups/$gamePk'
+    | '/players/$playerId'
+    | '/teams/$teamId'
+    | '/admin'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/calibration'
+    | '/leaderboards'
+    | '/odds'
+    | '/scores'
+    | '/slate'
+    | '/standings'
+    | '/bets'
+    | '/matchups/$gamePk'
+    | '/players/$playerId'
+    | '/teams/$teamId'
+    | '/admin'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/calibration'
+    | '/leaderboards'
+    | '/odds'
+    | '/scores'
+    | '/slate'
+    | '/standings'
+    | '/_authenticated/_admin'
+    | '/_authenticated/bets'
+    | '/matchups/$gamePk'
+    | '/players/$playerId'
+    | '/teams/$teamId'
+    | '/_authenticated/_admin/admin'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  CalibrationRoute: typeof CalibrationRoute
+  LeaderboardsRoute: typeof LeaderboardsRoute
+  OddsRoute: typeof OddsRoute
+  ScoresRoute: typeof ScoresRoute
+  SlateRoute: typeof SlateRoute
+  StandingsRoute: typeof StandingsRoute
+  MatchupsGamePkRoute: typeof MatchupsGamePkRoute
+  PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
+  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/standings': {
+      id: '/standings'
+      path: '/standings'
+      fullPath: '/standings'
+      preLoaderRoute: typeof StandingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/slate': {
+      id: '/slate'
+      path: '/slate'
+      fullPath: '/slate'
+      preLoaderRoute: typeof SlateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scores': {
+      id: '/scores'
+      path: '/scores'
+      fullPath: '/scores'
+      preLoaderRoute: typeof ScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/odds': {
+      id: '/odds'
+      path: '/odds'
+      fullPath: '/odds'
+      preLoaderRoute: typeof OddsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboards': {
+      id: '/leaderboards'
+      path: '/leaderboards'
+      fullPath: '/leaderboards'
+      preLoaderRoute: typeof LeaderboardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calibration': {
+      id: '/calibration'
+      path: '/calibration'
+      fullPath: '/calibration'
+      preLoaderRoute: typeof CalibrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +277,92 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/teams/$teamId': {
+      id: '/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof TeamsTeamIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/players/$playerId': {
+      id: '/players/$playerId'
+      path: '/players/$playerId'
+      fullPath: '/players/$playerId'
+      preLoaderRoute: typeof PlayersPlayerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matchups/$gamePk': {
+      id: '/matchups/$gamePk'
+      path: '/matchups/$gamePk'
+      fullPath: '/matchups/$gamePk'
+      preLoaderRoute: typeof MatchupsGamePkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/bets': {
+      id: '/_authenticated/bets'
+      path: '/bets'
+      fullPath: '/bets'
+      preLoaderRoute: typeof AuthenticatedBetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/_admin': {
+      id: '/_authenticated/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/_admin/admin': {
+      id: '/_authenticated/_admin/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminAdminRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
   }
 }
 
+interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
+}
+
+const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
+  {
+    AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
+  }
+
+const AuthenticatedAdminRouteRouteWithChildren =
+  AuthenticatedAdminRouteRoute._addFileChildren(
+    AuthenticatedAdminRouteRouteChildren,
+  )
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
+  AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
+  AuthenticatedBetsRoute: AuthenticatedBetsRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  CalibrationRoute: CalibrationRoute,
+  LeaderboardsRoute: LeaderboardsRoute,
+  OddsRoute: OddsRoute,
+  ScoresRoute: ScoresRoute,
+  SlateRoute: SlateRoute,
+  StandingsRoute: StandingsRoute,
+  MatchupsGamePkRoute: MatchupsGamePkRoute,
+  PlayersPlayerIdRoute: PlayersPlayerIdRoute,
+  TeamsTeamIdRoute: TeamsTeamIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
