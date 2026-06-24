@@ -405,6 +405,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
         pitcherCards.push({
           player_id: sp.player_id,
+          mlb_id: playerMlbId.get(sp.player_id) ?? null,
           player_name: playerName.get(sp.player_id) ?? "Unknown",
           team_abbrev: teamAbbrev.get(sp.team_id ?? "") ?? "",
           opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
