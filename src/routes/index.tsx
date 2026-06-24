@@ -240,25 +240,3 @@ function EmptyState() {
   );
 }
 
-function ComingSoonStrip() {
-  const items = [
-    { label: "Monte Carlo sims", desc: "10k per game · win prob, score, prop dists" },
-    { label: "Value board", desc: "Edges vs. sportsbook lines, Kelly stake" },
-    { label: "Personal tracking", desc: "Log your own at-bats and games" },
-  ];
-  return (
-    <div className="mt-12 rounded-xl border border-dashed border-border/60 bg-card/30 p-5">
-      <div className="mono mb-3 text-[10px] uppercase tracking-[0.25em] text-edge">
-        On deck · phases 2–4
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {items.map((i) => (
-          <div key={i.label} className="rounded-md bg-secondary/40 p-3">
-            <div className="font-display font-semibold">{i.label}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{i.desc}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
