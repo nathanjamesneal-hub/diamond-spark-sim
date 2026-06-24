@@ -14,6 +14,7 @@ import { Route as SlateRouteImport } from './routes/slate'
 import { Route as ScoresRouteImport } from './routes/scores'
 import { Route as OddsRouteImport } from './routes/odds'
 import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
+import { Route as DiamondScoresRouteImport } from './routes/diamond-scores'
 import { Route as CalibrationRouteImport } from './routes/calibration'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -48,6 +49,11 @@ const OddsRoute = OddsRouteImport.update({
 const LeaderboardsRoute = LeaderboardsRouteImport.update({
   id: '/leaderboards',
   path: '/leaderboards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiamondScoresRoute = DiamondScoresRouteImport.update({
+  id: '/diamond-scores',
+  path: '/diamond-scores',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalibrationRoute = CalibrationRouteImport.update({
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calibration'
+    | '/diamond-scores'
     | '/leaderboards'
     | '/odds'
     | '/scores'
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calibration'
+    | '/diamond-scores'
     | '/leaderboards'
     | '/odds'
     | '/scores'
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/calibration'
+    | '/diamond-scores'
     | '/leaderboards'
     | '/odds'
     | '/scores'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CalibrationRoute: typeof CalibrationRoute
+  DiamondScoresRoute: typeof DiamondScoresRoute
   LeaderboardsRoute: typeof LeaderboardsRoute
   OddsRoute: typeof OddsRoute
   ScoresRoute: typeof ScoresRoute
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboards'
       fullPath: '/leaderboards'
       preLoaderRoute: typeof LeaderboardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diamond-scores': {
+      id: '/diamond-scores'
+      path: '/diamond-scores'
+      fullPath: '/diamond-scores'
+      preLoaderRoute: typeof DiamondScoresRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calibration': {
@@ -354,6 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CalibrationRoute: CalibrationRoute,
+  DiamondScoresRoute: DiamondScoresRoute,
   LeaderboardsRoute: LeaderboardsRoute,
   OddsRoute: OddsRoute,
   ScoresRoute: ScoresRoute,
