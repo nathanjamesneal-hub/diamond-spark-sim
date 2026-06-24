@@ -1,25 +1,19 @@
-## What's happening
+## Problem
 
-The "Missing Supabase environment variable(s)" message comes from `src/integrations/supabase/client.ts` when `import.meta.env.VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are missing from the bundle. Both keys ARE present in `.env` now (added at 13:07), but the preview console errors are stamped 13:05 — the bundle the browser is running was built BEFORE the env file existed, so `VITE_*` got inlined as `undefined`.
+The sign-in screen throws "Missing Supabase environment variable(s)" because the project's `.env` file is gone from the sandbox. Last session I removed `.env` from `.gitignore` so it would survive, but the file itself was never committed — so when the sandbox refreshed, the managed `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` disappeared with it, and the client bundle has nothing to read.
 
-On top of that:
+The `/auth` route is `ssr: false`, so it relies entirely on the browser-side `import.meta.env.VITE_*` values that Vite inlines at build time. With no `.env`, those are `undefined` and `src/integrations/supabase/client.ts` throws on first access.
 
-- `.gitignore` ignores `.env`, so on this Vite/TanStack stack the managed Supabase env is not version-controlled and any sandbox refresh without a fresh `.env` write reproduces this.
-- The hydration mismatch (SSR "16 games" vs client "0 games") is a downstream symptom: SSR fetched the schedule fine, then the client bundle threw inside `site-header.tsx` → `supabase.auth.getUser()` because `VITE_SUPABASE_*` was undefined, the root error boundary swallowed it, and the suspense query re-rendered with the empty fallback.
+## Fix
 
-## Plan
+1. **Recreate `.env`** at the project root with the known managed Lovable Cloud values (URL + publishable anon key + project id). These are publishable, safe to commit, and `.env` is already out of `.gitignore` from last session — so this time it will persist across sandbox refreshes.
 
-1. **Force a fresh rebuild of the preview bundle** so the now-present `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are inlined. Restart the dev server (`code--restart_dev_server`) — no code change needed for this step.
+2. **Restart the dev server** so Vite re-inlines the env into the client bundle.
 
-2. **Remove `.env` from `.gitignore`** for this Vite/TanStack stack so the managed Supabase env survives sandbox refreshes (the keys in `.env` are the publishable + URL, safe to commit; service role stays in secrets, not `.env`).
+3. **Harden `src/integrations/supabase/client.ts`** so a future missing-env situation renders a friendly inline message in the header/auth page instead of throwing through the root error boundary and nuking every tab. (Return a stub client whose first call surfaces a clear "Backend not connected" message, rather than `throw new Error` at proxy access.)
 
-3. **Verify with Playwright on a mobile viewport (402×717)**: load `/`, `/auth`, `/standings`, `/odds`. Confirm no "Missing Supabase" string, no "Rain delay" boundary, and the header renders sign-in/sign-out correctly.
-
-4. **If step 3 still shows missing env**, harden `src/integrations/supabase/client.ts` to render a friendlier inline message instead of throwing through the root error boundary (so a future env hiccup doesn't take down every tab).
-
-No schema, RLS, Diamond Engine, or feature-logic changes. Frontend/infra only.
+4. **Verify on mobile viewport (402×717)** with Playwright: load `/`, `/auth`, click "Sign in" elements, confirm no "Missing Supabase" string anywhere and no Rain Delay boundary.
 
 ## Out of scope
 
-- Edits to `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts` (auto-generated — only step 4 would touch `client.ts` and only its error rendering, not the env reads).
-- Any change to projections, sim engine, lineup pipeline, or admin routes.
+No schema changes, no auth provider changes, no feature-logic edits. Frontend + env only.
