@@ -9,6 +9,7 @@ const q = queryOptions({
 });
 
 export const Route = createFileRoute("/calibration")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Calibration · Diamond" },
