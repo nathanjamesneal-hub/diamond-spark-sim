@@ -190,6 +190,7 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
 
 export type DiamondHitterCard = {
   player_id: string;
+  mlb_id: number | null;
   player_name: string;
   team_abbrev: string;
   opp_abbrev: string;
@@ -218,6 +219,7 @@ export type DiamondHitterCard = {
 
 export type DiamondPitcherCard = {
   player_id: string;
+  mlb_id: number | null;
   player_name: string;
   team_abbrev: string;
   opp_abbrev: string;
@@ -233,6 +235,7 @@ export type DiamondPitcherCard = {
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
 };
+
 
 export type DiamondScoresPayload = {
   date: string;
@@ -327,9 +330,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     for (const sp of pitchers ?? []) playerIds.add(sp.player_id);
 
     const { data: playerRows } = await sb
-      .from("players").select("id, name, team_id")
+      .from("players").select("id, name, team_id, mlb_id")
       .in("id", Array.from(playerIds));
     const playerName = new Map((playerRows ?? []).map((p) => [p.id, p.name]));
+    const playerMlbId = new Map((playerRows ?? []).map((p) => [p.id, (p as any).mlb_id ?? null]));
 
     const gameById = new Map(games.map((g) => [g.id, g]));
     const teamsInPlay = new Map<string, string>();
@@ -358,6 +362,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
         hitters.push({
           player_id: l.player_id,
+          mlb_id: playerMlbId.get(l.player_id) ?? null,
           player_name: playerName.get(l.player_id) ?? "Unknown",
           team_abbrev: teamAbbrev.get(l.team_id ?? "") ?? "",
           opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
@@ -400,6 +405,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
         pitcherCards.push({
           player_id: sp.player_id,
+          mlb_id: playerMlbId.get(sp.player_id) ?? null,
           player_name: playerName.get(sp.player_id) ?? "Unknown",
           team_abbrev: teamAbbrev.get(sp.team_id ?? "") ?? "",
           opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",

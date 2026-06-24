@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getPlayer, type PlayerStatLine } from "@/lib/mlb.functions";
 
@@ -19,8 +19,11 @@ export const Route = createFileRoute("/players/$playerId")({
       { property: "og:description", content: "Season, career, and projections." },
     ],
   }),
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(playerQuery(Number(params.playerId))),
+  loader: ({ context, params }) => {
+    const id = Number(params.playerId);
+    if (!Number.isFinite(id)) throw notFound();
+    return context.queryClient.ensureQueryData(playerQuery(id));
+  },
   component: PlayerPage,
   errorComponent: ({ error }) => (
     <div className="p-8 text-sm text-muted-foreground">Couldn't load player: {error.message}</div>
