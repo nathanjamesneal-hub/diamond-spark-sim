@@ -309,8 +309,190 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       hitters: [], pitchers: [],
       missingHitterFields: MISSING_HITTER_FIELDS,
       missingPitcherFields: MISSING_PITCHER_FIELDS,
+      slateConfirmed: 0,
+      slateTotal: 0,
     };
     if (!games?.length) return empty;
+
+    const gameIds = games.map((g) => g.id);
+    const { data: teamsRows } = await sb.from("teams").select("id, abbreviation");
+    const teamAbbrev = new Map((teamsRows ?? []).map((t) => [t.id, t.abbreviation]));
+
+    const [{ data: lineups }, { data: pitchers }, { data: projections }, { data: glsRows }] = await Promise.all([
+      sb.from("lineups")
+        .select("game_id, player_id, team_id, batting_order, locked_at, confirmed, lineup_status, lineup_source")
+        .in("game_id", gameIds),
+      sb.from("starting_pitchers")
+        .select("game_id, player_id, team_id, confirmed")
+        .in("game_id", gameIds),
+      sb.from("projections")
+        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, created_at, projection_status")
+        .in("game_id", gameIds)
+        .eq("projection_status", "active")
+        .order("created_at", { ascending: false }),
+      sb.from("game_lineup_status")
+        .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
+        .in("game_id", gameIds),
+    ]);
+
+    const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
+
+    // Latest projection per (player, game, model_version)
+    const latest = new Map<string, any>();
+    const versions = new Set<string>();
+    for (const p of projections ?? []) {
+      versions.add(p.model_version);
+      const k = `${p.player_id}:${p.game_id}:${p.model_version}`;
+      if (!latest.has(k)) latest.set(k, p);
+    }
+
+    const playerIds = new Set<string>();
+    for (const l of lineups ?? []) playerIds.add(l.player_id);
+    for (const sp of pitchers ?? []) playerIds.add(sp.player_id);
+
+    const { data: playerRows } = await sb
+      .from("players").select("id, name, team_id, mlb_id")
+      .in("id", Array.from(playerIds));
+    const playerName = new Map((playerRows ?? []).map((p) => [p.id, p.name]));
+    const playerMlbId = new Map((playerRows ?? []).map((p) => [p.id, (p as any).mlb_id ?? null]));
+
+    const gameById = new Map(games.map((g) => [g.id, g]));
+    const teamsInPlay = new Map<string, string>();
+    for (const g of games) {
+      if (g.home_team_id) teamsInPlay.set(g.home_team_id, teamAbbrev.get(g.home_team_id) ?? "");
+      if (g.away_team_id) teamsInPlay.set(g.away_team_id, teamAbbrev.get(g.away_team_id) ?? "");
+    }
+
+    const gameOptions = games.map((g) => {
+      const gls = glsByGame.get(g.id);
+      return {
+        id: g.id,
+        mlb_game_id: g.mlb_game_id ?? null,
+        label: `${teamAbbrev.get(g.away_team_id ?? "") ?? "?"} @ ${teamAbbrev.get(g.home_team_id ?? "") ?? "?"}`,
+        confidence: gls?.confidence ?? null,
+        hitters_set: gls?.hitters_set ?? 0,
+        hitters_expected: gls?.hitters_expected ?? 18,
+        last_refresh_at: gls?.last_refresh_at ?? null,
+        primary_source: gls?.primary_source ?? null,
+        status: gls?.status ?? null,
+      };
+    });
+
+    const badgeFor = (conf: number | null, locked: boolean): LineupBadgeStatus => {
+      if (locked) return "locked";
+      if (conf == null) return "low_confidence";
+      if (conf >= 95) return "official";
+      if (conf >= 75) return "aggregated";
+      return "low_confidence";
+    };
+
+    const hitters: DiamondHitterCard[] = [];
+    for (const l of lineups ?? []) {
+      const g = gameById.get(l.game_id);
+      if (!g) continue;
+      const gls = glsByGame.get(l.game_id);
+      const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
+      const versionsForPlayer = (projections ?? [])
+        .filter((p) => p.player_id === l.player_id && p.game_id === l.game_id);
+      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      for (const v of versionList) {
+        const proj = latest.get(`${l.player_id}:${l.game_id}:${v}`);
+        if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
+        hitters.push({
+          player_id: l.player_id,
+          mlb_id: playerMlbId.get(l.player_id) ?? null,
+          player_name: playerName.get(l.player_id) ?? "Unknown",
+          team_abbrev: teamAbbrev.get(l.team_id ?? "") ?? "",
+          opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+          game_id: l.game_id,
+          mlb_game_id: g.mlb_game_id ?? null,
+          game_status: g.game_status ?? null,
+          first_pitch_at: g.first_pitch_at ?? null,
+          batting_order: l.batting_order ?? null,
+          lineup_status: l.locked_at ? "locked" : l.confirmed ? "verified" : "waiting",
+          lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
+          lineup_confidence: gls?.confidence ?? null,
+          badge: badgeFor(gls?.confidence ?? null, !!l.locked_at),
+          last_refresh_at: gls?.last_refresh_at ?? null,
+          source_count: gls?.source_count ?? null,
+          model_version: v,
+          diamond_score: proj?.diamond_score ?? null,
+          contact_score: proj?.contact_score ?? null,
+          power_score: proj?.power_score ?? null,
+          speed_score: proj?.speed_score ?? null,
+          pitcher_grade: proj?.pitcher_grade ?? null,
+          matchup_grade: proj?.matchup_grade ?? null,
+          confidence: proj?.confidence ?? null,
+          hit_probability: proj?.hit_probability ?? null,
+          total_base_probability: proj?.total_base_probability ?? null,
+          hr_probability: proj?.hr_probability ?? null,
+          rbi_probability: proj?.rbi_probability ?? null,
+          run_probability: proj?.run_probability ?? null,
+          sb_probability: proj?.sb_probability ?? null,
+          inputs_narrative: narrativeFromInputs(proj?.inputs),
+        });
+      }
+    }
+
+    const pitcherCards: DiamondPitcherCard[] = [];
+    for (const sp of pitchers ?? []) {
+      const g = gameById.get(sp.game_id);
+      if (!g) continue;
+      const gls = glsByGame.get(sp.game_id);
+      const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
+      const versionsForPlayer = (projections ?? [])
+        .filter((p) => p.player_id === sp.player_id && p.game_id === sp.game_id);
+      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      for (const v of versionList) {
+        const proj = latest.get(`${sp.player_id}:${sp.game_id}:${v}`);
+        if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
+        pitcherCards.push({
+          player_id: sp.player_id,
+          mlb_id: playerMlbId.get(sp.player_id) ?? null,
+          player_name: playerName.get(sp.player_id) ?? "Unknown",
+          team_abbrev: teamAbbrev.get(sp.team_id ?? "") ?? "",
+          opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+          game_id: sp.game_id,
+          mlb_game_id: g.mlb_game_id ?? null,
+          game_status: g.game_status ?? null,
+          first_pitch_at: g.first_pitch_at ?? null,
+          model_version: v,
+          diamond_score: proj?.diamond_score ?? null,
+          confidence: proj?.confidence ?? null,
+          projected_outs: proj?.projected_outs ?? null,
+          quality_start_probability: proj?.quality_start_probability ?? null,
+          pitcher_win_probability: proj?.pitcher_win_probability ?? null,
+          inputs_narrative: narrativeFromInputs(proj?.inputs),
+          lineup_confidence: gls?.confidence ?? null,
+          lineup_source: gls?.primary_source ?? null,
+          badge: badgeFor(gls?.confidence ?? null, gls?.status === "locked"),
+        });
+      }
+    }
+
+    hitters.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+    pitcherCards.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+
+    const slateConfirmed = gameOptions.filter((g) => (g.confidence ?? 0) >= 95).length;
+    const slateTotal = gameOptions.length;
+
+    return {
+      date,
+      activeVersion,
+      modelVersions: Array.from(versions).sort(),
+      games: gameOptions,
+      teams: Array.from(teamsInPlay.entries()).map(([id, abbrev]) => ({ id, abbrev })).sort((a, b) => a.abbrev.localeCompare(b.abbrev)),
+      hitters,
+      pitchers: pitcherCards,
+      missingHitterFields: MISSING_HITTER_FIELDS,
+      missingPitcherFields: MISSING_PITCHER_FIELDS,
+      slateConfirmed,
+      slateTotal,
+    };
+  });
+
 
     const gameIds = games.map((g) => g.id);
     const { data: teamsRows } = await sb.from("teams").select("id, abbreviation");
