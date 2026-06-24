@@ -19,6 +19,11 @@ import {
   type GameEnvironmentInput,
   type TeamSide,
 } from "../../game-environment.ts";
+import {
+  buildPitcherComponents,
+  describePitcherComponents,
+  pitcherDiamondScore,
+} from "../pitcher_diamond_score.ts";
 
 export type AlphaRole = "hitter" | "pitcher";
 
