@@ -52,7 +52,9 @@ function AdminPanel() {
     { key: "schedule", label: "Import schedule", desc: "Upserts teams + games for the date.", go: () => sched({ data: { date } }) },
     { key: "lineups", label: "Import lineups", desc: "Pulls confirmed lineups + roster sync.", go: () => lineups({ data: { date } }) },
     { key: "sp", label: "Import starting pitchers", desc: "Probable + confirmed SP assignments.", go: () => sps({ data: { date } }) },
+    { key: "dna", label: "Recompute Player DNA", desc: "Pulls MLB season stats and refreshes contact / power / speed / discipline / consistency. Run when DNA looks stale (all-50 defaults).", go: () => recomputeDna({ data: { onlyMissing: dnaOnlyMissing } }) },
     { key: "engine", label: "Run Diamond Engine", desc: "Generates a new projection row per hitter (append-only).", go: () => engine({ data: { date } }) },
+
     { key: "lock", label: "Lock projections", desc: "Stamps lineups with locked_at.", go: () => lock({ data: { date } }) },
     { key: "results", label: "Import results", desc: "Pulls box-score outcomes for calibration.", go: () => results({ data: { date } }) },
     { key: "calib", label: "Run calibration", desc: "Recomputes the calibration_summary table.", go: () => calib({ data: {} }) },
