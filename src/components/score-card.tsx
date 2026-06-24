@@ -1,14 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import type { GameSummary } from "@/lib/mlb.functions";
+import { formatTimeInAppTz } from "@/lib/timezone";
 
 function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch {
-    return "";
-  }
+  return formatTimeInAppTz(iso);
 }
+
 
 export function ScoreCard({ game }: { game: GameSummary }) {
   const winner =
