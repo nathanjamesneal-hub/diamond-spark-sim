@@ -4,8 +4,9 @@ import { useState } from "react";
 import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
-  createModelVersion,
+  createModelVersion, recomputePlayerDNA,
 } from "@/lib/ingest.functions";
+
 
 export const Route = createFileRoute("/_authenticated/_admin/admin")({
   head: () => ({ meta: [{ title: "Admin · Diamond" }] }),
@@ -20,6 +21,8 @@ function AdminPanel() {
   const [newVersion, setNewVersion] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [activate, setActivate] = useState(true);
+  const [dnaOnlyMissing, setDnaOnlyMissing] = useState(false);
+
 
   const sched = useServerFn(importSchedule);
   const lineups = useServerFn(importLineups);
@@ -29,6 +32,8 @@ function AdminPanel() {
   const results = useServerFn(importResults);
   const calib = useServerFn(runCalibration);
   const createVer = useServerFn(createModelVersion);
+  const recomputeDna = useServerFn(recomputePlayerDNA);
+
 
   async function run(key: string, fn: () => Promise<any>) {
     setState((s) => ({ ...s, [key]: { running: true, last: s[key]?.last } }));
@@ -47,7 +52,9 @@ function AdminPanel() {
     { key: "schedule", label: "Import schedule", desc: "Upserts teams + games for the date.", go: () => sched({ data: { date } }) },
     { key: "lineups", label: "Import lineups", desc: "Pulls confirmed lineups + roster sync.", go: () => lineups({ data: { date } }) },
     { key: "sp", label: "Import starting pitchers", desc: "Probable + confirmed SP assignments.", go: () => sps({ data: { date } }) },
+    { key: "dna", label: "Recompute Player DNA", desc: "Pulls MLB season stats and refreshes contact / power / speed / discipline / consistency. Run when DNA looks stale (all-50 defaults).", go: () => recomputeDna({ data: { onlyMissing: dnaOnlyMissing } }) },
     { key: "engine", label: "Run Diamond Engine", desc: "Generates a new projection row per hitter (append-only).", go: () => engine({ data: { date } }) },
+
     { key: "lock", label: "Lock projections", desc: "Stamps lineups with locked_at.", go: () => lock({ data: { date } }) },
     { key: "results", label: "Import results", desc: "Pulls box-score outcomes for calibration.", go: () => results({ data: { date } }) },
     { key: "calib", label: "Run calibration", desc: "Recomputes the calibration_summary table.", go: () => calib({ data: {} }) },
@@ -77,12 +84,19 @@ function AdminPanel() {
               <div className="min-w-0 flex-1">
                 <div className="font-display font-semibold">{op.label}</div>
                 <div className="text-xs text-muted-foreground">{op.desc}</div>
+                {op.key === "dna" ? (
+                  <label className="mono mt-2 inline-flex items-center gap-2 text-[11px] uppercase tracking-widest text-muted-foreground">
+                    <input type="checkbox" checked={dnaOnlyMissing} onChange={(e) => setDnaOnlyMissing(e.target.checked)} />
+                    Only players missing DNA
+                  </label>
+                ) : null}
                 {s?.last ? (
                   <div className={`mono mt-1 text-[11px] ${s.last.ok ? "text-edge" : "text-destructive"}`}>
                     {s.last.at} · {s.last.msg}
                   </div>
                 ) : null}
               </div>
+
               <button
                 onClick={() => run(op.key, op.go)} disabled={s?.running}
                 className="mono rounded-md bg-primary px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-primary-foreground disabled:opacity-50"

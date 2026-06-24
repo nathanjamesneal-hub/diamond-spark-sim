@@ -1,136 +1,77 @@
-# Diamond Scores — Display-Only Section
+# Diagnosis + Fix: Player DNA Defaults
 
-A new read-only page that surfaces stored Diamond Engine outputs as Hitter and Pitcher cards. **No model, engine, registry, sim, ingestion, or schema changes.** Reads existing `projections` rows joined with `lineups`, `starting_pitchers`, `players`, `teams`, and `games`.
+## Findings
 
-## 1. New server function — `src/lib/projections.functions.ts`
+1. **All 328 `player_dna` rows are at the default `(50, 50, 50, 50, 50)`.** Confirmed by `SELECT count(*), sum(CASE WHEN all_fields=50 …)` → `total=328, all_default=328`.
+2. **`Import Lineups` only seeds new players with default DNA** (`ingest.functions.ts:202-216`): it inserts a blank `player_dna` row (which falls back to the column default of `50`) for any player without one. It never UPDATEs existing rows and never reads MLB stats.
+3. **No process recomputes DNA from MLB stats.** `rg "player_dna|recompute"` finds only the seed in `importLineups`, the read in `runDiamondEngine`, and the read in `getPlayerProjection` — no writer.
+4. **`Run Diamond Engine` reads real DNA — but real DNA is the defaults**, so every hitter is fed `contact=power=speed=discipline=consistency=50`. With identical inputs across the slate, the engine produces near-identical Diamond Scores around 50.
+5. **Pitcher grades default to 50 too.** In `runDiamondEngine` the opposing-pitcher quality is `100 - oppDna.contact` (line 361), and `oppDna.contact = 50`, so `pitcherQuality = 50` for every matchup. Pitcher cards run through the same DNA lookup and likewise get the default row.
 
-Add `getDiamondScores({ date? })` alongside the existing `getTodaysSlate`. Returns:
+So the model isn't broken — it's being fed neutral inputs.
 
-```ts
-{
-  date: string;
-  modelVersions: string[];    // distinct versions present today (for filter)
-  activeVersion: string | null;
-  games: { id: string; label: string }[];   // for game filter
-  teams: { id: string; abbrev: string }[];  // for team filter
-  hitters: HitterCard[];
-  pitchers: PitcherCard[];
-}
-```
+## Fix (no Diamond Engine formula change)
 
-For each game on `date`:
-- Load `lineups` (hitters) and `starting_pitchers` (pitchers).
-- Load latest `projections` row per `(player_id, game_id, model_version)` — keep ALL model versions (not just active) so users can filter.
-- Join player names, team/opponent abbreviations, game status, first pitch.
+Add an admin server function `recomputePlayerDNA` + an admin UI button. It updates `player_dna` rows from MLB Stats API season stats. The engine is untouched and will read the recomputed values automatically on the next `Run Diamond Engine`.
 
-Split rows by `projection_role` (`'hitter'` / `'pitcher'`). When `projection_role` is null, infer from whether the player came from `lineups` vs `starting_pitchers`.
+### New server fn — `src/lib/ingest.functions.ts`
 
-### Field mapping (existing columns → card fields)
+`recomputePlayerDNA({ season?, onlyMissing?, playerIds? })`:
 
-**Hitter card** (from `projections`):
-- diamond_score, contact_score, power_score, speed_score
-- pitcher_grade, matchup_grade
-- confidence
-- hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability
-- model_version
-- batting_order from `lineups`
-- Plus: player name, team abbrev, opp abbrev, game status, first_pitch_at
-- `inputs` jsonb → used to render the "why" explanation (top 2–3 weighted factors if present; otherwise show contact/power/speed/pitcher-grade summary)
+- Admin-gated like the other ingest fns.
+- Resolve `season = season ?? current MLB season` (year of the latest `games.date`, falling back to current year).
+- Load target players from `public.players` (filter: `active = true`; optionally restrict to `playerIds` or to rows whose `player_dna.last_recomputed_at IS NULL` when `onlyMissing`).
+- For each player, fetch MLB Stats API season totals:
+  - Hitters / two-way: `GET /people/{mlb_id}/stats?stats=season&group=hitting&season={year}` (uses existing `mlb()` helper).
+  - Pitchers (`position = 'P'`): `GET …&group=pitching&season={year}`.
+- Run **with a concurrency cap of 6** to stay polite to statsapi.mlb.com (simple `Promise.all` over batches). Skip players with no MLB stats yet (preseason or call-ups with 0 PA / 0 IP) — leave their row untouched and report as "skipped".
+- Upsert `player_dna` (`onConflict: player_id`) with `{ contact, power, speed, discipline, consistency, last_recomputed_at: now }`.
 
-**Hitter fields NOT in schema** → show "Not available yet" with a small "field: …" note:
-- Hit over 0.5 probability
-- Hit over 1.5 probability
-- Total bases projection (numeric — only `total_base_probability` exists)
-- TB over 0.5 / 1.5 / 2.5 probability
+### Stat → 0–100 mapping (input-prep only; engine formulas unchanged)
 
-**Pitcher card** (from `projections`):
-- diamond_score (as "Diamond Pitcher Score")
-- projected_outs, quality_start_probability, pitcher_win_probability
-- confidence, model_version
-- Plus: pitcher name, team, opponent, game status, `inputs` for the "why"
+Mapping uses MLB-typical baselines. Each sub-score = `clamp(50 + slope * (player_rate - league_rate), 1, 99)`. These constants live alongside the new fn as named consts so they're easy to tweak.
 
-**Pitcher fields NOT in schema** → "Not available yet":
-- Strikeout projection
-- K over 3.5 / 4.5 / 5.5 / 6.5 probability
-- Earned runs projection
-- ER under 2.5 probability
-- Hits allowed projection
-- Walks projection
+**Hitter** (requires `plateAppearances ≥ 50`):
+- `BA = hits/atBats`, `K% = strikeOuts/plateAppearances`, `BB% = baseOnBalls/plateAppearances`, `ISO = slg - avg`, `HRrate = homeRuns/plateAppearances`, `SBrate = stolenBases/games`, `triples`, `games`.
+- **contact** = blend of `BA` (baseline .245, slope 500) and `1-K%` (baseline .77, slope 200), averaged.
+- **power** = blend of `ISO` (baseline .150, slope 600) and `HRrate` (baseline .030, slope 1500).
+- **speed** = blend of `SBrate` (baseline .05, slope 600) and `triples/games` (baseline .005, slope 4000).
+- **discipline** = blend of `BB%` (baseline .085, slope 500) and `(BB-K)/PA` (baseline -.10, slope 300).
+- **consistency** = function of `games` (baseline 60, slope 0.3), clamped — proxy until we have variance data.
 
-These are documented inline on the card (greyed "Not available yet — field `k_projection` not stored") and listed once in a collapsible "Missing fields" footer on the page.
+**Pitcher** (requires `inningsPitched ≥ 10`):
+- `K9 = strikeOuts*9/IP`, `BB9 = baseOnBalls*9/IP`, `HR9 = homeRuns*9/IP`, `IP/start`.
+- **contact** ← K9 (baseline 8.5, slope 8) — engine treats lower opponent-side `contact` as worse contact-suppression; we store the pitcher's strikeout strength here so `pitcherQuality = 100 - oppDna.contact` (line 361 of engine) gives elite K-arms a high opposing-pitcher-quality. This matches what the existing engine code already assumes when it labels SP DNA fields the same way (see the existing TODO at line 350).
+- **power** = inverted HR9 (baseline 1.2 HR/9, slope -25).
+- **speed** = fixed 35 (matches the engine's pitcher default at line 411 — not used meaningfully for pitchers).
+- **discipline** = inverted BB9 (baseline 3.2, slope -10).
+- **consistency** = IP-per-start (baseline 5.0, slope 8).
 
-This function uses the existing `publicClient()` helper (no auth required, public Data API with anon SELECT on these tables — same pattern as `getTodaysSlate`). No new RLS/grants.
+All values are clamped to `[1, 99]` so the engine never sees `0` or `100`.
 
-## 2. New route — `src/routes/diamond-scores.tsx`
+> These are **input prep**, not Diamond Engine math. The engine's contact/power/etc. → projection formulas in `v0_1_0` and `alpha_0_3` are not edited.
 
-```text
-/diamond-scores?date=YYYY-MM-DD&tab=hitters|pitchers&sort=...&game=...&team=...&version=...
-```
+### Admin UI — `src/routes/_authenticated/_admin/admin.tsx`
 
-- `validateSearch` with `zodValidator` + `fallback` (per `tanstack-search-params`).
-- Loader primes Query cache via `ensureQueryData`; component uses `useSuspenseQuery` (per `tanstack-query-integration`).
-- `errorComponent` + `notFoundComponent` defined.
-- `head()` with route-specific title/description/OG.
+Insert a new op card "Recompute Player DNA" right above "Run Diamond Engine":
 
-### Layout
+- Label: **Recompute Player DNA**
+- Desc: "Pulls season stats from MLB Stats API and refreshes contact / power / speed / discipline / consistency for every active player. Run before Run Diamond Engine when DNA looks stale."
+- Optional checkbox: **Only players missing DNA** (sends `onlyMissing: true`).
+- Button calls `recomputePlayerDNA({ data: { onlyMissing } })`. Returns `{ updated, skipped, errors, season }` summarized in the existing status line.
 
-- Header: date stepper (Prev / Today / Next, reusing the same shiftIsoDate util as `/scores`) + active model version chip.
-- Filter bar (mobile: stacks; sm+: inline): Game select, Team select, Model version select.
-- Sort select:
-  - Hitters: Diamond Score (default), Hit %, HR %, RBI %, SB %.
-  - Pitchers: Diamond Pitcher Score (default), K projection (disabled with tooltip "Not available yet" until field exists).
-- Tabs (shadcn `Tabs`): "Hitter Cards" / "Pitcher Cards". Tab state is in search params.
-- Card grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`.
+### Non-goals
 
-### Card design (mobile-first)
+- No changes to `src/lib/engines/v0_1_0/engine.ts`, `src/lib/engines/alpha_0_3/engine.ts`, or `src/lib/engines/registry.ts`.
+- No changes to Monte Carlo (`src/lib/sim/*`, `src/lib/sim.functions.ts`).
+- No schema migration. `player_dna` already has the right columns including `last_recomputed_at`.
+- No change to `Run Diamond Engine` — it already reads `player_dna`; once recomputed, it sees real values automatically.
 
-Each card:
-- Header row: player name (links to `/players/$playerId` if id exists) · team `vs` opp · status pill (Live / Final / Locked / Confirmed / Waiting).
-- Tier badge (top-right): 95+ ELITE (primary), 90–94 A, 85–89 B, 80–84 C, <80 PASS — derived from `diamond_score`; uses existing tokens (`bg-primary/15 text-primary`, `bg-edge/15 text-edge`, `bg-secondary text-muted-foreground`).
-- Big "Diamond Score" number + Confidence sub-line + model_version mono chip.
-- Sub-scores row (hitters): Contact / Power / Speed / Pitcher Grade / Matchup Grade.
-- Probability grid: 2-col on mobile, 3-col sm+. Each cell `label / value%`. Missing fields render `Not available yet` in muted style.
-- "Why this score" — one short sentence built from existing fields only:
-  - Hitters: highlight top sub-score(s) above league avg (contact ≥ X, power ≥ Y…) and matchup_grade direction. If `inputs` jsonb has a `components`/`weights`/`narrative` field, prefer that.
-  - Pitchers: combine quality_start_probability, projected_outs, win_probability.
-- Footer: Link to `/matchups/$gamePk` if gamePk available.
+### Verification after build
 
-### Sort/filter implementation
-
-- All controls write to search params via `useNavigate({ from: Route.fullPath })` using the function form `(prev) => ({ ...prev, ... })` (per `tanstack-search-params`).
-- Sorting and filtering happen in the component over the loader payload (small N per day).
-- Default sort: Diamond Score desc, nulls last.
-
-## 3. Navigation — `src/components/site-header.tsx`
-
-Insert "Diamond" link between "Projections" and "Calibration":
-`Today · Scores · Odds · Standings · Projections · Diamond · Calibration · Leaders · Admin (if admin)`
-
-`to="/diamond-scores"`. No other nav changes.
-
-## 4. Tier helper — co-located in the route file
-
-```ts
-function tier(score: number | null): { label: string; cls: string } { ... }
-//  >=95 ELITE / 90-94 A / 85-89 B / 80-84 C / <80 PASS / null → "—"
-```
-
-## 5. Non-goals (explicitly preserved)
-
-- `src/lib/engines/v0_1_0/engine.ts`, `src/lib/engines/alpha_0_3/engine.ts`, `src/lib/engines/registry.ts` — untouched.
-- `src/lib/sim/*`, `src/lib/sim.functions.ts` — untouched.
-- `src/lib/ingest.functions.ts` — untouched (Import Schedule / Pitchers / Lineups / Run Diamond Engine flow stays as-is).
-- `src/routes/slate.tsx`, `src/routes/calibration.tsx`, `src/routes/_authenticated/_admin/admin.tsx` — untouched.
-- Supabase schema, RLS, grants, projection rows — untouched. No migration.
-- No client-side recomputation of Diamond Engine outputs.
-
-## 6. Verification after build
-
-1. `bunx tsgo --noEmit` — passes.
-2. Visit `/diamond-scores`: both tabs render; sort/filter update URL; tier badges show; missing fields say "Not available yet".
-3. Visit `/slate`, `/calibration`, `/admin` — unchanged behaviour.
-4. Confirm `registry.ts` still exports both `v0_1_0` and `alpha_0_3` (no diff).
-
-## Open question (only if you want to adjust)
-
-The schema has **no** numeric columns for: Hit over 0.5/1.5, TB projection + TB overs, K projection + K overs, ER projection + ER under 2.5, hits allowed, walks. The plan shows them as "Not available yet" rather than computing them client-side. If you'd like, the Diamond Engine can be extended in a separate, explicit task to persist these (would require a migration + engine output change — both excluded here per your "do not change formulas / do not change schema unless explicitly requested" rules).
+1. `bunx tsgo --noEmit` passes.
+2. From `/admin`: click **Recompute Player DNA**. Expect `updated ≈ 300`, `skipped ≈ small (players with insufficient PA/IP)`.
+3. `SELECT count(*) FROM player_dna WHERE NOT (contact=50 AND power=50 AND speed=50 AND discipline=50 AND consistency=50)` → returns most rows.
+4. Re-run **Run Diamond Engine** for today's date.
+5. Open `/diamond-scores`: Diamond Scores now spread across the 40–95 range; pitcher cards also spread; tier badges populate correctly.
+6. `/slate`, `/calibration`, `/admin` still load; both `v0_1_0` and `alpha_0_3` remain in the registry.
