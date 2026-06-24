@@ -22,10 +22,18 @@ import {
 
 export type AlphaRole = "hitter" | "pitcher";
 
+export type PitcherStatInputs = {
+  K9?: number | null;
+  WHIP?: number | null;
+  BB9?: number | null;
+  ERA?: number | null;
+};
+
 export type AlphaEngineInput = EngineInput & {
   role?: AlphaRole;
   teamSide?: TeamSide;
   gameEnvironment?: GameEnvironmentInput;
+  pitcherStats?: PitcherStatInputs;
 };
 
 export type AlphaEngineOutput = EngineOutput & {
