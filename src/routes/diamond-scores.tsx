@@ -35,6 +35,7 @@ function diamondQuery(date: string | undefined) {
 }
 
 export const Route = createFileRoute("/diamond-scores")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Diamond Scores — Diamond" },

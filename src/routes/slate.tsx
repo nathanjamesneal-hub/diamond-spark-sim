@@ -9,6 +9,7 @@ const slateQuery = queryOptions({
 });
 
 export const Route = createFileRoute("/slate")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Today's Slate · Diamond" },

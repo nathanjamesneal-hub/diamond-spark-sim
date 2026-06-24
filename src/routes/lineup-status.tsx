@@ -26,6 +26,7 @@ function statusQuery(date: string | undefined) {
 }
 
 export const Route = createFileRoute("/lineup-status")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Lineup Status · Diamond" },
