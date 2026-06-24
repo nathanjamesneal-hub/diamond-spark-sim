@@ -330,9 +330,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     for (const sp of pitchers ?? []) playerIds.add(sp.player_id);
 
     const { data: playerRows } = await sb
-      .from("players").select("id, name, team_id")
+      .from("players").select("id, name, team_id, mlb_id")
       .in("id", Array.from(playerIds));
     const playerName = new Map((playerRows ?? []).map((p) => [p.id, p.name]));
+    const playerMlbId = new Map((playerRows ?? []).map((p) => [p.id, (p as any).mlb_id ?? null]));
 
     const gameById = new Map(games.map((g) => [g.id, g]));
     const teamsInPlay = new Map<string, string>();
