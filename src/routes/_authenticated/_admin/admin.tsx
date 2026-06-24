@@ -32,6 +32,8 @@ function AdminPanel() {
   const results = useServerFn(importResults);
   const calib = useServerFn(runCalibration);
   const createVer = useServerFn(createModelVersion);
+  const recomputeDna = useServerFn(recomputePlayerDNA);
+
 
   async function run(key: string, fn: () => Promise<any>) {
     setState((s) => ({ ...s, [key]: { running: true, last: s[key]?.last } }));
