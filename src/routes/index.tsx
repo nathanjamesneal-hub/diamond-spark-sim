@@ -46,6 +46,8 @@ function TodayPage() {
         subtitle={`${data.games.length} games · live scores, live stats, and projections`}
       />
 
+      <DashboardGrid />
+
       {featured ? <FeaturedMatchup game={featured} /> : null}
 
       <div className="mt-8">
@@ -62,8 +64,62 @@ function TodayPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      <ComingSoonStrip />
+const DASHBOARD_CARDS = [
+  {
+    to: "/scores",
+    kicker: "Live",
+    title: "Live Scores",
+    desc: "Live status, score, inning, and game state from the MLB feed.",
+    accent: "text-live",
+  },
+  {
+    to: "/odds",
+    kicker: "Markets",
+    title: "Odds",
+    desc: "Sportsbook lines across DraftKings, FanDuel, MGM, Caesars, and more.",
+    accent: "text-edge",
+  },
+  {
+    to: "/standings",
+    kicker: "Season",
+    title: "Standings",
+    desc: "AL & NL divisions, win %, GB, streak, last 10, and run differential.",
+    accent: "text-primary",
+  },
+  {
+    to: "/slate",
+    kicker: "Model",
+    title: "Diamond Projections",
+    desc: "Diamond Score, hit / TB / HR / RBI / SB / run %, confidence, model version.",
+    accent: "text-primary",
+  },
+] as const;
+
+function DashboardGrid() {
+  return (
+    <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {DASHBOARD_CARDS.map((c) => (
+        <Link
+          key={c.to}
+          to={c.to}
+          className="group flex flex-col rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-primary/50 hover:bg-card/80"
+        >
+          <div className={`mono text-[10px] uppercase tracking-[0.25em] ${c.accent}`}>
+            {c.kicker}
+          </div>
+          <div className="mt-1 font-display text-lg font-bold tracking-tight text-foreground">
+            {c.title}
+          </div>
+          <p className="mt-1 flex-1 text-xs text-muted-foreground">{c.desc}</p>
+          <div className="mono mt-3 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-primary">
+            Open →
+          </div>
+        </Link>
+      ))}
     </div>
   );
 }
