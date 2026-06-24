@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { todayInAppTz } from "./timezone";
 
 /**
  * MLB Stats API server functions.
@@ -19,14 +20,10 @@ async function mlbFetch<T>(path: string): Promise<T> {
 }
 
 function todayIsoDate(): string {
-  // MLB API uses YYYY-MM-DD in America/New_York-ish; we use UTC date which
-  // is close enough for a v1 (within hours either side).
-  const d = new Date();
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  // App timezone is America/Chicago (CT); align "today" to that.
+  return todayInAppTz();
 }
+
 
 function currentSeason(): number {
   const d = new Date();
