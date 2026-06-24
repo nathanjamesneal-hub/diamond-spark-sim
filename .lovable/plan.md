@@ -1,29 +1,22 @@
-## Plan: Connect Supabase via project secrets
+## Plan: Provision Lovable Cloud (Supabase) for this project
 
-Since the connector won't link to this project, we'll add your Supabase credentials directly as project secrets. The code already reads these env vars (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, plus `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` for the browser), so once the secrets are in place the app will start working — no code changes required.
-
-### What you'll need from your Supabase project
-From the Supabase dashboard → **Project Settings → API**:
-1. **Project URL** — e.g. `https://xxxxx.supabase.co`
-2. **Publishable (anon) key** — the public `anon` JWT
-3. **Service role key** — the secret `service_role` JWT (server-only, never goes to the browser)
-4. **Project ID** — the `xxxxx` ref from the URL
+Now that Lovable Cloud is enabled in your tool permissions, I can provision a fresh Supabase project and wire everything up.
 
 ### Steps
-1. I'll trigger a secure secrets prompt for these 6 names:
-   - `SUPABASE_URL`
-   - `SUPABASE_PUBLISHABLE_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SUPABASE_PROJECT_ID`
-   - `VITE_SUPABASE_URL` (same value as `SUPABASE_URL`)
-   - `VITE_SUPABASE_PUBLISHABLE_KEY` (same value as `SUPABASE_PUBLISHABLE_KEY`)
-2. You paste each value into the secure form.
-3. I restart the dev server so Vite picks up the new `VITE_*` vars.
-4. We verify by loading `/auth` and signing in.
+1. Call `supabase--enable` — this creates a new Supabase project, links it to this Lovable project, and auto-injects all six required env vars (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PROJECT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`).
+2. Ensure `LOVABLE_API_KEY` exists (for AI gateway / connectors) via `ai_gateway--create`.
+3. The existing migrations in `supabase/migrations/` will be applied automatically by the Cloud integration:
+   - `20260622153924_*.sql` — initial schema
+   - `20260622153942_*.sql` — follow-up schema
+   - `20260623145521_*.sql` — additional tables
+   - `20260624000000_diamond_engine_alpha_0_3.sql` — Diamond Engine alpha 0.3
+4. Restart the dev server so Vite picks up the new `VITE_*` vars.
+5. Verify by loading `/` and `/auth` — the 500 error should be gone and sign-in should work.
 
-### Important caveats
-- **Migrations won't auto-run.** The connector normally applies the SQL files in `supabase/migrations/`. With manual secrets, you'll need to run those migrations yourself in the Supabase SQL editor (or via the Supabase CLI) before the app's queries will work. I can give you the consolidated SQL to paste in.
-- **Google OAuth via Lovable broker won't work** without the connector. You'd need to either use email/password only, or configure Google OAuth directly in your Supabase dashboard (Authentication → Providers).
-- **No auto-generated types refresh.** `src/integrations/supabase/types.ts` is frozen at its current state; if you change the schema later, you'll need to regenerate types manually.
+### What you'll get
+- Working Postgres database with all your tables and RLS policies
+- Auth (email/password + Google via Lovable broker)
+- Server functions reaching Supabase with the bearer attached
+- Service-role admin client available to ingest/sim functions
 
-Approve and I'll request the secrets, then walk you through running the migrations.
+Approve and I'll run the provisioning.
