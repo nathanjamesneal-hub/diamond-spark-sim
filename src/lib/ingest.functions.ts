@@ -349,9 +349,12 @@ export async function runDiamondEngineForGames(
     : { data: [] };
   const dnaByPlayer = new Map((dnaRows ?? []).map((d: any) => [d.player_id, d]));
 
+  // Monte Carlo environment is needed for pitcher projections regardless of
+  // the active hitter model version (pitcher Diamond Score uses it).
   const environmentByGame = new Map<string, MonteCarloGameEnvironment>();
   let environmentFailures = 0;
-  if (isAlpha03(version)) {
+  const needsEnvironment = isAlpha03(version) || (sps?.length ?? 0) > 0;
+  if (needsEnvironment) {
     const { buildMonteCarloGameEnvironment } = await import("@/lib/sim.functions");
     await Promise.all((games ?? []).map(async (game: any) => {
       try {
