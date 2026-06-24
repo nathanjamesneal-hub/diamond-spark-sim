@@ -301,13 +301,17 @@ function PitcherCardView({ p }: { p: DiamondPitcherCard }) {
     <div className="rounded-lg border border-border/70 bg-card p-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <Link
-            to="/players/$playerId"
-            params={{ playerId: p.player_id }}
-            className="block truncate font-display text-base font-bold hover:text-primary"
-          >
-            {p.player_name}
-          </Link>
+          {p.mlb_id != null ? (
+            <Link
+              to="/players/$playerId"
+              params={{ playerId: String(p.mlb_id) }}
+              className="block truncate font-display text-base font-bold hover:text-primary"
+            >
+              {p.player_name}
+            </Link>
+          ) : (
+            <div className="block truncate font-display text-base font-bold">{p.player_name}</div>
+          )}
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             {p.team_abbrev} vs {p.opp_abbrev}
             {p.game_status ? ` · ${p.game_status}` : ""}
