@@ -15,6 +15,10 @@ function scheduleQueryFor(date: string | undefined) {
     queryKey: ["schedule", date ?? "today"],
     queryFn: () => getSchedule({ data: date ? { date } : {} }),
     refetchInterval: 15_000,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+    throwOnError: (_err, query) => query.state.data === undefined,
   });
 }
 
