@@ -21,6 +21,8 @@ function AdminPanel() {
   const [newVersion, setNewVersion] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [activate, setActivate] = useState(true);
+  const [dnaOnlyMissing, setDnaOnlyMissing] = useState(false);
+
 
   const sched = useServerFn(importSchedule);
   const lineups = useServerFn(importLineups);
