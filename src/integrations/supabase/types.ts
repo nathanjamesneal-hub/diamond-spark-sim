@@ -14,16 +14,351 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bets: {
+        Row: {
+          book: string | null
+          closing_odds: number | null
+          created_at: string
+          game_label: string | null
+          game_pk: number | null
+          id: string
+          line: number | null
+          market: string
+          notes: string | null
+          odds: number
+          payout: number | null
+          placed_at: string
+          selection: string
+          settled_at: string | null
+          stake: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          book?: string | null
+          closing_odds?: number | null
+          created_at?: string
+          game_label?: string | null
+          game_pk?: number | null
+          id?: string
+          line?: number | null
+          market: string
+          notes?: string | null
+          odds: number
+          payout?: number | null
+          placed_at?: string
+          selection: string
+          settled_at?: string | null
+          stake: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          book?: string | null
+          closing_odds?: number | null
+          created_at?: string
+          game_label?: string | null
+          game_pk?: number | null
+          id?: string
+          line?: number | null
+          market?: string
+          notes?: string | null
+          odds?: number
+          payout?: number | null
+          placed_at?: string
+          selection?: string
+          settled_at?: string | null
+          stake?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      favorites: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          label: string | null
+          ref_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          label?: string | null
+          ref_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string | null
+          ref_id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      games: {
+        Row: {
+          away_team_id: string | null
+          ballpark: string | null
+          created_at: string
+          date: string
+          first_pitch_at: string | null
+          game_status: string | null
+          home_team_id: string | null
+          id: string
+          mlb_game_id: number
+          updated_at: string
+          weather: Json | null
+        }
+        Insert: {
+          away_team_id?: string | null
+          ballpark?: string | null
+          created_at?: string
+          date: string
+          first_pitch_at?: string | null
+          game_status?: string | null
+          home_team_id?: string | null
+          id?: string
+          mlb_game_id: number
+          updated_at?: string
+          weather?: Json | null
+        }
+        Update: {
+          away_team_id?: string | null
+          ballpark?: string | null
+          created_at?: string
+          date?: string
+          first_pitch_at?: string | null
+          game_status?: string | null
+          home_team_id?: string | null
+          id?: string
+          mlb_game_id?: number
+          updated_at?: string
+          weather?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      players: {
+        Row: {
+          active: boolean
+          bats: string | null
+          created_at: string
+          id: string
+          mlb_id: number
+          name: string
+          position: string | null
+          team_id: string | null
+          throws: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          bats?: string | null
+          created_at?: string
+          id?: string
+          mlb_id: number
+          name: string
+          position?: string | null
+          team_id?: string | null
+          throws?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          bats?: string | null
+          created_at?: string
+          id?: string
+          mlb_id?: number
+          name?: string
+          position?: string | null
+          team_id?: string | null
+          throws?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "players_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          default_unit_size: number
+          display_name: string | null
+          favorite_team_id: number | null
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          default_unit_size?: number
+          display_name?: string | null
+          favorite_team_id?: number | null
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          default_unit_size?: number
+          display_name?: string | null
+          favorite_team_id?: number | null
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      starting_pitchers: {
+        Row: {
+          confirmed: boolean
+          created_at: string
+          game_id: string
+          player_id: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          confirmed?: boolean
+          created_at?: string
+          game_id: string
+          player_id: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          confirmed?: boolean
+          created_at?: string
+          game_id?: string
+          player_id?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "starting_pitchers_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "starting_pitchers_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "starting_pitchers_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          abbreviation: string
+          created_at: string
+          division: string | null
+          id: string
+          league: string | null
+          mlb_team_id: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          abbreviation: string
+          created_at?: string
+          division?: string | null
+          id?: string
+          league?: string | null
+          mlb_team_id: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          abbreviation?: string
+          created_at?: string
+          division?: string | null
+          id?: string
+          league?: string | null
+          mlb_team_id?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +485,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
