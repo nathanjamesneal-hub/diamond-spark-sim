@@ -13,6 +13,7 @@ import { Route as StandingsRouteImport } from './routes/standings'
 import { Route as SlateRouteImport } from './routes/slate'
 import { Route as ScoresRouteImport } from './routes/scores'
 import { Route as OddsRouteImport } from './routes/odds'
+import { Route as LineupStatusRouteImport } from './routes/lineup-status'
 import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
 import { Route as DiamondScoresRouteImport } from './routes/diamond-scores'
 import { Route as CalibrationRouteImport } from './routes/calibration'
@@ -45,6 +46,11 @@ const ScoresRoute = ScoresRouteImport.update({
 const OddsRoute = OddsRouteImport.update({
   id: '/odds',
   path: '/odds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LineupStatusRoute = LineupStatusRouteImport.update({
+  id: '/lineup-status',
+  path: '/lineup-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeaderboardsRoute = LeaderboardsRouteImport.update({
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/calibration': typeof CalibrationRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
+  '/lineup-status': typeof LineupStatusRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByTo {
   '/calibration': typeof CalibrationRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
+  '/lineup-status': typeof LineupStatusRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
@@ -154,6 +162,7 @@ export interface FileRoutesById {
   '/calibration': typeof CalibrationRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
+  '/lineup-status': typeof LineupStatusRoute
   '/odds': typeof OddsRoute
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/calibration'
     | '/diamond-scores'
     | '/leaderboards'
+    | '/lineup-status'
     | '/odds'
     | '/scores'
     | '/slate'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/calibration'
     | '/diamond-scores'
     | '/leaderboards'
+    | '/lineup-status'
     | '/odds'
     | '/scores'
     | '/slate'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/calibration'
     | '/diamond-scores'
     | '/leaderboards'
+    | '/lineup-status'
     | '/odds'
     | '/scores'
     | '/slate'
@@ -229,6 +241,7 @@ export interface RootRouteChildren {
   CalibrationRoute: typeof CalibrationRoute
   DiamondScoresRoute: typeof DiamondScoresRoute
   LeaderboardsRoute: typeof LeaderboardsRoute
+  LineupStatusRoute: typeof LineupStatusRoute
   OddsRoute: typeof OddsRoute
   ScoresRoute: typeof ScoresRoute
   SlateRoute: typeof SlateRoute
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/odds'
       fullPath: '/odds'
       preLoaderRoute: typeof OddsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lineup-status': {
+      id: '/lineup-status'
+      path: '/lineup-status'
+      fullPath: '/lineup-status'
+      preLoaderRoute: typeof LineupStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leaderboards': {
@@ -397,6 +417,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalibrationRoute: CalibrationRoute,
   DiamondScoresRoute: DiamondScoresRoute,
   LeaderboardsRoute: LeaderboardsRoute,
+  LineupStatusRoute: LineupStatusRoute,
   OddsRoute: OddsRoute,
   ScoresRoute: ScoresRoute,
   SlateRoute: SlateRoute,
