@@ -498,12 +498,17 @@ export const lockProjections = createServerFn({ method: "POST" })
     const { data: games } = await supabaseAdmin.from("games").select("id").eq("date", date);
     const gameIds = (games ?? []).map((g: any) => g.id);
     if (!gameIds.length) return { ok: true, count: 0, details: "No games." };
+    const nowIso = new Date().toISOString();
     const { data: updated, error } = await supabaseAdmin
-      .from("lineups").update({ locked_at: new Date().toISOString() })
+      .from("lineups")
+      .update({ locked_at: nowIso, lineup_status: "locked" })
       .in("game_id", gameIds).is("locked_at", null).select("game_id");
     if (error) return { ok: false, error: error.message };
     const n = updated?.length ?? 0;
+    await supabaseAdmin.from("games").update({ lineups_locked_at: nowIso }).in("id", gameIds).is("lineups_locked_at", null);
+    await supabaseAdmin.from("game_lineup_status").update({ status: "locked" }).in("game_id", gameIds);
     return { ok: true, count: n, details: `Locked ${n} lineup spots.` };
+
   });
 
 // ---------- Results ----------
