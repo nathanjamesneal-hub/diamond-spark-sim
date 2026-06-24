@@ -51,7 +51,7 @@ export function SiteHeader() {
   useEffect(() => {
     if (!user) { setIsAdmin(false); return; }
     let active = true;
-    supabase.rpc("has_role", { _user_id: user.id, _role: "admin" })
+    Promise.resolve(supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }))
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
@@ -61,7 +61,7 @@ export function SiteHeader() {
         }
         setIsAdmin(!!data);
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         console.warn("[site-header] has_role threw", e);
         if (active) setIsAdmin(false);
       });
