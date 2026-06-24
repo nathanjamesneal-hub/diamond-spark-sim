@@ -283,184 +283,202 @@ export const importStartingPitchers = createServerFn({ method: "POST" })
 
 // ---------- Run engine ----------
 
+/**
+ * Core engine runner extracted so the refresh runner can call it for a
+ * specific subset of games (event-driven partial re-projection).
+ * Diamond Engine math, registry, calibration: unchanged.
+ */
+export async function runDiamondEngineForGames(
+  date: string,
+  gameIds?: string[],
+  explicitVersion?: string,
+): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const { data: activeVersion } = await supabaseAdmin
+    .from("model_versions").select("version").eq("active", true).maybeSingle();
+  const version = resolveModelVersion(activeVersion?.version, explicitVersion);
+
+  let gamesQuery = supabaseAdmin
+    .from("games")
+    .select("id, mlb_game_id, home_team_id, away_team_id")
+    .eq("date", date);
+  if (gameIds && gameIds.length) gamesQuery = gamesQuery.in("id", gameIds);
+  const { data: games } = await gamesQuery;
+  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0 };
+
+  const targetGameIds = games.map((g: any) => g.id);
+
+  const { data: lineups } = await supabaseAdmin
+    .from("lineups")
+    .select("game_id, player_id, team_id, batting_order, lineup_status, lineup_source")
+    .in("game_id", targetGameIds);
+
+  const { data: sps } = await supabaseAdmin
+    .from("starting_pitchers")
+    .select("game_id, team_id, player_id")
+    .in("game_id", targetGameIds);
+
+  // Read game_lineup_status so new projection rows inherit status/source/confidence.
+  const { data: glsRows } = await supabaseAdmin
+    .from("game_lineup_status")
+    .select("game_id, status, confidence, primary_source")
+    .in("game_id", targetGameIds);
+  const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
+
+  const oppSpByKey = new Map<string, string>();
+  for (const sp of sps ?? []) {
+    const g = games.find((x: any) => x.id === sp.game_id);
+    if (!g) continue;
+    const oppTeam = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
+    oppSpByKey.set(`${sp.game_id}:${oppTeam}`, sp.player_id);
+  }
+
+  const playerIds = Array.from(new Set([
+    ...(lineups ?? []).map((l: any) => l.player_id),
+    ...(sps ?? []).map((sp: any) => sp.player_id),
+  ]));
+  const { data: dnaRows } = playerIds.length
+    ? await supabaseAdmin.from("player_dna").select("*").in("player_id", playerIds)
+    : { data: [] };
+  const dnaByPlayer = new Map((dnaRows ?? []).map((d: any) => [d.player_id, d]));
+
+  const environmentByGame = new Map<string, MonteCarloGameEnvironment>();
+  let environmentFailures = 0;
+  if (isAlpha03(version)) {
+    const { buildMonteCarloGameEnvironment } = await import("@/lib/sim.functions");
+    await Promise.all((games ?? []).map(async (game: any) => {
+      try {
+        const { gameEnvironment } = await buildMonteCarloGameEnvironment(game.mlb_game_id);
+        environmentByGame.set(game.id, gameEnvironment);
+      } catch {
+        environmentFailures++;
+      }
+    }));
+  }
+
+  const sideForTeam = (game: any, teamId: string | null): TeamSide =>
+    teamId === game.home_team_id ? "home" : "away";
+
+  const projections: any[] = [];
+  for (const l of lineups ?? []) {
+    const game = games.find((x: any) => x.id === l.game_id);
+    if (!game) continue;
+    const dna = dnaByPlayer.get(l.player_id) ?? {
+      contact: 50, power: 50, speed: 50, discipline: 50, consistency: 50,
+    };
+    const oppSpId = oppSpByKey.get(`${l.game_id}:${l.team_id}`);
+    const oppDna = oppSpId ? dnaByPlayer.get(oppSpId) : null;
+    const pitcherQuality = oppDna ? 100 - (Number(oppDna.contact) || 50) : 50;
+
+    const out = projectForModelVersion(version, {
+      dna: {
+        contact: Number(dna.contact), power: Number(dna.power),
+        speed: Number(dna.speed), discipline: Number(dna.discipline),
+        consistency: Number(dna.consistency),
+      },
+      pitcherQuality,
+      battingOrder: l.batting_order,
+      teamSide: sideForTeam(game, l.team_id),
+      role: "hitter",
+      gameEnvironment: environmentByGame.get(l.game_id),
+    });
+
+    const gls = glsByGame.get(l.game_id);
+    projections.push({
+      player_id: l.player_id, game_id: l.game_id, model_version: version,
+      projection_role: out.role,
+      diamond_score: out.diamond_score, contact_score: out.contact_score,
+      power_score: out.power_score, speed_score: out.speed_score,
+      pitcher_grade: out.pitcher_grade, matchup_grade: out.matchup_grade,
+      confidence: out.confidence,
+      hit_probability: out.hit_probability, total_base_probability: out.total_base_probability,
+      hr_probability: out.hr_probability, rbi_probability: out.rbi_probability,
+      sb_probability: out.sb_probability, run_probability: out.run_probability,
+      pitcher_win_probability: out.pitcher_win_probability,
+      quality_start_probability: out.quality_start_probability,
+      projected_outs: out.projected_outs,
+      environment_agreement: out.environment_agreement,
+      game_environment: out.game_environment_inputs as any,
+      inputs: out.inputs as any,
+      lineup_status: l.lineup_status ?? gls?.status ?? "projected",
+      lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
+      lineup_confidence: gls?.confidence ?? null,
+      projection_status: "active",
+    });
+  }
+
+  for (const sp of isAlpha03(version) ? (sps ?? []) : []) {
+    const game = games.find((x: any) => x.id === sp.game_id);
+    if (!game) continue;
+    const dna = dnaByPlayer.get(sp.player_id) ?? {
+      contact: 50, power: 50, speed: 35, discipline: 50, consistency: 50,
+    };
+    const out = projectForModelVersion(version, {
+      role: "pitcher",
+      teamSide: sideForTeam(game, sp.team_id),
+      gameEnvironment: environmentByGame.get(sp.game_id),
+      dna: {
+        contact: Number(dna.contact), power: Number(dna.power),
+        speed: Number(dna.speed), discipline: Number(dna.discipline),
+        consistency: Number(dna.consistency),
+      },
+      pitcherQuality: 100 - (Number(dna.contact) || 50),
+    });
+    const gls = glsByGame.get(sp.game_id);
+    projections.push({
+      player_id: sp.player_id, game_id: sp.game_id, model_version: version,
+      projection_role: out.role,
+      diamond_score: out.diamond_score, contact_score: out.contact_score,
+      power_score: out.power_score, speed_score: out.speed_score,
+      pitcher_grade: out.pitcher_grade, matchup_grade: out.matchup_grade,
+      confidence: out.confidence,
+      hit_probability: out.hit_probability, total_base_probability: out.total_base_probability,
+      hr_probability: out.hr_probability, rbi_probability: out.rbi_probability,
+      sb_probability: out.sb_probability, run_probability: out.run_probability,
+      pitcher_win_probability: out.pitcher_win_probability,
+      quality_start_probability: out.quality_start_probability,
+      projected_outs: out.projected_outs,
+      environment_agreement: out.environment_agreement,
+      game_environment: out.game_environment_inputs as any,
+      inputs: out.inputs as any,
+      lineup_status: gls?.status ?? "projected",
+      lineup_source: gls?.primary_source ?? null,
+      lineup_confidence: gls?.confidence ?? null,
+      projection_status: "active",
+    });
+  }
+
+  if (projections.length) {
+    const { error } = await supabaseAdmin.from("projections").insert(projections);
+    if (error) throw new Error(error.message);
+  }
+  return {
+    projectionsInserted: projections.length,
+    version,
+    environmentFailures,
+    gamesProcessed: games.length,
+  };
+}
+
 export const runDiamondEngine = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { date?: string; modelVersion?: string }) => data ?? {})
+  .inputValidator((data: { date?: string; modelVersion?: string; gameIds?: string[] }) => data ?? {})
   .handler(async ({ data, context }): Promise<ImportResult> => {
     await assertAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const date = data.date ?? todayIso();
-
-    const { data: activeVersion } = await supabaseAdmin
-      .from("model_versions").select("version").eq("active", true).maybeSingle();
-    const version = resolveModelVersion(activeVersion?.version, data.modelVersion);
-
-    // Pull lineups for the day with player + game + opposing starter
-    const { data: games } = await supabaseAdmin
-      .from("games")
-      .select("id, mlb_game_id, home_team_id, away_team_id")
-      .eq("date", date);
-    if (!games?.length) return { ok: true, count: 0, details: "No games for date." };
-
-    const gameIds = games.map((g: any) => g.id);
-
-    const { data: lineups } = await supabaseAdmin
-      .from("lineups")
-      .select("game_id, player_id, team_id, batting_order")
-      .in("game_id", gameIds);
-
-    const { data: sps } = await supabaseAdmin
-      .from("starting_pitchers")
-      .select("game_id, team_id, player_id")
-      .in("game_id", gameIds);
-    // Opposing SP per (game, batting team)
-    const oppSpByKey = new Map<string, string>();
-    for (const sp of sps ?? []) {
-      const g = games.find((x: any) => x.id === sp.game_id);
-      if (!g) continue;
-      const oppTeam = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
-      oppSpByKey.set(`${sp.game_id}:${oppTeam}`, sp.player_id);
-    }
-
-    const playerIds = Array.from(new Set([
-      ...(lineups ?? []).map((l: any) => l.player_id),
-      ...(sps ?? []).map((sp: any) => sp.player_id),
-    ]));
-    const { data: dnaRows } = await supabaseAdmin
-      .from("player_dna").select("*").in("player_id", playerIds);
-    const dnaByPlayer = new Map((dnaRows ?? []).map((d: any) => [d.player_id, d]));
-
-    const environmentByGame = new Map<string, MonteCarloGameEnvironment>();
-    let environmentFailures = 0;
-    if (isAlpha03(version)) {
-      const { buildMonteCarloGameEnvironment } = await import("@/lib/sim.functions");
-      await Promise.all((games ?? []).map(async (game: any) => {
-        try {
-          const { gameEnvironment } = await buildMonteCarloGameEnvironment(game.mlb_game_id);
-          environmentByGame.set(game.id, gameEnvironment);
-        } catch {
-          environmentFailures++;
-        }
-      }));
-    }
-
-    const sideForTeam = (game: any, teamId: string | null): TeamSide =>
-      teamId === game.home_team_id ? "home" : "away";
-
-    // TODO(alpha-0.3): pitcher "DNA" is temporary and hitter-shaped. Replace
-    // this with pitcher-specific grades before trusting pitcher projections.
-    const projections: any[] = [];
-    for (const l of lineups ?? []) {
-      const game = games.find((x: any) => x.id === l.game_id);
-      if (!game) continue;
-      const dna = dnaByPlayer.get(l.player_id) ?? {
-        contact: 50, power: 50, speed: 50, discipline: 50, consistency: 50,
+    try {
+      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion);
+      return {
+        ok: true,
+        count: r.projectionsInserted,
+        details: `${r.projectionsInserted} projections (v${r.version}) across ${r.gamesProcessed} games${r.environmentFailures ? ` (${r.environmentFailures} env failures)` : ""}.`,
       };
-      const oppSpId = oppSpByKey.get(`${l.game_id}:${l.team_id}`);
-      const oppDna = oppSpId ? dnaByPlayer.get(oppSpId) : null;
-      const pitcherQuality = oppDna ? 100 - (Number(oppDna.contact) || 50) : 50;
-
-      const out = projectForModelVersion(version, {
-        dna: {
-          contact: Number(dna.contact),
-          power: Number(dna.power),
-          speed: Number(dna.speed),
-          discipline: Number(dna.discipline),
-          consistency: Number(dna.consistency),
-        },
-        pitcherQuality,
-        battingOrder: l.batting_order,
-        teamSide: sideForTeam(game, l.team_id),
-        role: "hitter",
-        gameEnvironment: environmentByGame.get(l.game_id),
-      });
-
-      projections.push({
-        player_id: l.player_id,
-        game_id: l.game_id,
-        model_version: version,
-        projection_role: out.role,
-        diamond_score: out.diamond_score,
-        contact_score: out.contact_score,
-        power_score: out.power_score,
-        speed_score: out.speed_score,
-        pitcher_grade: out.pitcher_grade,
-        matchup_grade: out.matchup_grade,
-        confidence: out.confidence,
-        hit_probability: out.hit_probability,
-        total_base_probability: out.total_base_probability,
-        hr_probability: out.hr_probability,
-        rbi_probability: out.rbi_probability,
-        sb_probability: out.sb_probability,
-        run_probability: out.run_probability,
-        pitcher_win_probability: out.pitcher_win_probability,
-        quality_start_probability: out.quality_start_probability,
-        projected_outs: out.projected_outs,
-        environment_agreement: out.environment_agreement,
-        game_environment: out.game_environment_inputs as any,
-        inputs: out.inputs as any,
-      });
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
     }
-
-    for (const sp of isAlpha03(version) ? (sps ?? []) : []) {
-      const game = games.find((x: any) => x.id === sp.game_id);
-      if (!game) continue;
-      // TODO(alpha-0.3): pitcher "DNA" currently reuses hitter-shaped
-      // contact/power/speed fields until a pitcher-specific table/model exists.
-      const dna = dnaByPlayer.get(sp.player_id) ?? {
-        contact: 50, power: 50, speed: 35, discipline: 50, consistency: 50,
-      };
-      const out = projectForModelVersion(version, {
-        role: "pitcher",
-        teamSide: sideForTeam(game, sp.team_id),
-        gameEnvironment: environmentByGame.get(sp.game_id),
-        dna: {
-          contact: Number(dna.contact),
-          power: Number(dna.power),
-          speed: Number(dna.speed),
-          discipline: Number(dna.discipline),
-          consistency: Number(dna.consistency),
-        },
-        pitcherQuality: 100 - (Number(dna.contact) || 50),
-      });
-
-      projections.push({
-        player_id: sp.player_id,
-        game_id: sp.game_id,
-        model_version: version,
-        projection_role: out.role,
-        diamond_score: out.diamond_score,
-        contact_score: out.contact_score,
-        power_score: out.power_score,
-        speed_score: out.speed_score,
-        pitcher_grade: out.pitcher_grade,
-        matchup_grade: out.matchup_grade,
-        confidence: out.confidence,
-        hit_probability: out.hit_probability,
-        total_base_probability: out.total_base_probability,
-        hr_probability: out.hr_probability,
-        rbi_probability: out.rbi_probability,
-        sb_probability: out.sb_probability,
-        run_probability: out.run_probability,
-        pitcher_win_probability: out.pitcher_win_probability,
-        quality_start_probability: out.quality_start_probability,
-        projected_outs: out.projected_outs,
-        environment_agreement: out.environment_agreement,
-        game_environment: out.game_environment_inputs as any,
-        inputs: out.inputs as any,
-      });
-    }
-
-    if (projections.length) {
-      const { error } = await supabaseAdmin.from("projections").insert(projections);
-      if (error) return { ok: false, error: error.message };
-    }
-    return {
-      ok: true,
-      count: projections.length,
-      details: `${projections.length} projections (v${version}) with ${environmentByGame.size}/${games.length} Monte Carlo environments${environmentFailures ? ` (${environmentFailures} failed)` : ""}.`,
-    };
   });
+
 
 // ---------- Lock ----------
 
