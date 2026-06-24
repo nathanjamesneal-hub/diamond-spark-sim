@@ -226,6 +226,15 @@ export type DiamondHitterCard = {
   inputs_narrative: string | null;
 };
 
+export type PitcherComponentSnapshot = {
+  label: string;
+  key: string;
+  value: number;
+  weight: number;
+  source: "stat" | "environment" | "fallback";
+  reason?: string;
+};
+
 export type DiamondPitcherCard = {
   player_id: string;
   mlb_id: number | null;
@@ -243,6 +252,8 @@ export type DiamondPitcherCard = {
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
+  pitcher_components: PitcherComponentSnapshot[];
+  pitcher_fallbacks: string[];
   lineup_confidence: number | null;
   lineup_source: string | null;
   badge: LineupBadgeStatus;
