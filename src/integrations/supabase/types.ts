@@ -77,6 +77,53 @@ export type Database = {
         }
         Relationships: []
       }
+      calibration_summary: {
+        Row: {
+          brier_score: number | null
+          computed_at: string
+          confidence_bucket: string
+          id: string
+          log_loss: number | null
+          model_version: string
+          observed_mean: number | null
+          predicted_mean: number | null
+          sample_size: number
+          stat: string
+        }
+        Insert: {
+          brier_score?: number | null
+          computed_at?: string
+          confidence_bucket: string
+          id?: string
+          log_loss?: number | null
+          model_version: string
+          observed_mean?: number | null
+          predicted_mean?: number | null
+          sample_size?: number
+          stat: string
+        }
+        Update: {
+          brier_score?: number | null
+          computed_at?: string
+          confidence_bucket?: string
+          id?: string
+          log_loss?: number | null
+          model_version?: string
+          observed_mean?: number | null
+          predicted_mean?: number | null
+          sample_size?: number
+          stat?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calibration_summary_model_version_fkey"
+            columns: ["model_version"]
+            isOneToOne: false
+            referencedRelation: "model_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -161,6 +208,129 @@ export type Database = {
           },
         ]
       }
+      lineups: {
+        Row: {
+          batting_order: number
+          confirmed: boolean
+          created_at: string
+          game_id: string
+          locked_at: string | null
+          player_id: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          batting_order: number
+          confirmed?: boolean
+          created_at?: string
+          game_id: string
+          locked_at?: string | null
+          player_id: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batting_order?: number
+          confirmed?: boolean
+          created_at?: string
+          game_id?: string
+          locked_at?: string | null
+          player_id?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineups_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineups_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      model_versions: {
+        Row: {
+          active: boolean
+          created_at: string
+          notes: string | null
+          release_date: string
+          version: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          notes?: string | null
+          release_date?: string
+          version: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          notes?: string | null
+          release_date?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      player_dna: {
+        Row: {
+          consistency: number
+          contact: number
+          created_at: string
+          discipline: number
+          last_recomputed_at: string | null
+          player_id: string
+          power: number
+          speed: number
+          updated_at: string
+        }
+        Insert: {
+          consistency?: number
+          contact?: number
+          created_at?: string
+          discipline?: number
+          last_recomputed_at?: string | null
+          player_id: string
+          power?: number
+          speed?: number
+          updated_at?: string
+        }
+        Update: {
+          consistency?: number
+          contact?: number
+          created_at?: string
+          discipline?: number
+          last_recomputed_at?: string | null
+          player_id?: string
+          power?: number
+          speed?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_dna_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       players: {
         Row: {
           active: boolean
@@ -240,6 +410,175 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      projection_results: {
+        Row: {
+          game_id: string
+          hits: number
+          home_runs: number
+          id: string
+          ingested_at: string
+          plate_appearances: number
+          player_id: string
+          rbis: number
+          runs: number
+          stolen_bases: number
+          strikeouts: number
+          total_bases: number
+          walks: number
+        }
+        Insert: {
+          game_id: string
+          hits?: number
+          home_runs?: number
+          id?: string
+          ingested_at?: string
+          plate_appearances?: number
+          player_id: string
+          rbis?: number
+          runs?: number
+          stolen_bases?: number
+          strikeouts?: number
+          total_bases?: number
+          walks?: number
+        }
+        Update: {
+          game_id?: string
+          hits?: number
+          home_runs?: number
+          id?: string
+          ingested_at?: string
+          plate_appearances?: number
+          player_id?: string
+          rbis?: number
+          runs?: number
+          stolen_bases?: number
+          strikeouts?: number
+          total_bases?: number
+          walks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projection_results_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projection_results_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projections: {
+        Row: {
+          confidence: number | null
+          contact_score: number | null
+          created_at: string
+          diamond_score: number | null
+          environment_agreement: number | null
+          game_environment: Json | null
+          game_id: string
+          hit_probability: number | null
+          hr_probability: number | null
+          id: string
+          inputs: Json | null
+          matchup_grade: number | null
+          model_version: string
+          pitcher_grade: number | null
+          pitcher_win_probability: number | null
+          player_id: string
+          power_score: number | null
+          projected_outs: number | null
+          projection_role: string
+          quality_start_probability: number | null
+          rbi_probability: number | null
+          run_probability: number | null
+          sb_probability: number | null
+          speed_score: number | null
+          total_base_probability: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          contact_score?: number | null
+          created_at?: string
+          diamond_score?: number | null
+          environment_agreement?: number | null
+          game_environment?: Json | null
+          game_id: string
+          hit_probability?: number | null
+          hr_probability?: number | null
+          id?: string
+          inputs?: Json | null
+          matchup_grade?: number | null
+          model_version: string
+          pitcher_grade?: number | null
+          pitcher_win_probability?: number | null
+          player_id: string
+          power_score?: number | null
+          projected_outs?: number | null
+          projection_role?: string
+          quality_start_probability?: number | null
+          rbi_probability?: number | null
+          run_probability?: number | null
+          sb_probability?: number | null
+          speed_score?: number | null
+          total_base_probability?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          contact_score?: number | null
+          created_at?: string
+          diamond_score?: number | null
+          environment_agreement?: number | null
+          game_environment?: Json | null
+          game_id?: string
+          hit_probability?: number | null
+          hr_probability?: number | null
+          id?: string
+          inputs?: Json | null
+          matchup_grade?: number | null
+          model_version?: string
+          pitcher_grade?: number | null
+          pitcher_win_probability?: number | null
+          player_id?: string
+          power_score?: number | null
+          projected_outs?: number | null
+          projection_role?: string
+          quality_start_probability?: number | null
+          rbi_probability?: number | null
+          run_probability?: number | null
+          sb_probability?: number | null
+          speed_score?: number | null
+          total_base_probability?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projections_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projections_model_version_fkey"
+            columns: ["model_version"]
+            isOneToOne: false
+            referencedRelation: "model_versions"
+            referencedColumns: ["version"]
+          },
+          {
+            foreignKeyName: "projections_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       starting_pitchers: {
         Row: {
