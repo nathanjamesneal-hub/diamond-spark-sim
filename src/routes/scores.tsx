@@ -3,6 +3,8 @@ import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { getSchedule } from "@/lib/mlb.functions";
 import { ScoreCard } from "@/components/score-card";
+import { shiftIsoDate } from "@/lib/timezone";
+
 
 const searchSchema = z.object({
   date: z.string().optional(),
