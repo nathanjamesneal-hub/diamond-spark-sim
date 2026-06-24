@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
   createModelVersion, recomputePlayerDNA,
 } from "@/lib/ingest.functions";
+import { refreshLineupsAndProject, getCronStatus } from "@/lib/lineups/refresh.functions";
+import { formatDateTimeInAppTz } from "@/lib/timezone";
 
 
 export const Route = createFileRoute("/_authenticated/_admin/admin")({
@@ -23,7 +26,6 @@ function AdminPanel() {
   const [activate, setActivate] = useState(true);
   const [dnaOnlyMissing, setDnaOnlyMissing] = useState(false);
 
-
   const sched = useServerFn(importSchedule);
   const lineups = useServerFn(importLineups);
   const sps = useServerFn(importStartingPitchers);
@@ -33,31 +35,34 @@ function AdminPanel() {
   const calib = useServerFn(runCalibration);
   const createVer = useServerFn(createModelVersion);
   const recomputeDna = useServerFn(recomputePlayerDNA);
+  const refresh = useServerFn(refreshLineupsAndProject);
 
+  const qc = useQueryClient();
 
   async function run(key: string, fn: () => Promise<any>) {
     setState((s) => ({ ...s, [key]: { running: true, last: s[key]?.last } }));
     try {
       const res = await fn();
-      const msg = res?.ok
-        ? `${res.details ?? `${res.count} rows`}`
-        : `Error: ${res?.error ?? "unknown"}`;
-      setState((s) => ({ ...s, [key]: { running: false, last: { ok: !!res?.ok, msg, at: new Date().toLocaleTimeString() } } }));
+      const msg = res?.ok === false
+        ? `Error: ${res?.error ?? "unknown"}`
+        : (res?.details ?? formatRefresh(res) ?? `${res?.count ?? 0} rows`);
+      setState((s) => ({ ...s, [key]: { running: false, last: { ok: res?.ok !== false, msg, at: new Date().toLocaleTimeString() } } }));
+      qc.invalidateQueries({ queryKey: ["cron-status"] });
     } catch (e: any) {
       setState((s) => ({ ...s, [key]: { running: false, last: { ok: false, msg: e.message ?? String(e), at: new Date().toLocaleTimeString() } } }));
     }
   }
 
   const ops: Array<{ key: string; label: string; desc: string; go: () => Promise<any> }> = [
-    { key: "schedule", label: "Import schedule", desc: "Upserts teams + games for the date.", go: () => sched({ data: { date } }) },
-    { key: "lineups", label: "Import lineups", desc: "Pulls confirmed lineups + roster sync.", go: () => lineups({ data: { date } }) },
-    { key: "sp", label: "Import starting pitchers", desc: "Probable + confirmed SP assignments.", go: () => sps({ data: { date } }) },
-    { key: "dna", label: "Recompute Player DNA", desc: "Pulls MLB season stats and refreshes contact / power / speed / discipline / consistency. Run when DNA looks stale (all-50 defaults).", go: () => recomputeDna({ data: { onlyMissing: dnaOnlyMissing } }) },
-    { key: "engine", label: "Run Diamond Engine", desc: "Generates a new projection row per hitter (append-only).", go: () => engine({ data: { date } }) },
-
-    { key: "lock", label: "Lock projections", desc: "Stamps lineups with locked_at.", go: () => lock({ data: { date } }) },
-    { key: "results", label: "Import results", desc: "Pulls box-score outcomes for calibration.", go: () => results({ data: { date } }) },
-    { key: "calib", label: "Run calibration", desc: "Recomputes the calibration_summary table.", go: () => calib({ data: {} }) },
+    { key: "schedule", label: "1 · Import schedule", desc: "Upserts teams + games for the date.", go: () => sched({ data: { date } }) },
+    { key: "sp", label: "2 · Refresh probable pitchers", desc: "Probable + confirmed SP assignments.", go: () => sps({ data: { date } }) },
+    { key: "refresh", label: "3 · Refresh Now (all providers)", desc: "Runs every enabled lineup provider, diffs, and re-projects only changed games. Same path as the 15-minute cron.", go: () => refresh({ data: { date } }) },
+    { key: "lineups", label: "4 · Import confirmed MLB lineups (legacy)", desc: "Pulls MLB-only confirmed lineups + roster sync. Aggregator already does this; kept as a fallback.", go: () => lineups({ data: { date } }) },
+    { key: "dna", label: "5 · Recompute Player DNA", desc: "Pulls MLB season stats and refreshes contact / power / speed / discipline / consistency.", go: () => recomputeDna({ data: { onlyMissing: dnaOnlyMissing } }) },
+    { key: "engine", label: "6 · Run Diamond Engine (full slate)", desc: "Re-projects every game. Use only when needed; refresh handles incremental runs.", go: () => engine({ data: { date } }) },
+    { key: "lock", label: "7 · Lock lineups", desc: "Stamps lineups with locked_at; cron stops refreshing locked games.", go: () => lock({ data: { date } }) },
+    { key: "results", label: "8 · Import results", desc: "Pulls box-score outcomes for calibration.", go: () => results({ data: { date } }) },
+    { key: "calib", label: "9 · Run calibration", desc: "Recomputes the calibration_summary table.", go: () => calib({ data: {} }) },
   ];
 
   return (
@@ -66,9 +71,11 @@ function AdminPanel() {
         <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">Admin · Operations</div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Diamond control room</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every operation is named, dated, and audited. Projections are append-only.
+          Cron refreshes every 15 minutes during lineup hours. Diamond Engine runs only when lineup data actually changes.
         </p>
       </div>
+
+      <CronStatusPanel />
 
       <div className="mb-6 flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-4">
         <label className="mono text-[11px] uppercase tracking-widest text-muted-foreground">Date</label>
@@ -134,4 +141,134 @@ function AdminPanel() {
       </div>
     </div>
   );
+}
+
+function formatRefresh(res: any): string | null {
+  if (!res || typeof res !== "object" || !("providers" in res)) return null;
+  const providers = (res.providers ?? []) as { id: string; ok: boolean; count: number; error?: string }[];
+  const provSummary = providers.map((p) => `${p.id}:${p.ok ? p.count : "✗"}`).join(" · ");
+  const ran = res.engineRan ? `engine ran (${res.projectionsRegenerated} projections)` : "no engine run";
+  return `${res.changedGameIds?.length ?? 0} games changed · ${ran} · ${provSummary} · ${res.durationMs}ms`;
+}
+
+function CronStatusPanel() {
+  const status = useServerFn(getCronStatus);
+  const { data } = useQuery({
+    queryKey: ["cron-status"],
+    queryFn: () => status(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const runs = data?.runs ?? [];
+  const lastSuccess = runs.find((r: any) => !r.error);
+  const lastEngine = runs.find((r: any) => r.engine_ran);
+  const next = computeNextRefresh();
+
+  return (
+    <div className="mb-6 rounded-lg border border-border/60 bg-card/40 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="mono text-[11px] uppercase tracking-widest text-edge">Cron status</div>
+        <div className="mono text-[11px] text-muted-foreground">next: {next}</div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatusBlock label="Last refresh" value={lastSuccess ? formatDateTimeInAppTz(lastSuccess.started_at) : "—"} />
+        <StatusBlock
+          label="Last engine run"
+          value={lastEngine ? `${formatDateTimeInAppTz(lastEngine.started_at)} · ${lastEngine.projections_regenerated} proj` : "—"}
+        />
+        <StatusBlock
+          label="Last games changed"
+          value={lastSuccess ? `${lastSuccess.games_changed} games · ${lastSuccess.players_changed} players` : "—"}
+        />
+        <StatusBlock
+          label="Last duration"
+          value={lastSuccess?.duration_ms != null ? `${lastSuccess.duration_ms} ms` : "—"}
+        />
+      </div>
+
+      {lastSuccess?.providers ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {Object.entries(toProviderArray(lastSuccess.providers)).map(([id, p]: any) => (
+            <span
+              key={id}
+              className={`mono rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${
+                p.ok ? "bg-edge/15 text-edge" : "bg-destructive/15 text-destructive"
+              }`}
+              title={p.error ?? `${p.count} games · ${p.durationMs}ms`}
+            >
+              {p.id ?? id}: {p.ok ? p.count : "✗"}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {runs.length > 0 ? (
+        <details className="mt-4">
+          <summary className="mono cursor-pointer text-[11px] uppercase tracking-widest text-muted-foreground">
+            Last {runs.length} runs
+          </summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="mono w-full text-[11px]">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1 text-left">Started</th>
+                  <th className="px-2 py-1 text-left">ms</th>
+                  <th className="px-2 py-1 text-left">Games</th>
+                  <th className="px-2 py-1 text-left">Players</th>
+                  <th className="px-2 py-1 text-left">Proj</th>
+                  <th className="px-2 py-1 text-left">Engine</th>
+                  <th className="px-2 py-1 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r: any) => (
+                  <tr key={r.id} className={`border-t border-border/40 ${r.error ? "text-destructive" : ""}`}>
+                    <td className="px-2 py-1">{formatDateTimeInAppTz(r.started_at)}</td>
+                    <td className="px-2 py-1">{r.duration_ms ?? "—"}</td>
+                    <td className="px-2 py-1">{r.games_changed}</td>
+                    <td className="px-2 py-1">{r.players_changed}</td>
+                    <td className="px-2 py-1">{r.projections_regenerated}</td>
+                    <td className="px-2 py-1">{r.engine_ran ? "✓" : ""}</td>
+                    <td className="px-2 py-1 text-muted-foreground">{r.error ?? r.notes ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function toProviderArray(providers: unknown): Record<string, any> {
+  if (Array.isArray(providers)) {
+    const m: Record<string, any> = {};
+    for (const p of providers) if (p && p.id) m[p.id] = p;
+    return m;
+  }
+  if (providers && typeof providers === "object") return providers as Record<string, any>;
+  return {};
+}
+
+function StatusBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/40 bg-background/40 p-3">
+      <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function computeNextRefresh(): string {
+  const now = new Date();
+  const next = new Date(now);
+  const minutes = now.getUTCMinutes();
+  const slot = Math.ceil((minutes + 0.0001) / 15) * 15;
+  next.setUTCMinutes(slot, 0, 0);
+  if (slot >= 60) {
+    next.setUTCHours(next.getUTCHours() + 1, 0, 0, 0);
+  }
+  return formatDateTimeInAppTz(next.toISOString());
 }

@@ -87,8 +87,19 @@ function DiamondScoresPage() {
           <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">Diamond Scores</div>
           <h1 className="font-display text-3xl font-bold tracking-tight">{data.date}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Active model: <span className="mono">{data.activeVersion ?? "—"}</span> · Display-only view of stored projections.
+            Active model: <span className="mono">{data.activeVersion ?? "—"}</span> · Aggregated from multiple lineup sources.
           </p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Lineups · {data.slateConfirmed} / {data.slateTotal} confirmed
+            </div>
+            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full bg-edge transition-all"
+                style={{ width: data.slateTotal ? `${(data.slateConfirmed / data.slateTotal) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <DateBtn onClick={() => setSearch({ date: shiftIsoDate(data.date, -1) })}>← Prev</DateBtn>
@@ -96,6 +107,7 @@ function DiamondScoresPage() {
           <DateBtn onClick={() => setSearch({ date: shiftIsoDate(data.date, 1) })}>Next →</DateBtn>
         </div>
       </div>
+
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <FilterSelect
@@ -235,13 +247,17 @@ function HitterCardView({ h }: { h: DiamondHitterCard }) {
           )}
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             {h.team_abbrev} vs {h.opp_abbrev}
-            {h.batting_order ? ` · #${h.batting_order}` : ""} · {h.lineup_status}
+            {h.batting_order ? ` · #${h.batting_order}` : ""}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <LineupBadge badge={h.badge} source={h.lineup_source} confidence={h.lineup_confidence} />
           </div>
         </div>
         <span className={`mono rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${t.cls}`}>
           {t.label}
         </span>
       </div>
+
 
       <div className="mb-3 flex items-end justify-between border-b border-border/60 pb-3">
         <div>
@@ -386,7 +402,31 @@ function buildPitcherReason(p: DiamondPitcherCard): string {
   return parts.join(" · ");
 }
 
+function LineupBadge({
+  badge, source, confidence,
+}: {
+  badge: "official" | "aggregated" | "low_confidence" | "locked";
+  source: string | null;
+  confidence: number | null;
+}) {
+  const map = {
+    official: { label: "Official MLB", cls: "bg-edge/20 text-edge", icon: "🟢" },
+    aggregated: { label: source ? `Aggregated · ${source}` : "Aggregated", cls: "bg-primary/15 text-primary", icon: "🟡" },
+    low_confidence: { label: "Low confidence", cls: "bg-destructive/15 text-destructive", icon: "🟠" },
+    locked: { label: "Locked", cls: "bg-secondary text-foreground", icon: "🔒" },
+  } as const;
+  const m = map[badge];
+  return (
+    <span className={`mono inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${m.cls}`}>
+      <span>{m.icon}</span>
+      <span>{m.label}</span>
+      {confidence != null ? <span className="opacity-70">· {confidence}</span> : null}
+    </span>
+  );
+}
+
 function Mini({ label, v }: { label: string; v: string }) {
+
   return (
     <div className="rounded-md bg-secondary/40 py-1">
       <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
