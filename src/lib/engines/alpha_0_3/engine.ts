@@ -19,13 +19,26 @@ import {
   type GameEnvironmentInput,
   type TeamSide,
 } from "../../game-environment.ts";
+import {
+  buildPitcherComponents,
+  describePitcherComponents,
+  pitcherDiamondScore,
+} from "../pitcher_diamond_score.ts";
 
 export type AlphaRole = "hitter" | "pitcher";
+
+export type PitcherStatInputs = {
+  K9?: number | null;
+  WHIP?: number | null;
+  BB9?: number | null;
+  ERA?: number | null;
+};
 
 export type AlphaEngineInput = EngineInput & {
   role?: AlphaRole;
   teamSide?: TeamSide;
   gameEnvironment?: GameEnvironmentInput;
+  pitcherStats?: PitcherStatInputs;
 };
 
 export type AlphaEngineOutput = EngineOutput & {
@@ -182,17 +195,49 @@ function projectPitcher(args: {
     Math.round(base.confidence + (starter ? 8 : -4) - Math.max(0, (runEnvironmentRating ?? 50) - 65) * 0.25),
   );
 
+  const componentsBuild = buildPitcherComponents({
+    K9: input.pitcherStats?.K9 ?? null,
+    WHIP: input.pitcherStats?.WHIP ?? null,
+    BB9: input.pitcherStats?.BB9 ?? null,
+    ERA: input.pitcherStats?.ERA ?? null,
+    projectedOuts,
+    teamWinProbability,
+    runEnvironmentRating,
+  });
+  const c = componentsBuild.components;
+  const diamondScore = pitcherDiamondScore({
+    strikeoutScore: c.strikeoutScore.value,
+    contactSuppressionScore: c.contactSuppressionScore.value,
+    commandScore: c.commandScore.value,
+    runPreventionScore: c.runPreventionScore.value,
+    workloadScore: c.workloadScore.value,
+    winContextScore: c.winContextScore.value,
+  });
+
+  const pitcherInputs = {
+    pitcher_components: c,
+    pitcher_fallbacks: componentsBuild.fallbacks,
+    pitcher_narrative: describePitcherComponents(componentsBuild),
+    game_environment: {
+      projected_team_runs: projectedTeamRuns,
+      projected_opponent_runs: projectedOpponentRuns,
+      team_win_probability: teamWinProbability,
+      run_environment_rating: runEnvironmentRating,
+    },
+  };
+
   return {
     ...base,
     model_version: MODEL_VERSION,
     role: "pitcher",
-    diamond_score: Math.round(clamp(base.diamond_score + (winProbability == null ? 0 : (winProbability - 0.5) * 12))),
+    diamond_score: diamondScore,
     confidence,
     run_probability: null,
     pitcher_win_probability: winProbability,
     quality_start_probability: qualityStartProbability,
     projected_outs: round3(projectedOuts),
     environment_agreement: null,
+    inputs: pitcherInputs as unknown as EngineInput,
     game_environment_inputs: {
       projected_team_runs: projectedTeamRuns,
       projected_opponent_runs: projectedOpponentRuns,

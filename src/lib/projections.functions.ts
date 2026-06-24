@@ -226,6 +226,15 @@ export type DiamondHitterCard = {
   inputs_narrative: string | null;
 };
 
+export type PitcherComponentSnapshot = {
+  label: string;
+  key: string;
+  value: number;
+  weight: number;
+  source: "stat" | "environment" | "fallback";
+  reason?: string;
+};
+
 export type DiamondPitcherCard = {
   player_id: string;
   mlb_id: number | null;
@@ -243,6 +252,8 @@ export type DiamondPitcherCard = {
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
+  pitcher_components: PitcherComponentSnapshot[];
+  pitcher_fallbacks: string[];
   lineup_confidence: number | null;
   lineup_source: string | null;
   badge: LineupBadgeStatus;
@@ -287,10 +298,46 @@ const MISSING_PITCHER_FIELDS = [
 function narrativeFromInputs(inputs: unknown): string | null {
   if (!inputs || typeof inputs !== "object") return null;
   const obj = inputs as Record<string, unknown>;
+  if (typeof obj.pitcher_narrative === "string") return obj.pitcher_narrative;
   if (typeof obj.narrative === "string") return obj.narrative;
   if (typeof obj.explanation === "string") return obj.explanation;
   if (typeof obj.summary === "string") return obj.summary;
   return null;
+}
+
+const PITCHER_COMPONENT_META: Array<{ key: string; label: string; weight: number }> = [
+  { key: "strikeoutScore", label: "Strikeout", weight: 0.25 },
+  { key: "contactSuppressionScore", label: "Contact suppression", weight: 0.20 },
+  { key: "commandScore", label: "Command", weight: 0.15 },
+  { key: "runPreventionScore", label: "Run prevention", weight: 0.20 },
+  { key: "workloadScore", label: "Workload", weight: 0.10 },
+  { key: "winContextScore", label: "Win context", weight: 0.10 },
+];
+
+function pitcherComponentsFromInputs(inputs: unknown): {
+  components: PitcherComponentSnapshot[];
+  fallbacks: string[];
+} {
+  if (!inputs || typeof inputs !== "object") return { components: [], fallbacks: [] };
+  const obj = inputs as Record<string, unknown>;
+  const raw = obj.pitcher_components as Record<string, { value?: number; source?: string; reason?: string }> | undefined;
+  const fallbacks = Array.isArray(obj.pitcher_fallbacks) ? (obj.pitcher_fallbacks as string[]) : [];
+  if (!raw || typeof raw !== "object") return { components: [], fallbacks };
+  const components: PitcherComponentSnapshot[] = [];
+  for (const meta of PITCHER_COMPONENT_META) {
+    const c = raw[meta.key];
+    if (!c) continue;
+    const source = (c.source === "stat" || c.source === "environment" || c.source === "fallback") ? c.source : "fallback";
+    components.push({
+      label: meta.label,
+      key: meta.key,
+      value: typeof c.value === "number" ? c.value : 50,
+      weight: meta.weight,
+      source,
+      reason: typeof c.reason === "string" ? c.reason : undefined,
+    });
+  }
+  return { components, fallbacks };
 }
 
 export const getDiamondScores = createServerFn({ method: "GET" })
@@ -467,6 +514,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
+          ...(() => {
+            const pc = pitcherComponentsFromInputs(proj?.inputs);
+            return { pitcher_components: pc.components, pitcher_fallbacks: pc.fallbacks };
+          })(),
           lineup_confidence: gls?.confidence ?? null,
           lineup_source: gls?.primary_source ?? null,
           badge: badgeFor(gls?.confidence ?? null, gls?.status === "locked"),
