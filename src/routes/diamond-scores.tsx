@@ -366,6 +366,44 @@ function PitcherCardView({ p }: { p: DiamondPitcherCard }) {
         <NotPersistedStat label="BB proj" />
       </div>
 
+      {p.pitcher_components && p.pitcher_components.length > 0 ? (
+        <div className="mt-3 rounded-md border border-border/50 bg-secondary/30 p-2">
+          <div className="mono mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
+            <span>Score components</span>
+            {p.pitcher_fallbacks && p.pitcher_fallbacks.length > 0 ? (
+              <span className="text-[9px] italic text-muted-foreground/80">
+                {p.pitcher_fallbacks.length} fallback
+              </span>
+            ) : null}
+          </div>
+          <ul className="grid gap-0.5">
+            {p.pitcher_components.map((c) => (
+              <li
+                key={c.key}
+                className="flex items-center justify-between gap-2 text-[11px]"
+                title={c.reason ?? (c.source === "fallback" ? "Neutral 50 — input not available" : "")}
+              >
+                <span className="mono truncate text-muted-foreground">
+                  {c.label} <span className="opacity-60">×{c.weight.toFixed(2)}</span>
+                </span>
+                <span className="mono flex items-center gap-1.5 tabular-nums">
+                  <span className={c.source === "fallback" ? "text-muted-foreground italic" : "text-foreground"}>
+                    {c.value}
+                  </span>
+                  {c.source === "fallback" ? (
+                    <span className="rounded bg-secondary px-1 text-[9px] uppercase tracking-widest text-muted-foreground">fb</span>
+                  ) : c.source === "stat" ? (
+                    <span className="rounded bg-primary/15 px-1 text-[9px] uppercase tracking-widest text-primary">stat</span>
+                  ) : (
+                    <span className="rounded bg-edge/15 px-1 text-[9px] uppercase tracking-widest text-edge">env</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <p className="mt-3 text-xs text-muted-foreground">
         {p.inputs_narrative ?? buildPitcherReason(p)}
       </p>
