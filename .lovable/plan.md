@@ -1,55 +1,35 @@
-## What's happening
+## Plan to unblock the app
 
-The "Rain delay" screen is the root error boundary in `src/routes/__root.tsx`. It renders whenever a page throws — on the server during SSR, or on the client during hydration/render. Your console log shows the actual signal: `Warning: Error in route match: __root__/` — the `/` route itself is exploding before the page can mount, which is why even refreshing or tapping "Go home" lands back on the same error screen. This isn't mobile-specific in the code; it's just that your phone is hitting cold SSR every time (desktop likely has a warm cached page or a session that masks it).
+### Goal
+Stop the root “Rain delay” screen from taking over the app on mobile/editor preview, especially on `/` and `/auth`, so you can reach the sign-in screen and navigate normally.
 
-Two things make this hard to debug today:
+### What I found
+- The current live signal is still `Error in route match: __root__/`, meaning the shared root shell is crashing, not just one page.
+- `/auth` is already marked client-only, so the likely crash path is shared UI that renders on every page — especially `SiteHeader` or router-level error handling.
+- The header currently calls auth/admin checks after mount and has no error guards around those calls.
+- The root error boundary exists, but there is no router-level `defaultErrorComponent` fallback if the root boundary itself or shared shell fails.
 
-1. The error boundary throws away `error.message` and only shows the friendly "Rain delay" copy, so there's no signal to the user or to us.
-2. `/` runs a server loader (`getSchedule`) that hits MLB + Supabase. If that throws during SSR (rate-limit, RLS, env, network), the entire root route errors out — there's no per-route fallback shown because the root boundary catches it first.
-3. `/auth` and other top-level routes are SSR by default. `/auth` only makes sense in the browser (it depends on `window`, Supabase session, the Lovable OAuth helper) — SSR'ing it is pure downside.
+### Changes to make
+1. **Harden the shared header**
+   - Wrap `supabase.auth.getUser()`, `onAuthStateChange`, admin RPC checks, and sign-out in safe `try/catch` handling.
+   - Ensure failed auth/admin checks do not throw into the root route.
+   - Treat admin lookup failures as “not admin” instead of crashing the page.
 
-## Plan
+2. **Add a router-level fallback error boundary**
+   - Add `defaultErrorComponent` in `src/router.tsx` with the same “Rain delay” recovery actions.
+   - This catches cases where a route/shared shell error bypasses or breaks the root route boundary.
 
-### 1. Surface the real error (so we stop guessing)
+3. **Make root fallback safer**
+   - Keep diagnostics, but guard error rendering so unusual non-Error values cannot crash the fallback itself.
+   - Use reliable hard-navigation fallback for “Go home”.
 
-In `src/routes/__root.tsx` `ErrorComponent`:
-- Render `error.message` and `error.name` in a collapsible `<details>` block (kept subtle, not scary).
-- Keep "Try again" / "Go home" buttons.
-- Keep `reportLovableError(error, ...)` so it lands in runtime logs.
+4. **Verify the mobile flow**
+   - Open `/` and `/auth` in a mobile viewport.
+   - Confirm the sign-in screen is reachable and the Rain delay screen is gone.
+   - Check console/runtime signals for any remaining root route error.
 
-This alone will tell us on the next mobile load exactly what's blowing up.
-
-### 2. Stop SSR'ing pages that don't need it
-
-Add `ssr: false` to:
-- `src/routes/auth.tsx` — depends on `window`, Supabase session, OAuth helper. Matches the pattern the integration already uses on `_authenticated/route.tsx`.
-- `src/routes/lineup-status.tsx`, `src/routes/diamond-scores.tsx`, `src/routes/slate.tsx`, `src/routes/calibration.tsx`, `src/routes/leaderboards.tsx` — analytics dashboards backed by Supabase reads that should not block the document shell. They keep their loaders/queries; only the SSR pass is skipped.
-
-The home `/` route stays SSR (it's the public landing), but we harden its loader (next step).
-
-### 3. Harden the `/` loader so a flaky upstream doesn't nuke the page
-
-In `src/routes/index.tsx`:
-- Wrap the `scheduleQuery` so a failed fetch resolves to `{ date, games: [] }` instead of throwing. The page already handles "no games" gracefully.
-- Keep `throwOnError` off for SSR; let the client re-fetch on hydration.
-- Tighten the route's own `errorComponent` so even if it does throw, we see a useful message instead of bubbling to root.
-
-### 4. Verify
-
-- Read `stack_modern--server-function-logs` after the next reload to confirm what the original SSR error was (now visible via step 1 + the existing `error-capture` plumbing).
-- Hit `/` and `/auth` from the preview on mobile viewport via Playwright; confirm no root error boundary and that `/auth` renders the sign-in form.
-- Confirm desktop preview still works (regression check).
-- Tap "Continue with Google" and "Sign in" once to confirm the OAuth helper still fires.
-
-## Out of scope
-
-- Diamond Engine formulas, Monte Carlo, cron, aggregation, projection persistence.
-- RLS or schema changes.
-- Visual redesign of the error boundary beyond adding the diagnostic `<details>` block.
-- Changing the home page content or the lineup-status UI.
-
-## Why these changes are safe
-
-- `ssr: false` on auth/dashboard routes is the documented Lovable + TanStack pattern for browser-auth-dependent pages; the integration-managed `_authenticated/route.tsx` already uses it.
-- The loader change on `/` swaps `throw` for an empty-slate fallback; the UI already renders an empty slate cleanly.
-- The `ErrorComponent` change is additive — same buttons, plus diagnostics.
+### Out of scope
+- No Diamond Engine changes.
+- No projection/data pipeline changes.
+- No schema/RLS changes.
+- No visual redesign beyond safer error recovery UI.
