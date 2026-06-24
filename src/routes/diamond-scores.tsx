@@ -77,7 +77,8 @@ function DiamondScoresPage() {
   }, [data.pitchers, search.game, search.team, search.version, search.sort]);
 
   const setSearch = (patch: Record<string, string | undefined>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }) });
+
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
