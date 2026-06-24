@@ -235,13 +235,17 @@ function HitterCardView({ h }: { h: DiamondHitterCard }) {
           )}
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             {h.team_abbrev} vs {h.opp_abbrev}
-            {h.batting_order ? ` · #${h.batting_order}` : ""} · {h.lineup_status}
+            {h.batting_order ? ` · #${h.batting_order}` : ""}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <LineupBadge badge={h.badge} source={h.lineup_source} confidence={h.lineup_confidence} />
           </div>
         </div>
         <span className={`mono rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${t.cls}`}>
           {t.label}
         </span>
       </div>
+
 
       <div className="mb-3 flex items-end justify-between border-b border-border/60 pb-3">
         <div>
