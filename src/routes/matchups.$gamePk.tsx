@@ -4,6 +4,8 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { simulateGame } from "@/lib/sim.functions";
+import { formatDateTimeInAppTz } from "@/lib/timezone";
+
 
 const simQuery = (gamePk: number) =>
   queryOptions({
@@ -64,7 +66,7 @@ function MatchupPage() {
           {meta.awayAbbrev} @ {meta.homeAbbrev}
         </h1>
         <div className="mt-1 text-sm text-muted-foreground">
-          {meta.venue} · {new Date(meta.date).toLocaleString()} · {result.iterations.toLocaleString()} sims
+          {meta.venue} · {formatDateTimeInAppTz(meta.date)} CT · {result.iterations.toLocaleString()} sims
         </div>
         {meta.warnings.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
