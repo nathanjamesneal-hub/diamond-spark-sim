@@ -113,6 +113,7 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
   const refresh = useServerFn(refreshLineupsForGame);
   const runEngine = useServerFn(runEngineForGame);
   const lock = useServerFn(lockGame);
+  const unlock = useServerFn(unlockGame);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
