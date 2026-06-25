@@ -5,7 +5,7 @@ import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
 
-type PropType = "hit" | "tb" | "hr" | "rbi" | "sb" | "win" | "qs";
+type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
 
 type PropRow = {
   key: string;
@@ -25,18 +25,46 @@ type PropRow = {
 };
 
 const PROP_META: Record<PropType, { label: string; line: string; hero: string }> = {
-  hit:  { label: "Hit",         line: "1+ H",   hero: "Safest Hit" },
-  tb:   { label: "Total Bases", line: "2+ TB",  hero: "Top Total Bases" },
-  hr:   { label: "Home Run",    line: "1+ HR",  hero: "Top HR" },
-  rbi:  { label: "RBI",         line: "1+ RBI", hero: "Top RBI" },
-  sb:   { label: "Stolen Base", line: "1+ SB",  hero: "Top SB" },
-  win:  { label: "Pitcher Win", line: "W",      hero: "Top Pitcher Win" },
-  qs:   { label: "Quality Start", line: "QS",   hero: "Top Quality Start" },
+  hit:  { label: "Hits",          line: "1+ H",      hero: "Safest Hit" },
+  tb:   { label: "Total Bases",   line: "2+ TB",     hero: "Top Total Bases" },
+  hr:   { label: "Home Runs",     line: "1+ HR",     hero: "Top HR" },
+  rbi:  { label: "RBI",           line: "1+ RBI",    hero: "Top RBI" },
+  runs: { label: "Runs",          line: "1+ R",      hero: "Top Runs" },
+  sb:   { label: "Stolen Bases",  line: "1+ SB",     hero: "Top SB" },
+  k:    { label: "Strikeouts",    line: "Pitcher K", hero: "Top Strikeouts" },
+  win:  { label: "Pitcher Win",   line: "W",         hero: "Top Pitcher Win" },
+  qs:   { label: "Quality Start", line: "QS",        hero: "Top Quality Start" },
 };
+
+// Display-only normalization: map propType aliases to canonical category keys.
+// Does not change the engine, scoring, or persisted data.
+const PROP_ALIASES: Record<string, PropType> = {
+  h: "hit", hit: "hit", hits: "hit",
+  tb: "tb", "total base": "tb", "total bases": "tb", total_base: "tb", total_bases: "tb",
+  hr: "hr", "home run": "hr", "home runs": "hr", home_run: "hr", home_runs: "hr", homer: "hr", homers: "hr",
+  rbi: "rbi", rbis: "rbi", "runs batted in": "rbi",
+  r: "runs", run: "runs", runs: "runs", runs_scored: "runs", "runs scored": "runs",
+  sb: "sb", "stolen base": "sb", "stolen bases": "sb", stolen_base: "sb", stolen_bases: "sb",
+  k: "k", ks: "k", so: "k", strikeout: "k", strikeouts: "k",
+  "pitcher k": "k", "pitcher ks": "k", "pitcher strikeout": "k", "pitcher strikeouts": "k",
+  pitcher_k: "k", pitcher_ks: "k", pitcher_strikeout: "k", pitcher_strikeouts: "k",
+  w: "win", win: "win", wins: "win", pitcher_win: "win", "pitcher win": "win",
+  qs: "qs", "quality start": "qs", "quality starts": "qs", quality_start: "qs", quality_starts: "qs", qualitystart: "qs",
+};
+
+const CANONICAL_PROPS: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
+
+function normalizePropType(raw: string | null | undefined): PropType | null {
+  if (!raw) return null;
+  const key = String(raw).trim().toLowerCase();
+  if (key in PROP_ALIASES) return PROP_ALIASES[key];
+  if ((CANONICAL_PROPS as string[]).includes(key)) return key as PropType;
+  return null;
+}
 
 const searchSchema = z.object({
   date: z.string().optional(),
-  prop: fallback(z.enum(["all", "hit", "tb", "hr", "rbi", "sb", "win", "qs"]), "all").default("all"),
+  prop: fallback(z.enum(["all", "hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"]), "all").default("all"),
   min: fallback(z.coerce.number().min(0).max(100), 60).default(60),
   team: z.string().optional(),
   sort: fallback(z.enum(["probability", "diamond"]), "probability").default("probability"),
