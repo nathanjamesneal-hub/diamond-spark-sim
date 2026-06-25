@@ -94,8 +94,9 @@ export function SiteHeader() {
           <div className="flex flex-col leading-none">
             <span className="font-display text-lg font-bold tracking-wider text-foreground">DIAMOND</span>
             <span className="mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              forecasting · versioned · calibrated
+              MLB simulation & projection engine
             </span>
+
           </div>
         </Link>
 
