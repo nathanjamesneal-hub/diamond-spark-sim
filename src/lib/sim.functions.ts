@@ -282,3 +282,192 @@ export const simulateGame = createServerFn({ method: "GET" })
   }> => {
     return buildMonteCarloGameEnvironment(data.gamePk, data.iterations);
   });
+
+// ============================================================
+// Top 25 Simulation Leaders — strict pass-through aggregator.
+// Reshapes outputs from existing functions; no new math.
+// ============================================================
+
+import { getDiamondScores } from "./projections.functions";
+import type { PlayerStatDist, BatterDist, PitcherDist } from "./sim/engine";
+
+export type SimStat = {
+  mean: number | null;
+  p50: number | null;
+  p90: number | null;
+  stdev: number | null; // engine does not expose stdev; always null
+  probAtLeast1: number | null;
+  probAtLeast2: number | null;
+};
+
+export type SimLeaderHitterRow = {
+  player_name: string;
+  mlb_id: number | null;
+  team_abbrev: string;
+  opp_abbrev: string;
+  game_id: string;
+  mlb_game_id: number | null;
+  batting_order: number | null;
+  lineup_status: "locked" | "verified" | "waiting";
+  badge: string;
+  diamond_score: number | null;
+  confidence: number | null;
+  H: SimStat | null;
+  HR: SimStat | null;
+  RBI: SimStat | null;
+  R: SimStat | null;
+  TB: SimStat | null;
+  SB: SimStat | null;
+  K: SimStat | null;
+  card_probabilities: {
+    hit: number | null;
+    total_base: number | null;
+    hr: number | null;
+    rbi: number | null;
+    run: number | null;
+    sb: number | null;
+  };
+};
+
+export type SimLeaderPitcherRow = {
+  player_name: string;
+  mlb_id: number | null;
+  team_abbrev: string;
+  opp_abbrev: string;
+  game_id: string;
+  mlb_game_id: number | null;
+  lineup_status: "locked" | "verified" | "waiting" | null;
+  badge: string;
+  diamond_score: number | null;
+  confidence: number | null;
+  projected_outs: number | null;
+  outs: SimStat | null;
+  K: SimStat | null;
+  BB: SimStat | null;
+  ER: SimStat | null;
+  H: SimStat | null;
+  win_probability: number | null;
+  quality_start_probability: number | null;
+  extra_probabilities: Record<string, number | null>;
+};
+
+export type SimulationLeadersPayload = {
+  date: string;
+  generated_at: string;
+  game_count: number;
+  games_simulated: number;
+  hitters: SimLeaderHitterRow[];
+  pitchers: SimLeaderPitcherRow[];
+  warnings: string[];
+};
+
+function reshapeStat(d: PlayerStatDist | undefined | null): SimStat | null {
+  if (!d) return null;
+  return {
+    mean: typeof d.mean === "number" && isFinite(d.mean) ? d.mean : null,
+    p50: typeof d.p50 === "number" && isFinite(d.p50) ? d.p50 : null,
+    p90: typeof d.p90 === "number" && isFinite(d.p90) ? d.p90 : null,
+    stdev: null,
+    probAtLeast1:
+      typeof d.probAtLeast1 === "number" && isFinite(d.probAtLeast1) ? d.probAtLeast1 : null,
+    probAtLeast2:
+      typeof d.probAtLeast2 === "number" && isFinite(d.probAtLeast2) ? d.probAtLeast2 : null,
+  };
+}
+
+export const getSimulationLeaders = createServerFn({ method: "GET" })
+  .inputValidator((data: { date?: string } | undefined) => data ?? {})
+  .handler(async ({ data }): Promise<SimulationLeadersPayload> => {
+    const warnings: string[] = [];
+    const scores = await getDiamondScores({ data: data.date ? { date: data.date } : {} });
+
+    const batterDistByMlbId = new Map<number, BatterDist>();
+    const pitcherDistByMlbId = new Map<number, PitcherDist>();
+
+    let gamesSimulated = 0;
+    const gamePks = scores.games.map((g) => g.mlb_game_id).filter((x): x is number => x != null);
+
+    await Promise.all(
+      gamePks.map(async (gamePk) => {
+        try {
+          const sim = await buildMonteCarloGameEnvironment(gamePk);
+          gamesSimulated += 1;
+          for (const b of sim.result.homeBatters) batterDistByMlbId.set(b.playerId, b);
+          for (const b of sim.result.awayBatters) batterDistByMlbId.set(b.playerId, b);
+          if (sim.result.homePitcher?.playerId)
+            pitcherDistByMlbId.set(sim.result.homePitcher.playerId, sim.result.homePitcher);
+          if (sim.result.awayPitcher?.playerId)
+            pitcherDistByMlbId.set(sim.result.awayPitcher.playerId, sim.result.awayPitcher);
+        } catch (e) {
+          warnings.push(`sim failed for gamePk ${gamePk}: ${(e as Error).message}`);
+        }
+      }),
+    );
+
+    const hitters: SimLeaderHitterRow[] = scores.hitters.map((h) => {
+      const dist = h.mlb_id != null ? batterDistByMlbId.get(h.mlb_id) : undefined;
+      return {
+        player_name: h.player_name,
+        mlb_id: h.mlb_id,
+        team_abbrev: h.team_abbrev,
+        opp_abbrev: h.opp_abbrev,
+        game_id: h.game_id,
+        mlb_game_id: h.mlb_game_id,
+        batting_order: h.batting_order,
+        lineup_status: h.lineup_status,
+        badge: h.badge,
+        diamond_score: h.diamond_score,
+        confidence: h.confidence,
+        H: reshapeStat(dist?.H),
+        HR: reshapeStat(dist?.HR),
+        RBI: reshapeStat(dist?.RBI),
+        R: reshapeStat(dist?.R),
+        TB: reshapeStat(dist?.TB),
+        SB: null,
+        K: reshapeStat(dist?.K),
+        card_probabilities: {
+          hit: h.hit_probability,
+          total_base: h.total_base_probability,
+          hr: h.hr_probability,
+          rbi: h.rbi_probability,
+          run: h.run_probability,
+          sb: h.sb_probability,
+        },
+      };
+    });
+
+    const pitchers: SimLeaderPitcherRow[] = scores.pitchers.map((p) => {
+      const dist = p.mlb_id != null ? pitcherDistByMlbId.get(p.mlb_id) : undefined;
+      return {
+        player_name: p.player_name,
+        mlb_id: p.mlb_id,
+        team_abbrev: p.team_abbrev,
+        opp_abbrev: p.opp_abbrev,
+        game_id: p.game_id,
+        mlb_game_id: p.mlb_game_id,
+        lineup_status: null,
+        badge: p.badge,
+        diamond_score: p.diamond_score,
+        confidence: p.confidence,
+        projected_outs: p.projected_outs,
+        outs: reshapeStat(dist?.outs),
+        K: reshapeStat(dist?.K),
+        BB: reshapeStat(dist?.BB),
+        ER: reshapeStat(dist?.ER),
+        H: reshapeStat(dist?.H),
+        win_probability: p.pitcher_win_probability,
+        quality_start_probability: p.quality_start_probability,
+        extra_probabilities: {},
+      };
+    });
+
+    return {
+      date: scores.date,
+      generated_at: new Date().toISOString(),
+      game_count: scores.games.length,
+      games_simulated: gamesSimulated,
+      hitters,
+      pitchers,
+      warnings,
+    };
+  });
