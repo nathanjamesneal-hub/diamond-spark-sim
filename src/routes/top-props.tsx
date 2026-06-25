@@ -339,10 +339,12 @@ function TopPropsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>
-        <p className="text-sm text-muted-foreground">
-          Category-by-category Top 25 leaderboards from today's Diamond Engine projections. Date: {data.date}
+        <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+          Category-by-category Top 25 leaderboards from today's Diamond simulation engine. Date: {data.date}
+          <SimMethodologyTooltip className="ml-1" />
         </p>
       </header>
+
 
       {/* Best of the Day */}
       <section className="space-y-2">
