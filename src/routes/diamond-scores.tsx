@@ -13,6 +13,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { PrimaryMetricsRow } from "@/components/diamond/primary-metrics-row";
+import { SimDetails } from "@/components/diamond/sim-details";
+import { PredictionDrivers } from "@/components/diamond/prediction-drivers";
+import { WhyTheModelLikesThis } from "@/components/diamond/why-model-likes-this";
+import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+
 
 const hitterSorts = ["diamond", "hit", "hr", "rbi", "sb"] as const;
 const pitcherSorts = ["diamond", "k"] as const;
