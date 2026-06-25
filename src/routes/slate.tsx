@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { getTodaysSlate, type SlateRow } from "@/lib/projections.functions";
+import { getTodaysSlate, type SlateRow, type SlateGame, type SlateDiagnostics } from "@/lib/projections.functions";
 
 const slateQuery = queryOptions({
   queryKey: ["slate", "today"],
@@ -36,9 +36,87 @@ function SlatePage() {
         </p>
       </div>
 
-      {data.rows.length === 0 ? <EmptySlate /> : <SlateTable rows={data.rows} />}
+      <DiagnosticsBanner diagnostics={data.diagnostics} games={data.games} />
+
+      {data.games.length > 0 && <GamesGrid games={data.games} />}
+
+      <div className="mt-8">
+        {data.rows.length === 0 ? <EmptySlate hasGames={data.games.length > 0} /> : <SlateTable rows={data.rows} />}
+      </div>
     </div>
   );
+}
+
+function DiagnosticsBanner({ diagnostics, games }: { diagnostics: SlateDiagnostics; games: SlateGame[] }) {
+  const truelyEmpty = diagnostics.api_game_count === 0;
+  return (
+    <div className="mb-6 rounded-lg border border-border/60 bg-card/40 p-4">
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <span className="mono uppercase tracking-widest text-muted-foreground">Pipeline</span>
+        <Pill label={`MLB API: ${diagnostics.api_game_count}`} tone={truelyEmpty ? "warn" : "ok"} />
+        <Pill label={`Imported: ${diagnostics.db_game_count}`} tone={diagnostics.db_game_count ? "ok" : "warn"} />
+        <Pill label={`Lineups: ${diagnostics.lineup_count}`} tone={diagnostics.lineup_count ? "ok" : "muted"} />
+        <Pill label={`Projections: ${diagnostics.projection_count}`} tone={diagnostics.projection_count ? "ok" : "muted"} />
+        <Pill label={`Showing: ${games.length}`} tone="muted" />
+      </div>
+      {diagnostics.note && (
+        <p className="mt-2 text-sm text-muted-foreground">{diagnostics.note}</p>
+      )}
+      {diagnostics.filtered_out.length > 0 && (
+        <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer">{diagnostics.filtered_out.length} games flagged</summary>
+          <ul className="mt-1 list-disc pl-5">
+            {diagnostics.filtered_out.map((f) => (
+              <li key={f.gamePk}>gamePk {f.gamePk}: {f.reason}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function Pill({ label, tone }: { label: string; tone: "ok" | "warn" | "muted" }) {
+  const cls =
+    tone === "ok" ? "bg-edge/15 text-edge"
+    : tone === "warn" ? "bg-primary/15 text-primary"
+    : "bg-secondary text-muted-foreground";
+  return <span className={`mono rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${cls}`}>{label}</span>;
+}
+
+function GamesGrid({ games }: { games: SlateGame[] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {games.map((g) => (
+        <div key={g.gamePk ?? Math.random()} className="rounded-lg border border-border/60 bg-card/30 p-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="mono font-bold">{g.away.abbrev} @ {g.home.abbrev}</span>
+            <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{g.status}</span>
+          </div>
+          <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+            <div>{g.away.abbrev} SP: <span className="text-foreground">{g.away.probablePitcher ?? "TBD"}</span></div>
+            <div>{g.home.abbrev} SP: <span className="text-foreground">{g.home.probablePitcher ?? "TBD"}</span></div>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-[10px]">
+            <LineupBadge status={g.lineup_status} hitters={g.hitters_set} />
+            {g.has_projections && <Pill label="Projected" tone="ok" />}
+            {!g.game_id && <Pill label="Not imported" tone="warn" />}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LineupBadge({ status, hitters }: { status: SlateGame["lineup_status"]; hitters: number }) {
+  const map = {
+    verified: { label: `Lineup ${hitters}/9`, tone: "ok" as const },
+    waiting: { label: `Lineup ${hitters}/9`, tone: "warn" as const },
+    locked: { label: `Locked ${hitters}/9`, tone: "ok" as const },
+    missing: { label: "No lineup", tone: "muted" as const },
+  };
+  const m = map[status];
+  return <Pill label={m.label} tone={m.tone} />;
 }
 
 function SlateTable({ rows }: { rows: SlateRow[] }) {
@@ -94,15 +172,21 @@ function StatusPill({ status }: { status: SlateRow["status"] }) {
   return <span className={`mono inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${m.cls}`}>{m.label}</span>;
 }
 
-function EmptySlate() {
+function EmptySlate({ hasGames }: { hasGames: boolean }) {
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-10 text-center">
-      <div className="mono text-xs uppercase tracking-widest text-muted-foreground">Slate empty</div>
+      <div className="mono text-xs uppercase tracking-widest text-muted-foreground">
+        {hasGames ? "Awaiting projections" : "Slate empty"}
+      </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        No projections for today yet. See{" "}
+        {hasGames
+          ? "Games are on the board — lineups and projections will populate as MLB publishes them."
+          : "No MLB games are on the schedule for today."}{" "}
+        See{" "}
         <Link to="/lineup-status" className="text-primary hover:underline">/lineup-status</Link>{" "}
-        to see what's missing and push games through the pipeline.
+        to push games through the pipeline.
       </p>
     </div>
   );
 }
+

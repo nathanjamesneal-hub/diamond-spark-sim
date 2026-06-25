@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { todayInAppTz } from "@/lib/timezone";
 
 function publicClient() {
   return createClient<Database>(
@@ -15,9 +16,34 @@ function publicClient() {
 }
 
 function todayIso(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  // App is pinned to America/Chicago — "today" must match what the user sees.
+  return todayInAppTz();
 }
+
+export type SlateGame = {
+  gamePk: number | null;
+  game_id: string | null;
+  status: string;
+  abstractStatus: string | null;
+  isFinal: boolean;
+  first_pitch_at: string | null;
+  home: { abbrev: string; name: string; probablePitcher: string | null };
+  away: { abbrev: string; name: string; probablePitcher: string | null };
+  lineup_status: "locked" | "verified" | "waiting" | "missing";
+  lineup_source: string | null;
+  hitters_set: number;
+  has_projections: boolean;
+};
+
+export type SlateDiagnostics = {
+  api_game_count: number;
+  api_games_included: number;
+  filtered_out: { gamePk: number; reason: string }[];
+  db_game_count: number;
+  lineup_count: number;
+  projection_count: number;
+  note: string | null;
+};
 
 export type SlateRow = {
   player_id: string;
@@ -39,33 +65,64 @@ export type SlateRow = {
 
 export const getTodaysSlate = createServerFn({ method: "GET" })
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<{ date: string; modelVersion: string | null; rows: SlateRow[] }> => {
+  .handler(async ({ data }): Promise<{
+    date: string;
+    modelVersion: string | null;
+    rows: SlateRow[];
+    games: SlateGame[];
+    diagnostics: SlateDiagnostics;
+  }> => {
     const sb = publicClient();
     const date = data.date ?? todayIso();
+
+    // ---- 1. Pull the raw MLB schedule for today (CT). Always trust this as truth. ----
+    let apiJson: any = null;
+    let apiGames: any[] = [];
+    try {
+      const res = await fetch(
+        `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher`,
+        { headers: { accept: "application/json" } },
+      );
+      if (res.ok) {
+        apiJson = await res.json();
+        for (const d of apiJson.dates ?? []) for (const g of d.games ?? []) apiGames.push(g);
+      } else {
+        console.error(`[getTodaysSlate] MLB schedule ${res.status} for ${date}`);
+      }
+    } catch (err) {
+      console.error("[getTodaysSlate] MLB schedule fetch failed", err);
+    }
+    console.info(`[getTodaysSlate] date=${date} mlb_api_games=${apiGames.length}`);
+
+    const filteredOut: { gamePk: number; reason: string }[] = [];
 
     const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
     const version = active?.version ?? null;
 
-    const { data: games } = await sb
-      .from("games").select("id, first_pitch_at, home_team_id, away_team_id")
+    const { data: dbGames } = await sb
+      .from("games").select("id, mlb_game_id, first_pitch_at, home_team_id, away_team_id")
       .eq("date", date);
-    if (!games?.length || !version) return { date, modelVersion: version, rows: [] };
+    const dbGameByMlbPk = new Map<number, any>();
+    for (const g of dbGames ?? []) if (g.mlb_game_id) dbGameByMlbPk.set(Number(g.mlb_game_id), g);
 
-    const gameIds = games.map((g) => g.id);
-    const { data: teams } = await sb.from("teams").select("id, abbreviation");
+    const gameIds = (dbGames ?? []).map((g) => g.id);
+    const { data: teams } = await sb.from("teams").select("id, abbreviation, name, mlb_team_id");
     const teamAbbrev = new Map((teams ?? []).map((t) => [t.id, t.abbreviation]));
 
-    const { data: lineups } = await sb
-      .from("lineups").select("game_id, player_id, team_id, locked_at, confirmed")
-      .in("game_id", gameIds);
+    const { data: lineups } = gameIds.length
+      ? await sb
+          .from("lineups").select("game_id, player_id, team_id, locked_at, confirmed, lineup_source")
+          .in("game_id", gameIds)
+      : { data: [] as any[] };
 
-    const { data: projections } = await sb
-      .from("projections")
-      .select("player_id, game_id, diamond_score, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, confidence, created_at")
-      .in("game_id", gameIds).eq("model_version", version)
-      .eq("projection_status", "active")
-      .order("created_at", { ascending: false });
-
+    const { data: projections } = gameIds.length && version
+      ? await sb
+          .from("projections")
+          .select("player_id, game_id, diamond_score, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, confidence, created_at")
+          .in("game_id", gameIds).eq("model_version", version)
+          .eq("projection_status", "active")
+          .order("created_at", { ascending: false })
+      : { data: [] as any[] };
 
     // Keep latest projection per (player, game)
     const latestProj = new Map<string, any>();
@@ -74,13 +131,14 @@ export const getTodaysSlate = createServerFn({ method: "GET" })
       if (!latestProj.has(k)) latestProj.set(k, p);
     }
 
-    const { data: players } = await sb
-      .from("players").select("id, name")
-      .in("id", Array.from(new Set((lineups ?? []).map((l) => l.player_id))));
-    const playerName = new Map((players ?? []).map((p) => [p.id, p.name]));
+    const playerIds = Array.from(new Set((lineups ?? []).map((l: any) => l.player_id)));
+    const { data: players } = playerIds.length
+      ? await sb.from("players").select("id, name").in("id", playerIds)
+      : { data: [] as any[] };
+    const playerName = new Map((players ?? []).map((p: any) => [p.id, p.name]));
 
-    const rows: SlateRow[] = (lineups ?? []).map((l) => {
-      const g = games.find((x) => x.id === l.game_id);
+    const rows: SlateRow[] = (lineups ?? []).map((l: any) => {
+      const g = (dbGames ?? []).find((x) => x.id === l.game_id);
       const oppTeamId = g ? (l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id) : null;
       const proj = latestProj.get(`${l.player_id}:${l.game_id}`);
       const status: SlateRow["status"] = l.locked_at ? "locked" : l.confirmed ? "verified" : "waiting";
@@ -102,10 +160,82 @@ export const getTodaysSlate = createServerFn({ method: "GET" })
         confidence: proj?.confidence ?? null,
       };
     });
-
     rows.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
-    return { date, modelVersion: version, rows };
+
+    // ---- 2. Build a per-game SlateGame list straight from the API ----
+    const lineupCountByGame = new Map<string, number>();
+    const sourceByGame = new Map<string, string | null>();
+    for (const l of lineups ?? []) {
+      lineupCountByGame.set(l.game_id, (lineupCountByGame.get(l.game_id) ?? 0) + 1);
+      if (!sourceByGame.has(l.game_id)) sourceByGame.set(l.game_id, (l as any).lineup_source ?? null);
+    }
+    const projGameIds = new Set((projections ?? []).map((p: any) => p.game_id));
+
+    const games: SlateGame[] = [];
+    for (const g of apiGames) {
+      const abstract = g.status?.abstractGameState ?? null;
+      const detailed = g.status?.detailedState ?? abstract ?? "Scheduled";
+      // We never filter by status — show everything (Scheduled, Pre-Game, Warmup, Live, Final, Delayed, Postponed).
+      // We only flag cancelled/postponed games as informational, but still include them so the user sees them.
+      if (detailed === "Cancelled" || detailed === "Postponed") {
+        filteredOut.push({ gamePk: g.gamePk, reason: `status=${detailed} (still listed)` });
+      }
+      const dbg = dbGameByMlbPk.get(Number(g.gamePk));
+      const hitters = dbg ? lineupCountByGame.get(dbg.id) ?? 0 : 0;
+      const lineup_status: SlateGame["lineup_status"] =
+        !dbg ? "missing" : hitters >= 9 ? "verified" : hitters > 0 ? "waiting" : "missing";
+      games.push({
+        gamePk: g.gamePk,
+        game_id: dbg?.id ?? null,
+        status: detailed,
+        abstractStatus: abstract,
+        isFinal: abstract === "Final",
+        first_pitch_at: g.gameDate ?? null,
+        home: {
+          abbrev: g.teams?.home?.team?.abbreviation ?? "",
+          name: g.teams?.home?.team?.name ?? "",
+          probablePitcher: g.teams?.home?.probablePitcher?.fullName ?? null,
+        },
+        away: {
+          abbrev: g.teams?.away?.team?.abbreviation ?? "",
+          name: g.teams?.away?.team?.name ?? "",
+          probablePitcher: g.teams?.away?.probablePitcher?.fullName ?? null,
+        },
+        lineup_status,
+        lineup_source: dbg ? sourceByGame.get(dbg.id) ?? null : null,
+        hitters_set: hitters,
+        has_projections: dbg ? projGameIds.has(dbg.id) : false,
+      });
+    }
+
+    const note =
+      apiGames.length === 0
+        ? `MLB API returned zero games for ${date} (CT). Nothing to load.`
+        : !version
+        ? "No active model_versions row — set one in admin before running the Diamond Engine."
+        : (dbGames?.length ?? 0) === 0
+        ? `MLB has ${apiGames.length} games today but none have been imported yet — click "Update Today's Slate" / Import Schedule.`
+        : rows.length === 0
+        ? `Schedule imported but no lineups/projections yet — Diamond engine will publish projections as soon as lineups arrive.`
+        : null;
+
+    const diagnostics: SlateDiagnostics = {
+      api_game_count: apiGames.length,
+      api_games_included: games.length,
+      filtered_out: filteredOut,
+      db_game_count: dbGames?.length ?? 0,
+      lineup_count: lineups?.length ?? 0,
+      projection_count: projections?.length ?? 0,
+      note,
+    };
+    console.info(
+      `[getTodaysSlate] api=${apiGames.length} db=${dbGames?.length ?? 0} lineups=${lineups?.length ?? 0} projections=${projections?.length ?? 0} rows=${rows.length}`,
+    );
+
+    return { date, modelVersion: version, rows, games, diagnostics };
   });
+
+
 
 export type CalibrationRow = {
   model_version: string;

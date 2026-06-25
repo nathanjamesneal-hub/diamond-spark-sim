@@ -7,6 +7,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { todayInAppTz } from "@/lib/timezone";
 import {
   isAlpha03,
   projectForModelVersion,
@@ -32,8 +33,8 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 }
 
 function todayIso(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  // App is pinned to America/Chicago — schedule imports use the same calendar day the UI shows.
+  return todayInAppTz();
 }
 
 type ImportResult = { ok: true; count: number; details?: string } | { ok: false; error: string };
