@@ -256,20 +256,24 @@ function LineupCard({ title, accent, batters }: { title: string; accent: string;
   return (
     <div className="rounded-xl border border-border/60 bg-card p-5">
       <div className={`mono mb-3 text-[10px] uppercase tracking-widest ${accent}`}>{title}</div>
+      <div className="mono mb-2 text-[10px] text-muted-foreground" title="Each value is the mean of the per-batter distribution across 2,000 Monte Carlo game simulations.">
+        Post-simulation means (2,000 sims)
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             <tr>
               <th className="py-1.5 pr-1">#</th>
               <th className="pr-2">Batter</th>
-              <th className="px-1 text-right">H</th>
-              <th className="px-1 text-right">HR</th>
-              <th className="px-1 text-right">RBI</th>
-              <th className="px-1 text-right">R</th>
-              <th className="px-1 text-right">K</th>
-              <th className="pl-1 text-right">BB</th>
+              <th className="px-1 text-right">Mean H</th>
+              <th className="px-1 text-right">Mean HR</th>
+              <th className="px-1 text-right">Mean RBI</th>
+              <th className="px-1 text-right">Mean R</th>
+              <th className="px-1 text-right">Mean K</th>
+              <th className="pl-1 text-right">Mean BB</th>
             </tr>
           </thead>
+
           <tbody>
             {batters.map((b, i) => (
               <tr key={b.playerId} className="border-t border-border/40">

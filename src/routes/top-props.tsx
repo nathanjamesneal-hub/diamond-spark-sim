@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
+import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+
 
 type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
 
@@ -337,10 +339,12 @@ function TopPropsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>
-        <p className="text-sm text-muted-foreground">
-          Category-by-category Top 25 leaderboards from today's Diamond Engine projections. Date: {data.date}
+        <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+          Category-by-category Top 25 leaderboards from today's Diamond simulation engine. Date: {data.date}
+          <SimMethodologyTooltip className="ml-1" />
         </p>
       </header>
+
 
       {/* Best of the Day */}
       <section className="space-y-2">
@@ -458,9 +462,13 @@ function TopPropsPage() {
                       <th className="px-3 py-2 text-left">Team</th>
                       <th className="px-3 py-2 text-left">Opp</th>
                       <th className="px-3 py-2 text-left">Line</th>
-                      <th className="px-3 py-2 text-right">Prob</th>
+                      <th className="px-3 py-2 text-right">
+                        <span className="inline-flex items-center gap-1">Mean <SimMethodologyTooltip /></span>
+                      </th>
+                      <th className="px-3 py-2 text-right">MC Prob</th>
                       <th className="px-3 py-2 text-right">DS</th>
-                      <th className="px-3 py-2 text-left">Confidence</th>
+                      <th className="px-3 py-2 text-right">Conf</th>
+                      <th className="px-3 py-2 text-left">Edge</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -483,18 +491,21 @@ function TopPropsPage() {
                         <td className="px-3 py-2 mono text-xs">{r.team_abbrev}</td>
                         <td className="px-3 py-2 mono text-xs text-muted-foreground">{r.opp_abbrev}</td>
                         <td className="px-3 py-2 mono text-xs">{r.line}</td>
+                        <td className="px-3 py-2 mono text-right text-xs text-muted-foreground italic">—</td>
                         <td className="px-3 py-2 text-right">
                           <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(r.probability)}`}>
                             {pct(r.probability)}
                           </span>
                         </td>
                         <td className="px-3 py-2 mono text-right text-xs">{r.diamond_score != null ? Math.round(r.diamond_score) : "—"}</td>
-                        <td className="px-3 py-2 mono text-[10px] text-muted-foreground">{r.lineup_badge}</td>
+                        <td className="px-3 py-2 mono text-right text-xs text-muted-foreground">{r.lineup_badge}</td>
+                        <td className="px-3 py-2 mono text-[10px] text-muted-foreground italic">—</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
             )}
           </section>
         ))}
