@@ -21,7 +21,12 @@ export const Route = createFileRoute("/_authenticated/_admin/admin")({
 type RunState = { running: boolean; last?: { ok: boolean; msg: string; at: string } };
 
 function AdminPanel() {
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => todayInAppTz());
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<DailyPipelineSummary | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const runPipeline = useServerFn(runDailyPipeline);
+
   const [state, setState] = useState<Record<string, RunState>>({});
   const [newVersion, setNewVersion] = useState("");
   const [newNotes, setNewNotes] = useState("");
