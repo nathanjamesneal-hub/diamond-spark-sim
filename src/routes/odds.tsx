@@ -365,6 +365,7 @@ function SimLeadersPage() {
           key={cat.key}
           cat={cat}
           payload={data}
+          actuals={actuals}
           team={search.team}
           lineupFilter={search.lineup}
           explicit={search.cat === cat.key}
