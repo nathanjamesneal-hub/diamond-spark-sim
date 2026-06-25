@@ -93,9 +93,12 @@ function DiamondScoresPage() {
         <div>
           <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">Diamond Scores</div>
           <h1 className="font-display text-3xl font-bold tracking-tight">{data.date}</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Active model: <span className="mono">{data.activeVersion ?? "—"}</span> · Aggregated from multiple lineup sources.
+          <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            MLB simulation & projection engine · active model{" "}
+            <span className="mono">{data.activeVersion ?? "—"}</span>
+            <SimMethodologyTooltip className="ml-1" />
           </p>
+
           <div className="mt-2 flex items-center gap-2">
             <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
               Lineups · {data.slateConfirmed} / {data.slateTotal} confirmed
