@@ -1,88 +1,67 @@
-## Top 25 Simulation Leaders
+## Goal
+Refine the Result grading on `/odds` (Sim Leaders) so low-mean counting projections are not counted as "Met/Beat Projection" hits, and HR/SB use simple binary event grading. Display-only — no engine, math, or projection changes.
 
-Repurpose `/odds` into a leaderboard ranked by **existing Monte Carlo mean outputs** from the sim engine. No changes to the engine, scoring, or probability math — pure UI + a thin, pass-through server aggregator.
+## Scope
+Single file: `src/routes/odds.tsx` (plus a one-line tooltip string reuse). No changes to `sim.functions.ts`, `actuals.functions.ts`, or engines.
 
-### Scope
+## Grading rules (new)
 
-- Replace `src/routes/odds.tsx` content (keep the `/odds` path so existing links don't 404; rename is an easy follow-up).
-- Remove sportsbook/odds language and the value-board UI. Leave `src/lib/odds.functions.ts` untouched (still used by other pages).
-- Header: "Top 25 Simulation Leaders" / subtitle "Ranked from existing Monte Carlo simulation outputs."
+**Counting stats** — applies to: Hits, RBI, Runs, Total Bases, Batter Strikeouts, Pitcher Strikeouts, Pitcher Outs, Earned Runs, Walks.
 
-### Data source — strict pass-through
+- If game not Final → `Pending` (muted), unchanged.
+- If mean or actual missing → `—` (muted), unchanged.
+- If `mean < 0.5`:
+  - actual `== 0` → **Low Projection / No Event** (neutral gray, muted tone).
+  - actual `> 0` → **Beat Low Projection** (green, good tone).
+  - These rows are flagged `excludeFromAccuracy: true` so any future summary won't count them as hits.
+- If `mean >= 0.5`: existing `gradeCounting` logic (Beat / Met / Close / Missed).
 
-New server function `getSimulationLeaders({ date })` added to `src/lib/sim.functions.ts`.
+**HR** — pure binary event:
+- actual `>= 1` → **Hit HR** (green, strong tone).
+- actual `== 0` → **No HR** (red, bad tone).
+- (Removes the current `mean >= 0.25` gating.)
 
-**Hard guardrail:** this function may only call existing functions and reshape their returned values. It will not:
+**SB** — pure binary event (new, currently uses counting):
+- actual `>= 1` → **Stole Base** (green, strong tone).
+- actual `== 0` → **No SB** (red, bad tone).
 
-- introduce new formulas, weights, or probability conversions,
-- derive probabilities from means or scores,
-- invent thresholds the engine doesn't already expose,
-- compute any new simulated stat.
+**Binary props (QS, Win)** — unchanged.
 
-What it does:
+## Implementation details (technical)
 
-1. Calls existing `getDiamondScores({ data: { date } })` to get the slate's hitter/pitcher cards (identity, lineup status, badge, opponent, diamond_score, confidence, and the probability fields already persisted on the projection).
-2. For each game on that slate, calls existing `simulateGame({ data: { gamePk } })` and reads the per-batter `BatterDist` / per-pitcher dist objects exactly as the matchups page already does.
-3. Joins by `mlb_id` (and game) and reshapes into two arrays:
-   - `hitters: SimLeaderHitterRow[]`
-   - `pitchers: SimLeaderPitcherRow[]`
-4. For every field — mean, stdev, p50, p90, any threshold probability — if the source value isn't on the dist or the card, the field is `null`. No fallbacks. No conversions.
+In `src/routes/odds.tsx`:
 
-Row shape (illustrative — all numeric fields nullable):
+1. Extend the `Grade` type:
+   ```ts
+   type Grade = {
+     label: "Beat Projection" | "Met Projection" | "Close" | "Missed"
+          | "Low Projection / No Event" | "Beat Low Projection"
+          | "Hit HR" | "No HR" | "Stole Base" | "No SB"
+          | "Pending" | "—";
+     tone: "strong" | "good" | "warn" | "bad" | "muted";
+     excludeFromAccuracy?: boolean;
+   };
+   ```
+2. Rewrite `gradeCounting(mean, actual)` to branch on `mean < 0.5` per rules above.
+3. Replace `gradeHR` with binary event logic (drop the 0.25 gate).
+4. Add `gradeSB(actual)` mirroring HR; route `sb` category through it (it currently falls through to `gradeCounting`).
+5. Wire the per-row grading switch at the row render site:
+   - `cat.key === "hr"` → `gradeHR`
+   - `cat.key === "sb"` → `gradeSB`
+   - `cat.getBoolActual` → `gradeBinary` (QS, Win)
+   - else → updated `gradeCounting`
+6. Add the methodology tooltip next to the **Result** column header in `CategorySection`:
+   > "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes."
+   
+   Implemented as a small inline `<span title="…">i</span>` matching the existing `SimMethodologyTooltip` visual style (or a second tooltip component co-located in the file) so we don't broaden `SimMethodologyTooltip`'s contract.
 
-```text
-SimLeaderHitterRow {
-  player_name, mlb_id, team_abbrev, opp_abbrev, game_id,
-  batting_order, lineup_status, badge,
-  diamond_score, confidence,
-  H:    { mean, stdev, p50, p90, probAtLeast1, probAtLeast2 } | null,
-  HR:   { mean, ..., probAtLeast1 } | null,
-  RBI:  { mean, ..., probAtLeast1 } | null,
-  R:    { mean, ..., probAtLeast1 } | null,
-  TB:   { mean, ..., probAtLeast2 } | null,
-  SB:   { mean, ..., probAtLeast1 } | null,   // present only if engine exposes it
-  K:    { mean, ..., probAtLeast1 } | null,   // batter K
-}
+No `GRADE_CLASS` changes required — new labels reuse existing `muted` / `good` / `strong` / `bad` tones.
 
-SimLeaderPitcherRow {
-  player_name, mlb_id, team_abbrev, opp_abbrev, game_id,
-  diamond_score, confidence, lineup_status, badge,
-  outs:  { mean, p50, stdev, p90 } | null,
-  K:     { mean, p50, stdev, p90 } | null,
-  BB:    { mean, ... } | null,
-  ER:    { mean, ... } | null,
-  win_probability:           number | null,  // pass-through from card
-  quality_start_probability: number | null,  // pass-through from card
-  // future probability fields read by key from the dist when present;
-  // missing keys stay null.
-}
-```
+## Out of scope
+- Earned Runs and Walks categories are listed in the requirements but are not currently in `CATEGORIES`. The grading function will support them so they Just Work if/when added, but I won't add new leaderboard categories in this pass unless you want them.
+- No changes to the "Actual" column rendering.
+- No changes to model math, projections, or accuracy summary screens (none currently consume per-row grade results).
 
-Cached per (date, lineup signature) the same way `simulateGame` already is.
-
-### Page UI (`src/routes/odds.tsx`)
-
-- Tabs/sections in this order: Hits, Home Runs, RBI, Runs, Total Bases, Stolen Bases, Batter Strikeouts, Pitcher Strikeouts, Pitcher Outs, Quality Start, Pitcher Win.
-- Per category:
-  - Top 25 rows.
-  - Default sort: that category's **mean** desc; secondary sort by the matching threshold probability when present, else by `diamond_score` desc.
-  - If zero rows have a real mean for that category, the section is hidden by default and shows "No simulation data available for this category." when the user filters to it.
-- Columns: Rank · Player (links to `/players/$mlbId`) · Team · Opp · **Mean** · **Sim Prob %** (or `—`) · Diamond Score · Confidence · Lineup Status · Drivers ("Why" using the existing `WhyTheModelLikesThis`, only when its inputs are present).
-- Reuse `SimMethodologyTooltip` on the page header and on the Mean / Sim Prob column headers with the exact required copy.
-- Filters: Team filter and a lineup-status filter (Locked / Verified / Waiting). No min-% slider — mean-based ranking doesn't need it.
-
-### Future pitcher probability readiness
-
-The page declares an extensible list of pitcher probability fields it knows how to render: `win`, `quality_start`, `k_over_5`/`6`/`8`/`10`, `outs_over_X`, `er_zero`, `er_over_1`/`2`/`3`/`4`, `lasts_5`/`6`/`7`. For each pitcher row it reads those keys from the row payload; missing keys render `—`. When the engine starts emitting them, `getSimulationLeaders` will pass them through unchanged and the UI lights up — no math added in the UI, no new code.
-
-### Safety
-
-- No edits to `src/lib/engines/**`, `src/lib/sim/engine.ts`, `runDiamondEngineForGames`, `simulateGame`, or any scoring/probability math.
-- `getSimulationLeaders` is a thin orchestrator: existing functions in, reshaped DTO out, `null` whenever a field is absent.
-- `getOdds` stays in place for other consumers.
-- Site header link relabeled "Odds" → "Sim Leaders" (path unchanged).
-
-### Out of scope
-
-- Renaming `/odds` to `/sim-leaders`.
-- Persisting sim distributions to a DB table to skip per-load recomputation (today it re-runs sims per slate, cached in-memory).
+## Verification
+- Typecheck.
+- Spot-check `/odds` for a past date with Final games: confirm low-mean rows show the new neutral/green labels and HR/SB rows show binary labels.

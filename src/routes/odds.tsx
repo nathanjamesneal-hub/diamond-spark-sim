@@ -178,8 +178,21 @@ function badgeLabel(b: string): string {
 // ----- Result grading -----
 // "Pending" = game not Final, "—" = stat unavailable.
 type Grade = {
-  label: "Beat Projection" | "Met Projection" | "Close" | "Missed" | "Pending" | "—";
+  label:
+    | "Beat Projection"
+    | "Met Projection"
+    | "Close"
+    | "Missed"
+    | "Low Projection / No Event"
+    | "Beat Low Projection"
+    | "Hit HR"
+    | "No HR"
+    | "Stole Base"
+    | "No SB"
+    | "Pending"
+    | "—";
   tone: "strong" | "good" | "warn" | "bad" | "muted";
+  excludeFromAccuracy?: boolean;
 };
 const GRADE_CLASS: Record<Grade["tone"], string> = {
   strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
@@ -189,8 +202,17 @@ const GRADE_CLASS: Record<Grade["tone"], string> = {
   muted: "bg-zinc-500/10 text-muted-foreground border-border/40",
 };
 
+const LOW_MEAN_TOOLTIP =
+  "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes.";
+
 function gradeCounting(mean: number | null, actual: number | null): Grade {
   if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  if (mean < 0.5) {
+    if (actual > 0) {
+      return { label: "Beat Low Projection", tone: "good", excludeFromAccuracy: true };
+    }
+    return { label: "Low Projection / No Event", tone: "muted", excludeFromAccuracy: true };
+  }
   const floor = Math.floor(mean);
   const ceil = Math.ceil(mean);
   if (actual >= ceil) return { label: "Beat Projection", tone: "strong" };
@@ -198,12 +220,15 @@ function gradeCounting(mean: number | null, actual: number | null): Grade {
   if (Math.abs(actual - floor) <= 1) return { label: "Close", tone: "warn" };
   return { label: "Missed", tone: "bad" };
 }
-function gradeHR(mean: number | null, actual: number | null): Grade {
-  if (mean == null || actual == null) return { label: "—", tone: "muted" };
-  if (actual >= 1 && (mean ?? 0) >= 0.25) return { label: "Beat Projection", tone: "strong" };
-  if (actual >= 1) return { label: "Met Projection", tone: "good" };
-  // never punish low-prob HR rows aggressively
-  return { label: "Missed", tone: (mean ?? 0) >= 0.5 ? "bad" : "muted" };
+function gradeHR(actual: number | null): Grade {
+  if (actual == null) return { label: "—", tone: "muted" };
+  if (actual >= 1) return { label: "Hit HR", tone: "strong" };
+  return { label: "No HR", tone: "bad" };
+}
+function gradeSB(actual: number | null): Grade {
+  if (actual == null) return { label: "—", tone: "muted" };
+  if (actual >= 1) return { label: "Stole Base", tone: "strong" };
+  return { label: "No SB", tone: "bad" };
 }
 function gradeBinary(prob: number | null, actual: boolean | null): Grade {
   if (actual == null) return { label: "—", tone: "muted" };
@@ -214,6 +239,7 @@ function gradeBinary(prob: number | null, actual: boolean | null): Grade {
   if (prob != null && prob >= 0.5) return { label: "Missed", tone: "bad" };
   return { label: "Met Projection", tone: "muted" };
 }
+
 
 
 const searchSchema = z.object({
