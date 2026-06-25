@@ -1,81 +1,34 @@
-# Fix: one-click MLB slate + Diamond Engine pipeline
+# Force Run Diamond Engine — Admin Button
 
-## What's broken (verified against DB + MLB API)
+A manual fallback that bypasses the normal "skip if already projected" guards and runs the Diamond Engine against every game on today's slate, even when lineups are partial.
 
-- MLB API has **9 games for today (2026-06-25 CT)**. DB has **0 games** for that date.
-- Latest 8 `cron_runs` for today all report **"No lineup changes detected"** — because the refresh runner **calls `aggregateLineups` first, which queries `games` for the date and finds none**. The refresh never imports the schedule, so it can never bootstrap a new day.
-- The admin panel has **9 separate buttons** (schedule → SP → refresh → lineups → DNA → engine → lock → results → calibration). There is no single "Update Today's Slate" action.
-- Admin date input defaults to `new Date().toISOString().slice(0,10)` (UTC), which can differ from the Chicago calendar day the rest of the app uses.
-- Yesterday "worked" because by the evening the schedule had already been imported and lineups were drifting in, so the refresh loop had something to aggregate.
+## What it does
 
-## Plan
+One click triggers a server function that:
+1. Reads today's date in Chicago timezone (`todayInAppTz()`).
+2. Loads every game scheduled for that date from the `games` table (any status: Scheduled, Pre-Game, Warmup, In Progress, Live, Final).
+3. For each game, gathers all available `lineups` rows + `starting_pitchers` rows — does NOT require a full 9-batter lineup. Games with zero players are skipped and reported.
+4. Runs Diamond Engine for every eligible player (hitters via existing engine, pitchers via `pitcher_diamond_score`), forcing recompute (ignores "already has projection today" short-circuit).
+5. Upserts results into `projections`, superseding prior rows for the same player/game/date.
+6. Returns a structured report: games found, games processed, games skipped (with reasons), hitter predictions generated, pitcher predictions generated, errors per game.
 
-### 1. New single server fn `runDailyPipeline(date)`
+## UI
 
-In `src/lib/ingest.functions.ts`. Admin-gated. Runs the full sequence and returns a structured debug payload:
+In `src/routes/_authenticated/_admin/admin.tsx`, add a new card next to "Update Today's Slate":
 
-```ts
-{
-  ok, date,
-  schedule:   { games_upserted, teams_upserted, error? },
-  pitchers:   { sp_upserted, error? },
-  lineups:    { lineup_rows, players_upserted, games_with_confirmed, error? },
-  refresh:    { providers, changed_game_ids, players_changed, pitchers_changed },
-  engine:     { games_processed, projections_inserted, environment_failures },
-  cards:      { hitters, pitchers, games_with_projections, games_pending },
-}
-```
+- **Title**: "Force Run Diamond Engine"
+- **Subtitle**: "Backup trigger — recomputes projections for every game on today's slate, even with partial lineups."
+- Button with loading spinner.
+- On success, render a result panel with:
+  - Games found / processed / skipped
+  - Hitter predictions generated
+  - Pitcher predictions generated
+  - Per-game breakdown (collapsible) with any errors
+- Toast on completion; invalidates the `diamond-scores` and `lineup-status` query keys so cards refresh.
 
-Sequence:
+## Technical changes
 
-1. `importSchedule({date})` — upsert teams + games (Scheduled, Pre-Game, Warmup, Live, Final all included; existing code already does this).
-2. `importStartingPitchers({date})` — upserts probables.
-3. `importLineups({date})` — confirmed MLB lineups when available (no-op for games without batting orders, doesn't fail the run).
-4. `runRefresh(date)` — providers + diff (will now find games, since step 1 imported them).
-5. **Always** call `runDiamondEngineForGames(date)` for every game with a lineup OR a probable pitcher, regardless of whether refresh reported changes. This is the regression fix: yesterday's path always ran the engine; the new incremental refresh skipped it when `changedGameIds` was empty.
-6. Read back counts of hitter/pitcher projections for the response.
+- **`src/lib/ingest.functions.ts`**: add `forceRunDiamondEngine` server fn (auth + admin role check). Reuses `runDiamondEngineForGames` internals but passes a `force: true` flag that bypasses the existing-projection skip. If `runDiamondEngineForGames` doesn't already accept a force flag, add one (default `false`) so existing callers are unchanged.
+- **`src/routes/_authenticated/_admin/admin.tsx`**: new card + `useMutation` wired to the server fn, result display, query invalidation.
 
-### 2. Admin UI changes (`src/routes/_authenticated/_admin/admin.tsx`)
-
-- Add a prominent **"Update Today's Slate"** button at the top that calls `runDailyPipeline({date})`.
-- Default the date picker to `todayInAppTz()` (Chicago) instead of UTC.
-- Render the structured debug payload underneath: counts per step, errors per step, list of changed game IDs, and any provider errors. Keep the existing 9 step-buttons below for power users.
-
-### 3. Lineup status visibility (no schema changes)
-
-`getTodaysSlate` and `/lineup-status` already compute per-game status from existing fields (`game_status`, lineup row count, projection presence). After the pipeline runs, every game shows one of: `probable pitchers loaded` / `lineup pending` / `confirmed lineup loaded` / `live` / `final`. Just confirm the labels render — no DB work needed.
-
-### 4. Player card "Needs Engine Run" affordance (`src/routes/diamond-scores.tsx`)
-
-- When a game appears in the slate but has no projection row for the active model version, render a "Needs engine run" badge with a button that calls `runDiamondEngineForGames(date, [gameId])` (new tiny admin wrapper).
-- Invalidate the diamond-scores query on success so cards refresh.
-
-### 5. Upsert / matching audit (read-only confirmation, no rewrites)
-
-Existing writes already use the correct patterns — no change needed, just documenting so the user can see it:
-
-- `games` upsert: `onConflict: "mlb_game_id"` ✓
-- `players` upsert: `onConflict: "mlb_id"` ✓
-- `lineups` upsert: `onConflict: "game_id,player_id"` ✓
-- `starting_pitchers` upsert: `onConflict: "game_id,team_id"` ✓
-- `projections` insert with `projection_status` superseding ✓
-
-Name-fallback player matching is not added — every MLB endpoint we hit (`/schedule`, `/boxscore`) returns `mlb_id`, so name-only matching would be dead code.
-
-### 6. No schema migration required
-
-All needed columns already exist. The fix is entirely in server-fn orchestration + admin UI.
-
-## Files touched
-
-- `src/lib/ingest.functions.ts` — add `runDailyPipeline` server fn + small `runEngineForGame` wrapper.
-- `src/routes/_authenticated/_admin/admin.tsx` — add top-of-page "Update Today's Slate" button, debug panel, fix default date to Chicago.
-- `src/routes/diamond-scores.tsx` — "Needs engine run" badge + per-game retry button on cards missing projections.
-
-## Verification
-
-After the user clicks "Update Today's Slate":
-- DB query: `SELECT date, COUNT(*) FROM games GROUP BY date` shows today's 9 games.
-- DB query: projections for today have non-default `diamond_score` spread.
-- Admin debug panel shows non-zero counts per step or specific error messages.
-- `/diamond-scores` and `/slate` populate with cards.
+No schema changes. No changes to engine math, hitter formula, pitcher formula, or auto-trigger pipeline.
