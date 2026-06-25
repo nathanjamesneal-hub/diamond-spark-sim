@@ -38,6 +38,10 @@ type CatDef = {
   // probability extractor: returns a fraction 0–1 or null
   getProb?: (row: SimLeaderHitterRow | SimLeaderPitcherRow) => number | null;
   probLabel?: string;
+  // pull actual integer result off a HitterActual / PitcherActual (or null)
+  getActual?: (a: HitterActual | PitcherActual) => number | null;
+  // for boolean outcomes (Win, QS) — overrides numeric grading
+  getBoolActual?: (a: PitcherActual) => boolean | null;
 };
 
 const CATEGORIES: CatDef[] = [
