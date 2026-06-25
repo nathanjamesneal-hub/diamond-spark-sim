@@ -234,6 +234,14 @@ const leadersQuery = (date: string | undefined) =>
     retry: 1,
   });
 
+const actualsQuery = (date: string | undefined) =>
+  queryOptions({
+    queryKey: ["sim-actuals", date ?? "today"],
+    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
+    staleTime: 60_000,
+    retry: 1,
+  });
+
 export const Route = createFileRoute("/odds")({
   ssr: false,
   head: () => ({
