@@ -9,6 +9,7 @@ import {
   refreshLineupsForGame,
   runEngineForGame,
   lockGame,
+  unlockGame,
   type LineupStatusRow,
   type PipelineBadge,
 } from "@/lib/lineup-status.functions";
