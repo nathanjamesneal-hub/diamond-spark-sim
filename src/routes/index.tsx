@@ -52,21 +52,24 @@ function TodayPage() {
   const { data } = useSuspenseQuery(scheduleQuery);
   const featured = data.games.find((g) => g.isLive) ?? data.games[0];
   const rest = data.games.filter((g) => g.gamePk !== featured?.gamePk);
+  const liveCount = data.games.filter((g) => g.isLive).length;
+
+  const statusLine = data.games.length === 0
+    ? "No MLB games on the slate today."
+    : liveCount > 0
+      ? `${liveCount} live · ${data.games.length} games on slate`
+      : `Today's simulations are complete · ${data.games.length} games on slate`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      <SectionHeader
-        kicker={data.date}
-        title="Today's slate"
-        subtitle={`${data.games.length} games · live scores, live stats, and projections`}
-      />
+      <DiamondHero date={data.date} statusLine={statusLine} hasLive={liveCount > 0} />
 
-      <DashboardGrid />
+      <DashboardGrid hasLive={liveCount > 0} />
 
       {featured ? <FeaturedMatchup game={featured} /> : null}
 
       <div className="mt-8">
-        <h2 className="mb-3 font-display text-lg font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="display mb-3 text-lg uppercase tracking-wider text-muted-foreground">
           All games
         </h2>
         {rest.length === 0 && !featured ? (
@@ -85,52 +88,53 @@ function TodayPage() {
 
 const DASHBOARD_CARDS = [
   {
+    to: "/odds",
+    kicker: "Simulation",
+    title: "Top Simulation Leaders",
+    desc: "Monte Carlo mean projections and probabilities ranked across every game.",
+    accent: "text-primary",
+    accentBg: "color-mix(in oklab, var(--color-primary) 22%, transparent)",
+  },
+  {
+    to: "/diamond-scores",
+    kicker: "Model",
+    title: "Diamond Scores",
+    desc: "Hitter and pitcher Diamond Scores with tier badges and confidence.",
+    accent: "text-[var(--color-success)]",
+    accentBg: "color-mix(in oklab, var(--color-success) 22%, transparent)",
+  },
+  {
     to: "/scores",
     kicker: "Live",
-    title: "Live Scores",
-    desc: "Live status, score, inning, and game state from the MLB feed.",
+    title: "Live Matchups",
+    desc: "Real-time scores, inning state, win probability, and projected lines.",
     accent: "text-live",
-  },
-  {
-    to: "/odds",
-    kicker: "Markets",
-    title: "Odds",
-    desc: "Sportsbook lines across DraftKings, FanDuel, MGM, Caesars, and more.",
-    accent: "text-edge",
-  },
-  {
-    to: "/standings",
-    kicker: "Season",
-    title: "Standings",
-    desc: "AL & NL divisions, win %, GB, streak, last 10, and run differential.",
-    accent: "text-primary",
-  },
-  {
-    to: "/slate",
-    kicker: "Model",
-    title: "Diamond Projections",
-    desc: "Diamond Score, hit / TB / HR / RBI / SB / run %, confidence, model version.",
-    accent: "text-primary",
+    accentBg: "color-mix(in oklab, var(--color-live) 22%, transparent)",
   },
 ] as const;
 
-function DashboardGrid() {
+function DashboardGrid({ hasLive }: { hasLive: boolean }) {
   return (
-    <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {DASHBOARD_CARDS.map((c) => (
         <Link
           key={c.to}
           to={c.to}
-          className="card-elevated group flex flex-col p-4"
+          className={`card-elevated group relative flex flex-col overflow-hidden p-5 ${c.to === "/scores" && hasLive ? "sweep" : ""}`}
         >
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-px"
+            style={{ background: c.accentBg }}
+          />
           <div className={`mono text-[10px] font-semibold uppercase tracking-[0.22em] ${c.accent}`}>
             {c.kicker}
           </div>
-          <div className="mt-1 font-display text-xl tracking-tight text-foreground">
+          <div className="display mt-1 text-xl tracking-tight text-foreground">
             {c.title}
           </div>
-          <p className="mt-1 flex-1 text-xs text-muted-foreground">{c.desc}</p>
-          <div className="mono mt-3 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-primary">
+          <p className="mt-2 flex-1 text-xs text-muted-foreground">{c.desc}</p>
+          <div className="mono mt-4 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-primary">
             Open →
           </div>
         </Link>
@@ -139,19 +143,37 @@ function DashboardGrid() {
   );
 }
 
-function SectionHeader({
-  kicker, title, subtitle,
-}: { kicker: string; title: string; subtitle?: string }) {
+function DiamondHero({
+  date, statusLine, hasLive,
+}: { date: string; statusLine: string; hasLive: boolean }) {
   return (
-    <div className="mb-8">
-      <div className="mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">{kicker}</div>
-      <h1 className="font-display text-4xl tracking-tight text-foreground md:text-5xl">
-        {title}
-      </h1>
-      {subtitle ? <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p> : null}
+    <div className="relative mb-10 overflow-hidden rounded-2xl border border-border bg-[var(--color-surface-panel)] px-5 py-8 md:px-10 md:py-12">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          background:
+            "radial-gradient(600px 240px at 10% 0%, color-mix(in oklab, var(--color-primary) 18%, transparent), transparent 60%), radial-gradient(500px 240px at 95% 100%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 60%)",
+        }}
+      />
+      <div className="relative">
+        <div className="mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+          {date} {hasLive ? "· LIVE" : ""}
+        </div>
+        <h1 className="wordmark mt-2 text-[clamp(56px,11vw,112px)] leading-[0.95] text-foreground">
+          Diamond
+        </h1>
+        <div className="mt-3 h-px w-24 bg-primary glow-edge" />
+        <p className="mt-4 text-sm uppercase tracking-[0.18em] text-muted-foreground">
+          MLB Simulation &amp; Projection Engine
+        </p>
+        <p className="mono mt-1 text-xs text-foreground/80">{statusLine}</p>
+      </div>
     </div>
   );
 }
+
+
 
 function FeaturedMatchup({ game }: { game: GameSummary }) {
   const seed = game.gamePk;
