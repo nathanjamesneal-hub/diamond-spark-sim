@@ -12,6 +12,7 @@ const nav = [
   { to: "/diamond-scores", label: "Diamond" },
   { to: "/lineup-status", label: "Pipeline" },
   { to: "/calibration", label: "Calibration" },
+  { to: "/calibration-lab", label: "Cal Lab" },
   { to: "/leaderboards", label: "Leaders" },
 ] as const;
 
