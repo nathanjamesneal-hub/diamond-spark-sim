@@ -226,7 +226,7 @@ function TopPropsPage() {
   // Best-of-the-day strip: highest probability per prop type
   const heroes = useMemo(() => {
     const out: Array<{ propType: PropType; row: PropRow | null }> = [];
-    const types: PropType[] = ["hit", "tb", "hr", "rbi", "sb", "win", "qs"];
+    const types: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
     for (const t of types) {
       const best = allRows
         .filter((r) => r.propType === t)
