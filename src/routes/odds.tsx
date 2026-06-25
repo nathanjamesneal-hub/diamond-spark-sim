@@ -183,12 +183,9 @@ type Grade = {
     | "Met Projection"
     | "Close"
     | "Missed"
-    | "Low Projection / No Event"
+    | "No Event"
     | "Beat Low Projection"
-    | "Hit HR"
-    | "No HR"
-    | "Stole Base"
-    | "No SB"
+    | "Hit Event"
     | "Pending"
     | "—";
   tone: "strong" | "good" | "warn" | "bad" | "muted";
@@ -203,15 +200,20 @@ const GRADE_CLASS: Record<Grade["tone"], string> = {
 };
 
 const LOW_MEAN_TOOLTIP =
-  "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes.";
+  "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes. An actual result of zero is never counted as a successful prediction.";
 
 function gradeCounting(mean: number | null, actual: number | null): Grade {
   if (mean == null || actual == null) return { label: "—", tone: "muted" };
-  if (mean < 0.5) {
-    if (actual > 0) {
-      return { label: "Beat Low Projection", tone: "good", excludeFromAccuracy: true };
+  // Zero actual never counts as success.
+  if (actual === 0) {
+    if (mean < 0.5) {
+      return { label: "No Event", tone: "muted", excludeFromAccuracy: true };
     }
-    return { label: "Low Projection / No Event", tone: "muted", excludeFromAccuracy: true };
+    return { label: "Missed", tone: "bad" };
+  }
+  if (mean < 0.5) {
+    // actual > 0 with a sub-0.5 projection: noteworthy but excluded from hit-rate.
+    return { label: "Beat Low Projection", tone: "good", excludeFromAccuracy: true };
   }
   const floor = Math.floor(mean);
   const ceil = Math.ceil(mean);
@@ -222,13 +224,13 @@ function gradeCounting(mean: number | null, actual: number | null): Grade {
 }
 function gradeHR(actual: number | null): Grade {
   if (actual == null) return { label: "—", tone: "muted" };
-  if (actual >= 1) return { label: "Hit HR", tone: "strong" };
-  return { label: "No HR", tone: "bad" };
+  if (actual >= 1) return { label: "Hit Event", tone: "strong" };
+  return { label: "No Event", tone: "bad" };
 }
 function gradeSB(actual: number | null): Grade {
   if (actual == null) return { label: "—", tone: "muted" };
-  if (actual >= 1) return { label: "Stole Base", tone: "strong" };
-  return { label: "No SB", tone: "bad" };
+  if (actual >= 1) return { label: "Hit Event", tone: "strong" };
+  return { label: "No Event", tone: "bad" };
 }
 function gradeBinary(prob: number | null, actual: boolean | null): Grade {
   if (actual == null) return { label: "—", tone: "muted" };
@@ -236,8 +238,9 @@ function gradeBinary(prob: number | null, actual: boolean | null): Grade {
     if (prob != null && prob >= 0.5) return { label: "Met Projection", tone: "good" };
     return { label: "Beat Projection", tone: "strong" };
   }
+  // Event did not occur — never label as a success.
   if (prob != null && prob >= 0.5) return { label: "Missed", tone: "bad" };
-  return { label: "Met Projection", tone: "muted" };
+  return { label: "No Event", tone: "muted", excludeFromAccuracy: true };
 }
 
 
