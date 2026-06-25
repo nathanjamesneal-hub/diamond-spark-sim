@@ -254,7 +254,7 @@ function TopPropsPage() {
     return out;
   };
 
-  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "sb", "win", "qs"];
+  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "runs", "sb", "k", "win", "qs"];
   const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
 
   const sectionsData = useMemo(() => {
