@@ -479,7 +479,19 @@ function CategorySection({
                 <th className="px-2 text-right">DS</th>
                 <th className="px-2 text-right">Conf</th>
                 <th className="px-2 text-right">Actual</th>
-                <th className="px-2">Result</th>
+                <th className="px-2">
+                  <span className="inline-flex items-center gap-1">
+                    Result
+                    <span
+                      role="img"
+                      aria-label="Low mean projection grading"
+                      title={LOW_MEAN_TOOLTIP}
+                      className="mono inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-border/70 text-[9px] font-bold text-muted-foreground hover:text-foreground"
+                    >
+                      i
+                    </span>
+                  </span>
+                </th>
                 <th className="px-2">Lineup</th>
               </tr>
             </thead>
