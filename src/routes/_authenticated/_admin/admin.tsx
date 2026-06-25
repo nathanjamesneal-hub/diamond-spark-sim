@@ -27,6 +27,10 @@ function AdminPanel() {
   const [pipelineResult, setPipelineResult] = useState<DailyPipelineSummary | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const runPipeline = useServerFn(runDailyPipeline);
+  const forceEngine = useServerFn(forceRunDiamondEngine);
+  const [forceRunning, setForceRunning] = useState(false);
+  const [forceResult, setForceResult] = useState<ForceEngineSummary | null>(null);
+  const [forceError, setForceError] = useState<string | null>(null);
 
   const [state, setState] = useState<Record<string, RunState>>({});
   const [newVersion, setNewVersion] = useState("");
