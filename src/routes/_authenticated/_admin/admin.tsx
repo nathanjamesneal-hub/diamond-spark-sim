@@ -6,7 +6,8 @@ import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
   createModelVersion, recomputePlayerDNA, runDailyPipeline,
-  type DailyPipelineSummary,
+  forceRunDiamondEngine,
+  type DailyPipelineSummary, type ForceEngineSummary,
 } from "@/lib/ingest.functions";
 import { refreshLineupsAndProject, getCronStatus } from "@/lib/lineups/refresh.functions";
 import { formatDateTimeInAppTz, todayInAppTz } from "@/lib/timezone";
