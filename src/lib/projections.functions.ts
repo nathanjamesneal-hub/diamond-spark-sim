@@ -100,7 +100,7 @@ export const getTodaysSlate = createServerFn({ method: "GET" })
     const version = active?.version ?? null;
 
     const { data: dbGames } = await sb
-      .from("games").select("id, mlb_game_id, first_pitch_at, status, home_team_id, away_team_id")
+      .from("games").select("id, mlb_game_id, first_pitch_at, home_team_id, away_team_id")
       .eq("date", date);
     const dbGameByMlbPk = new Map<number, any>();
     for (const g of dbGames ?? []) if (g.mlb_game_id) dbGameByMlbPk.set(Number(g.mlb_game_id), g);
