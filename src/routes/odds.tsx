@@ -15,6 +15,12 @@ import {
   type SimStat,
   type SimulationLeadersPayload,
 } from "@/lib/sim.functions";
+import {
+  getActualsForDate,
+  type ActualsPayload,
+  type HitterActual,
+  type PitcherActual,
+} from "@/lib/actuals.functions";
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
 
 type HitterCat = "hit" | "hr" | "rbi" | "runs" | "tb" | "sb" | "bk";
@@ -32,6 +38,10 @@ type CatDef = {
   // probability extractor: returns a fraction 0–1 or null
   getProb?: (row: SimLeaderHitterRow | SimLeaderPitcherRow) => number | null;
   probLabel?: string;
+  // pull actual integer result off a HitterActual / PitcherActual (or null)
+  getActual?: (a: HitterActual | PitcherActual) => number | null;
+  // for boolean outcomes (Win, QS) — overrides numeric grading
+  getBoolActual?: (a: PitcherActual) => boolean | null;
 };
 
 const CATEGORIES: CatDef[] = [
@@ -43,6 +53,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.hit,
     ),
     probLabel: "P(1+ H)",
+    getActual: (a) => (a as HitterActual).H ?? null,
   },
   {
     key: "hr", label: "Home Runs", group: "hitter", meanLabel: "Mean HR", meanDigits: 2,
@@ -52,6 +63,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.hr,
     ),
     probLabel: "P(1+ HR)",
+    getActual: (a) => (a as HitterActual).HR ?? null,
   },
   {
     key: "rbi", label: "RBI", group: "hitter", meanLabel: "Mean RBI", meanDigits: 2,
@@ -61,6 +73,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.rbi,
     ),
     probLabel: "P(1+ RBI)",
+    getActual: (a) => (a as HitterActual).RBI ?? null,
   },
   {
     key: "runs", label: "Runs", group: "hitter", meanLabel: "Mean R", meanDigits: 2,
@@ -70,6 +83,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.run,
     ),
     probLabel: "P(1+ R)",
+    getActual: (a) => (a as HitterActual).R ?? null,
   },
   {
     key: "tb", label: "Total Bases", group: "hitter", meanLabel: "Mean TB", meanDigits: 2,
@@ -79,18 +93,21 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.total_base,
     ),
     probLabel: "P(2+ TB)",
+    getActual: (a) => (a as HitterActual).TB ?? null,
   },
   {
     key: "sb", label: "Stolen Bases", group: "hitter", meanLabel: "Mean SB", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).SB,
     getProb: (r) => preferFraction(null, (r as SimLeaderHitterRow).card_probabilities.sb),
     probLabel: "P(1+ SB)",
+    getActual: (a) => (a as HitterActual).SB ?? null,
   },
   {
     key: "bk", label: "Batter Strikeouts", group: "hitter", meanLabel: "Mean K", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).K,
     getProb: (r) => preferFraction((r as SimLeaderHitterRow).K?.probAtLeast1 ?? null, null),
     probLabel: "P(1+ K)",
+    getActual: (a) => (a as HitterActual).K ?? null,
   },
   {
     key: "pk", label: "Pitcher Strikeouts", group: "pitcher", meanLabel: "Mean K", meanDigits: 1,
@@ -98,24 +115,28 @@ const CATEGORIES: CatDef[] = [
     // No threshold K probability is exposed by the engine yet; show — until it exists.
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).extra_probabilities?.["k_over"] ?? null),
     probLabel: "P(K thr)",
+    getActual: (a) => (a as PitcherActual).K ?? null,
   },
   {
     key: "outs", label: "Pitcher Outs", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: () => null,
     probLabel: "P(Outs)",
+    getActual: (a) => (a as PitcherActual).outs ?? null,
   },
   {
     key: "qs", label: "Quality Start", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).quality_start_probability),
     probLabel: "P(QS)",
+    getBoolActual: (a) => a.qualityStart ?? null,
   },
   {
     key: "win", label: "Pitcher Win", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).win_probability),
     probLabel: "P(W)",
+    getBoolActual: (a) => a.win ?? null,
   },
 ];
 
@@ -154,6 +175,47 @@ function badgeLabel(b: string): string {
   return "Projected";
 }
 
+// ----- Result grading -----
+// "Pending" = game not Final, "—" = stat unavailable.
+type Grade = {
+  label: "Beat Projection" | "Met Projection" | "Close" | "Missed" | "Pending" | "—";
+  tone: "strong" | "good" | "warn" | "bad" | "muted";
+};
+const GRADE_CLASS: Record<Grade["tone"], string> = {
+  strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
+  good: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  bad: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  muted: "bg-zinc-500/10 text-muted-foreground border-border/40",
+};
+
+function gradeCounting(mean: number | null, actual: number | null): Grade {
+  if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  const floor = Math.floor(mean);
+  const ceil = Math.ceil(mean);
+  if (actual >= ceil) return { label: "Beat Projection", tone: "strong" };
+  if (actual >= floor) return { label: "Met Projection", tone: "good" };
+  if (Math.abs(actual - floor) <= 1) return { label: "Close", tone: "warn" };
+  return { label: "Missed", tone: "bad" };
+}
+function gradeHR(mean: number | null, actual: number | null): Grade {
+  if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  if (actual >= 1 && (mean ?? 0) >= 0.25) return { label: "Beat Projection", tone: "strong" };
+  if (actual >= 1) return { label: "Met Projection", tone: "good" };
+  // never punish low-prob HR rows aggressively
+  return { label: "Missed", tone: (mean ?? 0) >= 0.5 ? "bad" : "muted" };
+}
+function gradeBinary(prob: number | null, actual: boolean | null): Grade {
+  if (actual == null) return { label: "—", tone: "muted" };
+  if (actual) {
+    if (prob != null && prob >= 0.5) return { label: "Met Projection", tone: "good" };
+    return { label: "Beat Projection", tone: "strong" };
+  }
+  if (prob != null && prob >= 0.5) return { label: "Missed", tone: "bad" };
+  return { label: "Met Projection", tone: "muted" };
+}
+
+
 const searchSchema = z.object({
   date: z.string().optional(),
   cat: fallback(
@@ -168,6 +230,14 @@ const leadersQuery = (date: string | undefined) =>
   queryOptions({
     queryKey: ["sim-leaders", date ?? "today"],
     queryFn: () => getSimulationLeaders({ data: date ? { date } : {} }),
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+const actualsQuery = (date: string | undefined) =>
+  queryOptions({
+    queryKey: ["sim-actuals", date ?? "today"],
+    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
     staleTime: 60_000,
     retry: 1,
   });
@@ -191,7 +261,10 @@ export const Route = createFileRoute("/odds")({
   }),
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(leadersQuery(deps.date)),
+  loader: ({ context, deps }) => Promise.all([
+    context.queryClient.ensureQueryData(leadersQuery(deps.date)),
+    context.queryClient.ensureQueryData(actualsQuery(deps.date)),
+  ]),
   component: SimLeadersPage,
   errorComponent: ({ error, reset }) => {
     const router = useRouter();
@@ -212,6 +285,7 @@ function SimLeadersPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const { data } = useSuspenseQuery(leadersQuery(search.date));
+  const { data: actuals } = useSuspenseQuery(actualsQuery(search.date));
 
   const setSearch = (patch: Record<string, string | undefined>) =>
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
@@ -291,6 +365,7 @@ function SimLeadersPage() {
           key={cat.key}
           cat={cat}
           payload={data}
+          actuals={actuals}
           team={search.team}
           lineupFilter={search.lineup}
           explicit={search.cat === cat.key}
@@ -303,12 +378,14 @@ function SimLeadersPage() {
 function CategorySection({
   cat,
   payload,
+  actuals,
   team,
   lineupFilter,
   explicit,
 }: {
   cat: CatDef;
   payload: SimulationLeadersPayload;
+  actuals: ActualsPayload;
   team: string | undefined;
   lineupFilter: "all" | "locked" | "verified" | "waiting";
   explicit: boolean;
@@ -375,6 +452,8 @@ function CategorySection({
                 </th>
                 <th className="px-2 text-right">DS</th>
                 <th className="px-2 text-right">Conf</th>
+                <th className="px-2 text-right">Actual</th>
+                <th className="px-2">Result</th>
                 <th className="px-2">Lineup</th>
               </tr>
             </thead>
@@ -386,6 +465,38 @@ function CategorySection({
                   cat.group === "hitter"
                     ? (r as SimLeaderHitterRow).lineup_status
                     : null;
+                const gamePk = r.mlb_game_id;
+                const isFinal = gamePk != null && actuals.finalGames.includes(gamePk);
+                const actualRecord =
+                  r.mlb_id != null
+                    ? cat.group === "hitter"
+                      ? actuals.hitters[String(r.mlb_id)]
+                      : actuals.pitchers[String(r.mlb_id)]
+                    : undefined;
+                const actualNum =
+                  isFinal && actualRecord && cat.getActual
+                    ? cat.getActual(actualRecord) ?? null
+                    : null;
+                const actualBool =
+                  isFinal && actualRecord && cat.getBoolActual
+                    ? cat.getBoolActual(actualRecord as PitcherActual)
+                    : null;
+                const grade: Grade = !isFinal
+                  ? { label: "Pending", tone: "muted" }
+                  : cat.getBoolActual
+                    ? gradeBinary(prob, actualBool)
+                    : cat.key === "hr"
+                      ? gradeHR(stat?.mean ?? null, actualNum)
+                      : gradeCounting(stat?.mean ?? null, actualNum);
+                const actualLabel = !isFinal
+                  ? "Pending"
+                  : cat.getBoolActual
+                    ? actualBool == null
+                      ? "—"
+                      : actualBool
+                        ? "Yes"
+                        : "No"
+                    : fmtInt(actualNum);
                 return (
                   <tr key={`${cat.key}:${r.mlb_id ?? r.player_name}:${r.game_id}`} className="border-t border-border/30">
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{i + 1}</td>
@@ -414,6 +525,12 @@ function CategorySection({
                     </td>
                     <td className="px-2 py-1 text-right mono tabular-nums">{fmtInt(r.diamond_score)}</td>
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{fmtInt(r.confidence)}</td>
+                    <td className="px-2 py-1 text-right mono tabular-nums text-foreground">{actualLabel}</td>
+                    <td className="px-2 py-1">
+                      <span className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${GRADE_CLASS[grade.tone]}`}>
+                        {grade.label}
+                      </span>
+                    </td>
                     <td className="px-2 py-1 mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       {lineupStatus ? lineupStatus : badgeLabel(r.badge)}
                     </td>
