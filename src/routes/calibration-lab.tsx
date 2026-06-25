@@ -130,21 +130,52 @@ function CalibrationLabPage() {
     return map;
   }, [rows]);
 
-  const { avgAbs, totalN } = useMemo(() => {
-    let sum = 0;
-    let count = 0;
-    let n = 0;
+  const { avgAbs, totalN, statSummary, overallBias, bestStat, worstStat } = useMemo(() => {
+    const summary: Record<StatKey, { avgAbs: number | null; avgDelta: number | null; totalN: number }> = {} as any;
+    let globalAbsSum = 0;
+    let globalDeltaSum = 0;
+    let globalCount = 0;
+    let totalN = 0;
+
     for (const s of STATS) {
+      let absSum = 0;
+      let deltaSum = 0;
+      let count = 0;
+      let n = 0;
       for (const b of BUCKETS) {
         const c = grid[s.key][b.key];
         if (c.deltaPp != null && c.sampleSize > 0) {
-          sum += Math.abs(c.deltaPp);
+          absSum += Math.abs(c.deltaPp);
+          deltaSum += c.deltaPp;
           count += 1;
           n += c.sampleSize;
         }
       }
+      summary[s.key] = { avgAbs: count ? absSum / count : null, avgDelta: count ? deltaSum / count : null, totalN: n };
+      if (count > 0) {
+        globalAbsSum += absSum;
+        globalDeltaSum += deltaSum;
+        globalCount += count;
+        totalN += n;
+      }
     }
-    return { avgAbs: count ? sum / count : null, totalN: n };
+
+    const avgAbs = globalCount ? globalAbsSum / globalCount : null;
+    const overallBias = globalCount ? globalDeltaSum / globalCount : null;
+
+    let bestStat: StatKey | null = null;
+    let worstStat: StatKey | null = null;
+    let bestVal = Infinity;
+    let worstVal = -Infinity;
+    for (const s of STATS) {
+      const v = summary[s.key].avgAbs;
+      if (v != null) {
+        if (v < bestVal) { bestVal = v; bestStat = s.key; }
+        if (v > worstVal) { worstVal = v; worstStat = s.key; }
+      }
+    }
+
+    return { avgAbs, totalN, statSummary: summary, overallBias, bestStat, worstStat };
   }, [grid]);
 
   const grade = gradeFor(avgAbs);
