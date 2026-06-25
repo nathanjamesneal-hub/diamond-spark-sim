@@ -6,7 +6,6 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
-@import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/oswald/500.css";
 @import "@fontsource/oswald/600.css";
 @import "@fontsource/oswald/700.css";
@@ -17,15 +16,15 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Diamond Design System 2.0 — "Built for Baseball".
- * Calm front-office software aesthetic: warm off-white surfaces,
- * editorial Instrument Serif for headlines, Inter for product UI,
- * JetBrains Mono for stats, single Diamond Blue accent.
+ * Diamond Design System 2.0 — "MLB Broadcast Energy".
+ * Dark, electric, baseball-obsessed. Layered navy surfaces,
+ * Oswald broadcast display, Inter UI, JetBrains Mono stats,
+ * Diamond Blue accent + team-color identity rails.
  */
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Instrument Serif", "Georgia", ui-serif, serif;
+  --font-display: "Oswald", "Inter", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -62,79 +61,83 @@
   --color-grass: var(--grass);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-surface-panel: var(--surface-panel);
 }
 
 :root {
   --radius: 0.875rem;
 
-  /* Light, front-office surfaces */
-  --background: oklch(0.985 0.005 250);          /* warm off-white #F8FAFC */
-  --foreground: oklch(0.20 0.025 260);            /* charcoal #111827 */
+  /* Dark broadcast surfaces */
+  --background:        oklch(0.16 0.035 260);    /* #0A0F1C midnight navy */
+  --foreground:        oklch(0.96 0.012 250);    /* #E6EAF2 off-white */
 
-  --card: oklch(1 0 0);                           /* pure white */
-  --card-foreground: oklch(0.20 0.025 260);
+  --surface-panel:     oklch(0.20 0.038 260);    /* #0F1626 graphite-navy */
+  --card:              oklch(0.235 0.042 260);   /* #131C30 slate-navy elevated */
+  --card-foreground:   oklch(0.96 0.012 250);
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.025 260);
+  --popover:           oklch(0.235 0.042 260);
+  --popover-foreground: oklch(0.96 0.012 250);
 
-  --primary: oklch(0.55 0.21 260);                /* Diamond Blue #2563EB */
-  --primary-foreground: oklch(1 0 0);
+  --primary:           oklch(0.66 0.20 258);     /* #2F7BFF Diamond Blue */
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-glow:      oklch(0.76 0.16 258);     /* #5BA0FF */
 
-  --secondary: oklch(0.955 0.012 250);            /* #EEF2F7 */
-  --secondary-foreground: oklch(0.20 0.025 260);
+  --secondary:         oklch(0.28 0.04 260);
+  --secondary-foreground: oklch(0.96 0.012 250);
 
-  --muted: oklch(0.965 0.008 250);                /* #F1F5F9 */
-  --muted-foreground: oklch(0.49 0.025 255);      /* slate #475569 */
+  --muted:             oklch(0.26 0.038 260);    /* #182238 */
+  --muted-foreground:  oklch(0.72 0.025 250);    /* #94A3B8 cool gray */
 
-  --accent: oklch(0.955 0.012 250);
-  --accent-foreground: oklch(0.20 0.025 260);
+  --accent:            oklch(0.30 0.05 260);
+  --accent-foreground: oklch(0.96 0.012 250);
 
-  --destructive: oklch(0.58 0.22 18);             /* rose #E11D48 */
-  --destructive-foreground: oklch(1 0 0);
+  --destructive:       oklch(0.66 0.23 18);      /* #F43F5E rose */
+  --destructive-foreground: oklch(0.99 0 0);
 
-  --border: oklch(0.91 0.008 250);                /* #E5E7EB */
-  --input: oklch(0.91 0.008 250);
-  --ring: oklch(0.55 0.21 260);
+  --border:            oklch(0.30 0.04 260);     /* #1F2A44 blue-gray */
+  --input:             oklch(0.30 0.04 260);
+  --ring:              oklch(0.66 0.20 258);
 
-  --edge: oklch(0.55 0.21 260);                   /* alias for brand blue */
-  --edge-foreground: oklch(1 0 0);
-  --live: oklch(0.58 0.22 18);
-  --chalk: oklch(1 0 0);
-  --dirt: oklch(0.55 0.11 60);
-  --grass: oklch(0.52 0.13 155);
+  --edge:              oklch(0.66 0.20 258);
+  --edge-foreground:   oklch(0.16 0.035 260);
+  --live:              oklch(0.66 0.23 18);
+  --chalk:             oklch(0.96 0.012 250);
+  --dirt:              oklch(0.55 0.11 60);
+  --grass:             oklch(0.72 0.18 155);
 
-  --success: oklch(0.55 0.13 155);                /* #059669 */
-  --warning: oklch(0.65 0.15 60);                 /* #D97706 */
+  --success:           oklch(0.72 0.18 155);     /* #10B981 emerald */
+  --warning:           oklch(0.78 0.16 75);      /* #F59E0B amber */
 
-  --shadow-card: 0 1px 2px oklch(0.20 0.025 260 / 0.04),
-                 0 4px 12px oklch(0.20 0.025 260 / 0.05);
-  --shadow-card-hover: 0 2px 4px oklch(0.20 0.025 260 / 0.06),
-                       0 12px 28px oklch(0.20 0.025 260 / 0.10);
+  --shadow-card:        0 1px 0 rgb(255 255 255 / 0.03) inset,
+                        0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-card-hover:  0 1px 0 rgb(255 255 255 / 0.05) inset,
+                        0 12px 32px rgb(0 0 0 / 0.45),
+                        0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+  --glow-edge:          0 0 14px color-mix(in oklab, var(--primary) 55%, transparent);
+  --glow-live:          0 0 10px color-mix(in oklab, var(--live) 55%, transparent);
 }
 
-/* Optional dark mode preserved for future use; no UI exposure yet. */
-.dark {
-  --background: oklch(0.18 0.025 250);
-  --foreground: oklch(0.97 0.005 90);
-  --card: oklch(0.23 0.028 250);
-  --card-foreground: oklch(0.97 0.005 90);
-  --popover: oklch(0.21 0.028 250);
-  --popover-foreground: oklch(0.97 0.005 90);
-  --primary: oklch(0.68 0.17 240);
-  --primary-foreground: oklch(0.99 0.005 240);
-  --secondary: oklch(0.30 0.05 155);
-  --secondary-foreground: oklch(0.97 0.005 90);
-  --muted: oklch(0.27 0.022 250);
-  --muted-foreground: oklch(0.72 0.018 240);
-  --accent: oklch(0.45 0.10 155);
-  --accent-foreground: oklch(0.98 0.005 90);
-  --destructive: oklch(0.62 0.22 25);
-  --destructive-foreground: oklch(0.98 0.005 90);
-  --border: oklch(0.32 0.025 250);
-  --input: oklch(0.30 0.025 250);
-  --ring: oklch(0.68 0.17 240);
-  --edge: oklch(0.78 0.14 195);
-  --edge-foreground: oklch(0.15 0.02 200);
+/* Optional light theme preserved for future use; not exposed via UI. */
+.light {
+  --background: oklch(0.985 0.005 250);
+  --foreground: oklch(0.20 0.025 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.20 0.025 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.20 0.025 260);
+  --primary: oklch(0.55 0.21 260);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.955 0.012 250);
+  --secondary-foreground: oklch(0.20 0.025 260);
+  --muted: oklch(0.965 0.008 250);
+  --muted-foreground: oklch(0.49 0.025 255);
+  --accent: oklch(0.955 0.012 250);
+  --accent-foreground: oklch(0.20 0.025 260);
+  --destructive: oklch(0.58 0.22 18);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.91 0.008 250);
+  --input: oklch(0.91 0.008 250);
+  --ring: oklch(0.55 0.21 260);
 }
 
 @layer base {
@@ -149,14 +152,20 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Serif reserved for major display moments: H1, H2, .display, wordmark. */
+  /* Oswald reserved for display moments: wordmark, H1, H2, page eyebrows. */
   h1, h2, .display {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
   }
 
-  /* H3+ stays Inter for dense product UI readability. */
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
   h3, h4, h5, h6 {
     font-family: var(--font-sans);
     font-weight: 600;
@@ -166,6 +175,26 @@
   .mono, .stat {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Body texture: two radial spotlights + faint scoreboard grid */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(900px 600px at 12% -10%,
+        color-mix(in oklab, var(--primary) 9%, transparent), transparent 60%),
+      radial-gradient(700px 500px at 95% 110%,
+        color-mix(in oklab, var(--primary) 6%, transparent), transparent 60%),
+      linear-gradient(to right,
+        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom,
+        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
+    background-size: auto, auto, 48px 48px, 48px 48px;
+    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 60%, transparent));
   }
 }
 
@@ -178,20 +207,66 @@
 
   &:hover {
     box-shadow: var(--shadow-card-hover);
-    border-color: color-mix(in oklab, var(--color-primary) 25%, var(--color-border));
+    transform: translateY(-1px);
+    border-color: color-mix(in oklab, var(--color-primary) 35%, var(--color-border));
   }
+}
+
+/* Team-color accent rail. Consumer sets inline border-left-color. */
+@utility team-rail {
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: var(--color-primary);
+}
+
+/* Subtle Diamond Blue glow used on logos, active accents, hero lines. */
+@utility glow-edge {
+  box-shadow: var(--glow-edge);
+}
+
+@utility glow-live {
+  box-shadow: var(--glow-live);
+}
+
+/* Sweep highlight for "live" / "freshly updated" callouts. */
+@keyframes diamond-sweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@utility sweep {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--color-primary) 8%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: diamond-sweep 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep { animation: none; }
+}
+
+/* Rank weight for Top 25 leaderboards. */
+@utility rank-strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: var(--color-foreground);
 }
 
 /*
  * table-modern — additive class only.
- * Does NOT set width, overflow, or container behavior; existing wrappers
- * (overflow-x-auto, rounded borders, etc.) are preserved.
+ * Dark broadcast palette. Does NOT set width, overflow, or container behavior.
  */
 @utility table-modern {
   & thead th {
     position: sticky;
     top: 0;
-    background: var(--color-card);
+    background: var(--color-surface-panel);
     color: var(--color-muted-foreground);
     font-family: var(--font-sans);
     font-weight: 600;
@@ -208,11 +283,11 @@
   }
 
   & tbody tr:nth-child(even) {
-    background: color-mix(in oklab, var(--color-muted) 40%, transparent);
+    background: color-mix(in oklab, var(--color-muted) 35%, transparent);
   }
 
   & tbody tr:hover {
-    background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+    background: color-mix(in oklab, var(--color-primary) 8%, transparent);
   }
 
   & tbody td {

@@ -85,16 +85,16 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="relative z-10 border-b border-border bg-background/85 backdrop-blur">
+    <header className="relative z-10 border-b border-border bg-[var(--color-surface-panel)]/95 backdrop-blur shadow-[0_1px_0_rgb(255_255_255/0.04)_inset]">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-primary shadow-sm">
+          <div className="glow-edge flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-primary">
             <span className="text-xl leading-none">◆</span>
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-display text-2xl tracking-tight text-foreground">Diamond</span>
-            <span className="mono mt-0.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              MLB simulation & projection engine
+            <span className="wordmark text-2xl text-foreground">Diamond</span>
+            <span className="mono mt-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+              MLB Simulation &amp; Projection Engine
             </span>
           </div>
         </Link>

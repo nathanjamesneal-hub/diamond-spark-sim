@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { GameSummary } from "@/lib/mlb.functions";
 import { formatTimeInAppTz } from "@/lib/timezone";
+import { getTeamColor } from "@/lib/team-colors";
+import { TeamSwatch } from "@/components/ui/team-swatch";
 
 function formatTime(iso: string): string {
   return formatTimeInAppTz(iso);
@@ -17,11 +19,18 @@ export function ScoreCard({ game }: { game: GameSummary }) {
           : null
       : null;
 
+  const homeColor = getTeamColor(game.home.abbreviation);
+  const awayColor = getTeamColor(game.away.abbreviation);
+
   return (
     <Link
       to="/matchups/$gamePk"
       params={{ gamePk: String(game.gamePk) }}
-      className="group block rounded-lg border border-border/70 bg-card p-4 transition-colors hover:border-primary/40 hover:bg-card/80"
+      className="card-elevated team-rail group block p-4"
+      style={{
+        borderLeftColor: awayColor.primary,
+        boxShadow: `inset -3px 0 0 ${homeColor.primary}, var(--shadow-card)`,
+      }}
     >
       <div className="mb-3 flex items-center justify-between">
         <StatusPill game={game} />
@@ -41,6 +50,7 @@ export function ScoreCard({ game }: { game: GameSummary }) {
         pitcher={game.awayProbablePitcher}
         isWinner={winner === "away"}
         isFinal={game.isFinal}
+        isLive={game.isLive}
         showLine={game.isLive || game.isFinal}
       />
       <div className="my-2 h-px bg-border/60" />
@@ -55,6 +65,7 @@ export function ScoreCard({ game }: { game: GameSummary }) {
         pitcher={game.homeProbablePitcher}
         isWinner={winner === "home"}
         isFinal={game.isFinal}
+        isLive={game.isLive}
         showLine={game.isLive || game.isFinal}
       />
 
@@ -66,7 +77,7 @@ export function ScoreCard({ game }: { game: GameSummary }) {
 function StatusPill({ game }: { game: GameSummary }) {
   if (game.isLive) {
     return (
-      <span className="mono inline-flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live">
+      <span className="mono inline-flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live glow-live">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-live" />
         Live · {game.inningHalf === "Top" ? "Top" : "Bot"} {game.inning ?? ""}
       </span>
@@ -87,7 +98,7 @@ function StatusPill({ game }: { game: GameSummary }) {
 }
 
 function TeamRow({
-  abbrev, name, record, score, line, pitcher, isWinner, isFinal, showLine,
+  abbrev, name, record, score, line, pitcher, isWinner, isFinal, isLive, showLine,
 }: {
   side: "home" | "away";
   teamId: number;
@@ -99,17 +110,25 @@ function TeamRow({
   pitcher: string | null;
   isWinner: boolean;
   isFinal: boolean;
+  isLive: boolean;
   showLine: boolean;
 }) {
   const dim = isFinal && !isWinner;
+  const color = getTeamColor(abbrev);
   return (
     <div className={`flex items-center justify-between ${dim ? "opacity-55" : ""}`}>
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-8 w-10 items-center justify-center rounded bg-secondary font-display text-sm font-bold text-foreground">
+        <div
+          className="flex h-8 w-10 items-center justify-center rounded font-display text-sm font-bold text-foreground"
+          style={{ background: `color-mix(in oklab, ${color.primary} 28%, transparent)` }}
+        >
           {abbrev || "?"}
         </div>
         <div className="min-w-0">
-          <div className="truncate font-medium">{name}</div>
+          <div className="flex items-center gap-1.5">
+            <TeamSwatch abbrev={abbrev} size="xs" showLabel={false} />
+            <span className="truncate font-medium">{name}</span>
+          </div>
           <div className="mono text-[11px] text-muted-foreground">
             {record}{pitcher ? ` · ${pitcher}` : ""}
           </div>
@@ -117,18 +136,22 @@ function TeamRow({
       </div>
       <div className="flex items-center gap-3">
         {showLine ? (
-          <div className="hidden grid-cols-2 gap-x-2 text-right mono text-[10px] uppercase tracking-widest text-muted-foreground sm:grid">
+          <div className="hidden grid-cols-2 gap-x-2 text-right mono text-[10px] uppercase tracking-widest text-muted-foreground sm:grid" suppressHydrationWarning>
             <span>H {line.hits ?? "—"}</span>
             <span>E {line.errors ?? "—"}</span>
           </div>
         ) : null}
-        <div className={`mono text-2xl font-bold tabular-nums ${isWinner ? "text-primary" : ""}`}>
+        <div
+          className={`mono text-2xl font-bold tabular-nums ${isWinner ? "text-primary" : ""}`}
+          suppressHydrationWarning={isLive}
+        >
           {score ?? "—"}
         </div>
       </div>
     </div>
   );
 }
+
 
 function LiveGameDetails({ game }: { game: GameSummary }) {
   if (!game.live) return null;

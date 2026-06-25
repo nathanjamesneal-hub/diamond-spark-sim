@@ -1,10 +1,9 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { getTeamColor } from "@/lib/team-colors";
 
 /**
- * DiamondCard — elevated surface for the Diamond Design System 2.0.
- * Uses the `card-elevated` utility (white card, subtle shadow, hover lift).
- * Drop-in alongside existing shadcn Card; pick whichever fits the surface.
+ * DiamondCard — elevated dark surface with optional team-color rail.
  */
 type Size = "sm" | "md" | "lg";
 
@@ -16,12 +15,16 @@ const padBySize: Record<Size, string> = {
 
 export const DiamondCard = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { size?: Size }
->(({ className, size = "md", ...props }, ref) => {
+  React.HTMLAttributes<HTMLDivElement> & { size?: Size; teamAbbr?: string | null }
+>(({ className, size = "md", teamAbbr, style, ...props }, ref) => {
+  const mergedStyle = teamAbbr
+    ? { ...style, borderLeftColor: getTeamColor(teamAbbr).primary }
+    : style;
   return (
     <div
       ref={ref}
-      className={cn("card-elevated", padBySize[size], className)}
+      className={cn("card-elevated", padBySize[size], teamAbbr && "team-rail", className)}
+      style={mergedStyle}
       {...props}
     />
   );
@@ -43,7 +46,7 @@ export function DiamondCardEyebrow({ className, ...props }: React.HTMLAttributes
 export function DiamondCardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn("font-display text-2xl leading-tight tracking-tight text-foreground", className)}
+      className={cn("display text-2xl leading-tight tracking-tight text-foreground", className)}
       {...props}
     />
   );

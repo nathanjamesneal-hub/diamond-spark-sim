@@ -1,14 +1,21 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Tone = "neutral" | "positive" | "warning" | "negative" | "info";
+type Tone = "neutral" | "positive" | "warning" | "negative" | "info" | "intense";
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "bg-muted text-foreground border-border",
-  positive: "bg-[color-mix(in_oklab,var(--color-success)_12%,transparent)] text-[var(--color-success)] border-[color-mix(in_oklab,var(--color-success)_25%,transparent)]",
-  warning: "bg-[color-mix(in_oklab,var(--color-warning)_12%,transparent)] text-[var(--color-warning)] border-[color-mix(in_oklab,var(--color-warning)_25%,transparent)]",
-  negative: "bg-[color-mix(in_oklab,var(--color-destructive)_10%,transparent)] text-destructive border-[color-mix(in_oklab,var(--color-destructive)_25%,transparent)]",
-  info: "bg-[color-mix(in_oklab,var(--color-primary)_10%,transparent)] text-primary border-[color-mix(in_oklab,var(--color-primary)_25%,transparent)]",
+  neutral:
+    "bg-muted text-foreground border-border",
+  positive:
+    "bg-[color-mix(in_oklab,var(--color-success)_14%,transparent)] text-[var(--color-success)] border-[color-mix(in_oklab,var(--color-success)_30%,transparent)]",
+  warning:
+    "bg-[color-mix(in_oklab,var(--color-warning)_14%,transparent)] text-[var(--color-warning)] border-[color-mix(in_oklab,var(--color-warning)_30%,transparent)]",
+  negative:
+    "bg-[color-mix(in_oklab,var(--color-destructive)_14%,transparent)] text-destructive border-[color-mix(in_oklab,var(--color-destructive)_30%,transparent)]",
+  info:
+    "bg-[color-mix(in_oklab,var(--color-primary)_14%,transparent)] text-primary border-[color-mix(in_oklab,var(--color-primary)_30%,transparent)]",
+  intense:
+    "bg-[color-mix(in_oklab,var(--color-primary)_22%,transparent)] text-primary border-[color-mix(in_oklab,var(--color-primary)_50%,transparent)] shadow-[0_0_14px_color-mix(in_oklab,var(--color-primary)_45%,transparent)]",
 };
 
 export interface StatPillProps extends React.HTMLAttributes<HTMLDivElement> {
