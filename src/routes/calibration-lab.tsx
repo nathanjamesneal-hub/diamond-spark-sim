@@ -94,6 +94,15 @@ function gradeFor(avgAbs: number | null): { grade: string; tone: string } {
   return { grade: "F", tone: "text-rose-400" };
 }
 
+function takeawayForCell(c: Cell): string {
+  if (c.sampleSize < 25) return "Small sample — do not overreact yet.";
+  if (c.deltaPp == null || c.sampleSize === 0) return "Not enough data to grade.";
+  if (c.deltaPp <= -15) return "Model is overconfident for this bucket.";
+  if (c.deltaPp >= 15) return "Model is underestimating this bucket.";
+  if (Math.abs(c.deltaPp) <= 5) return "Well calibrated.";
+  return "Slight calibration drift.";
+}
+
 function CalibrationLabPage() {
   const { data } = useSuspenseQuery(q);
   const versions = data.versions;
