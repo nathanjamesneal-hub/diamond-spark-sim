@@ -115,6 +115,33 @@ function badgeLabel(b: string): string {
   return "Projected";
 }
 
+// Pick the first numeric field present from a list of alias keys.
+// Returns null when none of the keys hold a finite number.
+function pickNumber(obj: Record<string, unknown>, keys: readonly string[]): number | null {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number" && isFinite(v)) return v;
+  }
+  return null;
+}
+
+// Normalize a probability stored as either 0–1 or 0–100 into a 0–1 fraction.
+function toFraction(v: number | null): number | null {
+  if (v == null || !isFinite(v)) return null;
+  if (v < 0) return 0;
+  // Treat anything >1 as a 0–100 percent value.
+  return v > 1 ? Math.min(v / 100, 1) : v;
+}
+
+const HIT_KEYS  = ["hit_probability", "hitProbability", "probHit", "hit_prob", "hits_probability"] as const;
+const TB_KEYS   = ["total_base_probability", "totalBaseProbability", "tb_probability", "tbProbability", "probTB", "tb_prob"] as const;
+const HR_KEYS   = ["hr_probability", "hrProbability", "homeRunProbability", "home_run_probability", "probHR", "hr_prob", "hr", "homeRuns"] as const;
+const RBI_KEYS  = ["rbi_probability", "rbiProbability", "probRBI", "rbi_prob", "rbi", "rbis"] as const;
+const RUNS_KEYS = ["run_probability", "runProbability", "runsProbability", "runs_probability", "probRuns", "run_prob", "runs", "r"] as const;
+const SB_KEYS   = ["sb_probability", "sbProbability", "stolenBaseProbability", "stolen_bases_probability", "probSB", "sb_prob", "sb", "stolenBases"] as const;
+
+let didLogSample = false;
+
 function flattenHitter(h: DiamondHitterCard): PropRow[] {
   const base = {
     player_name: h.player_name,
@@ -127,19 +154,31 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     lineup_badge: badgeLabel(h.badge),
     is_pitcher: false,
   };
-  const rows: PropRow[] = [];
-  const entries: Array<[string, number | null]> = [
-    ["hit", h.hit_probability],
-    ["tb",  h.total_base_probability],
-    ["hr",  h.hr_probability],
-    ["rbi", h.rbi_probability],
-    ["runs", (h as unknown as { run_probability: number | null }).run_probability ?? null],
-    ["sb",  h.sb_probability],
+  const raw = h as unknown as Record<string, unknown>;
+
+  if (import.meta.env.DEV && !didLogSample) {
+    didLogSample = true;
+    // eslint-disable-next-line no-console
+    console.log("[top-props] sample hitter keys:", Object.keys(raw));
+    // eslint-disable-next-line no-console
+    console.log("[top-props] sample hitter probabilities:", {
+      hit: pickNumber(raw, HIT_KEYS), tb: pickNumber(raw, TB_KEYS),
+      hr: pickNumber(raw, HR_KEYS), rbi: pickNumber(raw, RBI_KEYS),
+      runs: pickNumber(raw, RUNS_KEYS), sb: pickNumber(raw, SB_KEYS),
+    });
+  }
+
+  const entries: Array<[PropType, number | null]> = [
+    ["hit",  toFraction(pickNumber(raw, HIT_KEYS))],
+    ["tb",   toFraction(pickNumber(raw, TB_KEYS))],
+    ["hr",   toFraction(pickNumber(raw, HR_KEYS))],
+    ["rbi",  toFraction(pickNumber(raw, RBI_KEYS))],
+    ["runs", toFraction(pickNumber(raw, RUNS_KEYS))],
+    ["sb",   toFraction(pickNumber(raw, SB_KEYS))],
   ];
-  for (const [rawType, prob] of entries) {
-    if (prob == null) continue;
-    const propType = normalizePropType(rawType);
-    if (!propType) continue;
+  const rows: PropRow[] = [];
+  for (const [propType, prob] of entries) {
+    if (prob == null) continue; // only emit when a real field exists
     const meta = PROP_META[propType];
     rows.push({
       ...base,
