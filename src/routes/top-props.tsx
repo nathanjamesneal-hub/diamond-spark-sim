@@ -183,18 +183,35 @@ function TopPropsPage() {
     return out;
   }, [allRows]);
 
-  const filtered = useMemo(() => {
+  // Apply filters (team + min) but NOT prop type — prop type controls which sections show
+  const baseFiltered = useMemo(() => {
     let rows = allRows.slice();
-    if (search.prop !== "all") rows = rows.filter((r) => r.propType === search.prop);
     if (search.team) rows = rows.filter((r) => r.team_abbrev === search.team);
     rows = rows.filter((r) => r.probability * 100 >= search.min);
+    return rows;
+  }, [allRows, search.team, search.min]);
+
+  const sortRows = (rows: PropRow[]) => {
+    const out = rows.slice();
     if (search.sort === "diamond") {
-      rows.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+      out.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
     } else {
-      rows.sort((a, b) => b.probability - a.probability);
+      out.sort((a, b) => b.probability - a.probability);
     }
-    return rows.slice(0, 200);
-  }, [allRows, search.prop, search.team, search.min, search.sort]);
+    return out;
+  };
+
+  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "sb", "win", "qs"];
+  const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
+
+  const sectionsData = useMemo(() => {
+    return visibleCategories.map((propType) => {
+      const rows = sortRows(baseFiltered.filter((r) => r.propType === propType)).slice(0, 25);
+      return { propType, rows };
+    });
+  }, [baseFiltered, search.sort, search.prop]);
+
+  const totalShown = sectionsData.reduce((n, s) => n + s.rows.length, 0);
 
   const teams = useMemo(() => {
     const set = new Set<string>();
@@ -207,36 +224,39 @@ function TopPropsPage() {
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>
         <p className="text-sm text-muted-foreground">
-          Highest-probability plays from today's Diamond Engine projections. Date: {data.date}
+          Category-by-category Top 25 leaderboards from today's Diamond Engine projections. Date: {data.date}
         </p>
       </header>
 
-      {/* Hero strip */}
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-        {heroes.map(({ propType, row }) => (
-          <div key={propType} className="rounded-lg border border-border/60 bg-card/40 p-3">
-            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              {PROP_META[propType].hero}
+      {/* Best of the Day */}
+      <section className="space-y-2">
+        <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Best of the Day</div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+          {heroes.map(({ propType, row }) => (
+            <div key={propType} className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {PROP_META[propType].hero}
+              </div>
+              {row ? (
+                <Link
+                  to={row.mlb_id ? "/players/$playerId" : "/top-props"}
+                  params={row.mlb_id ? { playerId: String(row.mlb_id) } : undefined}
+                  className="mt-1 block"
+                >
+                  <div className="text-sm font-semibold leading-tight truncate">{row.player_name}</div>
+                  <div className="mono text-[10px] text-muted-foreground">
+                    {row.team_abbrev} vs {row.opp_abbrev}
+                  </div>
+                  <div className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(row.probability)}`}>
+                    {pct(row.probability)} · {PROP_META[propType].line}
+                  </div>
+                </Link>
+              ) : (
+                <div className="mt-2 text-xs text-muted-foreground">No data</div>
+              )}
             </div>
-            {row ? (
-              <Link
-                to={row.mlb_id ? "/players/$playerId" : "/top-props"}
-                params={row.mlb_id ? { playerId: String(row.mlb_id) } : undefined}
-                className="mt-1 block"
-              >
-                <div className="text-sm font-semibold leading-tight truncate">{row.player_name}</div>
-                <div className="mono text-[10px] text-muted-foreground">
-                  {row.team_abbrev} vs {row.opp_abbrev}
-                </div>
-                <div className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(row.probability)}`}>
-                  {pct(row.probability)} · {PROP_META[propType].line}
-                </div>
-              </Link>
-            ) : (
-              <div className="mt-2 text-xs text-muted-foreground">No data</div>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </section>
 
       {/* Filters */}
@@ -249,9 +269,9 @@ function TopPropsPage() {
             className="rounded-md border border-border/60 bg-background px-2 py-1 text-sm"
           >
             <option value="all">All</option>
+            <option value="hr">HR 1+</option>
             <option value="hit">Hit 1+</option>
             <option value="tb">TB 2+</option>
-            <option value="hr">HR 1+</option>
             <option value="rbi">RBI 1+</option>
             <option value="sb">SB 1+</option>
             <option value="win">Pitcher Win</option>
@@ -291,62 +311,79 @@ function TopPropsPage() {
           </select>
         </div>
         <div className="ml-auto mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {filtered.length} shown · {allRows.length} total
+          {totalShown} shown · {allRows.length} total
         </div>
       </section>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border/60 bg-card/30 p-6 text-center text-sm text-muted-foreground">
-          No props match your filters. Lower the minimum %, or
-          <Link to="/lineup-status" className="ml-1 underline">run today's pipeline</Link>.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border/60">
-          <table className="w-full text-sm">
-            <thead className="bg-card/50 text-muted-foreground">
-              <tr className="mono text-[10px] uppercase tracking-widest">
-                <th className="px-3 py-2 text-left">#</th>
-                <th className="px-3 py-2 text-left">Player</th>
-                <th className="px-3 py-2 text-left">Matchup</th>
-                <th className="px-3 py-2 text-left">Prop</th>
-                <th className="px-3 py-2 text-right">Prob</th>
-                <th className="px-3 py-2 text-right">DS</th>
-                <th className="px-3 py-2 text-left">Lineup</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r, i) => (
-                <tr key={r.key} className="border-t border-border/40 hover:bg-secondary/40">
-                  <td className="px-3 py-2 mono text-xs text-muted-foreground">{i + 1}</td>
-                  <td className="px-3 py-2">
-                    {r.mlb_id ? (
-                      <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-medium hover:underline">
-                        {r.player_name}
-                      </Link>
-                    ) : (
-                      <span className="font-medium">{r.player_name}</span>
-                    )}
-                    {r.batting_order ? (
-                      <span className="mono ml-2 text-[10px] text-muted-foreground">#{r.batting_order}</span>
-                    ) : null}
-                    {r.is_pitcher ? <span className="mono ml-2 text-[10px] text-edge">SP</span> : null}
-                  </td>
-                  <td className="px-3 py-2 mono text-xs">{r.team_abbrev} <span className="text-muted-foreground">vs</span> {r.opp_abbrev}</td>
-                  <td className="px-3 py-2">{r.label} <span className="mono text-[10px] text-muted-foreground">{r.line}</span></td>
-                  <td className="px-3 py-2 text-right">
-                    <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(r.probability)}`}>
-                      {pct(r.probability)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 mono text-right text-xs">{r.diamond_score != null ? Math.round(r.diamond_score) : "—"}</td>
-                  <td className="px-3 py-2 mono text-[10px] text-muted-foreground">{r.lineup_badge}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Category sections */}
+      <div className="space-y-6">
+        {sectionsData.map(({ propType, rows }) => (
+          <section key={propType} className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-display text-lg font-bold tracking-wide">
+                {PROP_META[propType].label} <span className="mono text-[10px] text-muted-foreground">{PROP_META[propType].line}</span>
+              </h2>
+              <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Top {Math.min(25, rows.length)} · {rows.length} qualified
+              </span>
+            </div>
+
+            {rows.length === 0 ? (
+              <div className="rounded-lg border border-border/60 bg-card/30 p-4 text-center text-sm text-muted-foreground">
+                No qualified plays for this category.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border/60">
+                <table className="w-full text-sm">
+                  <thead className="bg-card/50 text-muted-foreground">
+                    <tr className="mono text-[10px] uppercase tracking-widest">
+                      <th className="px-3 py-2 text-left">#</th>
+                      <th className="px-3 py-2 text-left">Player</th>
+                      <th className="px-3 py-2 text-left">Team</th>
+                      <th className="px-3 py-2 text-left">Opp</th>
+                      <th className="px-3 py-2 text-left">Line</th>
+                      <th className="px-3 py-2 text-right">Prob</th>
+                      <th className="px-3 py-2 text-right">DS</th>
+                      <th className="px-3 py-2 text-left">Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.key} className="border-t border-border/40 hover:bg-secondary/40">
+                        <td className="px-3 py-2 mono text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-2">
+                          {r.mlb_id ? (
+                            <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-medium hover:underline">
+                              {r.player_name}
+                            </Link>
+                          ) : (
+                            <span className="font-medium">{r.player_name}</span>
+                          )}
+                          {r.batting_order ? (
+                            <span className="mono ml-2 text-[10px] text-muted-foreground">#{r.batting_order}</span>
+                          ) : null}
+                          {r.is_pitcher ? <span className="mono ml-2 text-[10px] text-edge">SP</span> : null}
+                        </td>
+                        <td className="px-3 py-2 mono text-xs">{r.team_abbrev}</td>
+                        <td className="px-3 py-2 mono text-xs text-muted-foreground">{r.opp_abbrev}</td>
+                        <td className="px-3 py-2 mono text-xs">{r.line}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(r.probability)}`}>
+                            {pct(r.probability)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 mono text-right text-xs">{r.diamond_score != null ? Math.round(r.diamond_score) : "—"}</td>
+                        <td className="px-3 py-2 mono text-[10px] text-muted-foreground">{r.lineup_badge}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
+
