@@ -16,6 +16,7 @@ import { Route as OddsRouteImport } from './routes/odds'
 import { Route as LineupStatusRouteImport } from './routes/lineup-status'
 import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
 import { Route as DiamondScoresRouteImport } from './routes/diamond-scores'
+import { Route as CalibrationLabRouteImport } from './routes/calibration-lab'
 import { Route as CalibrationRouteImport } from './routes/calibration'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -61,6 +62,11 @@ const LeaderboardsRoute = LeaderboardsRouteImport.update({
 const DiamondScoresRoute = DiamondScoresRouteImport.update({
   id: '/diamond-scores',
   path: '/diamond-scores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalibrationLabRoute = CalibrationLabRouteImport.update({
+  id: '/calibration-lab',
+  path: '/calibration-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalibrationRoute = CalibrationRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/calibration-lab': typeof CalibrationLabRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/lineup-status': typeof LineupStatusRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/calibration-lab': typeof CalibrationLabRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/lineup-status': typeof LineupStatusRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/calibration': typeof CalibrationRoute
+  '/calibration-lab': typeof CalibrationLabRoute
   '/diamond-scores': typeof DiamondScoresRoute
   '/leaderboards': typeof LeaderboardsRoute
   '/lineup-status': typeof LineupStatusRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calibration'
+    | '/calibration-lab'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calibration'
+    | '/calibration-lab'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/calibration'
+    | '/calibration-lab'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CalibrationRoute: typeof CalibrationRoute
+  CalibrationLabRoute: typeof CalibrationLabRoute
   DiamondScoresRoute: typeof DiamondScoresRoute
   LeaderboardsRoute: typeof LeaderboardsRoute
   LineupStatusRoute: typeof LineupStatusRoute
@@ -301,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/diamond-scores'
       fullPath: '/diamond-scores'
       preLoaderRoute: typeof DiamondScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calibration-lab': {
+      id: '/calibration-lab'
+      path: '/calibration-lab'
+      fullPath: '/calibration-lab'
+      preLoaderRoute: typeof CalibrationLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calibration': {
@@ -415,6 +435,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CalibrationRoute: CalibrationRoute,
+  CalibrationLabRoute: CalibrationLabRoute,
   DiamondScoresRoute: DiamondScoresRoute,
   LeaderboardsRoute: LeaderboardsRoute,
   LineupStatusRoute: LineupStatusRoute,
@@ -430,13 +451,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
