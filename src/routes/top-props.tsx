@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
+import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+
 
 type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
 
