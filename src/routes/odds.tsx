@@ -15,6 +15,12 @@ import {
   type SimStat,
   type SimulationLeadersPayload,
 } from "@/lib/sim.functions";
+import {
+  getActualsForDate,
+  type ActualsPayload,
+  type HitterActual,
+  type PitcherActual,
+} from "@/lib/actuals.functions";
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
 
 type HitterCat = "hit" | "hr" | "rbi" | "runs" | "tb" | "sb" | "bk";
