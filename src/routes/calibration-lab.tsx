@@ -108,7 +108,14 @@ function CalibrationLabPage() {
       map[s.key] = { high: toCell(undefined), med: toCell(undefined), low: toCell(undefined) };
       for (const b of BUCKETS) {
         const r = rows.find((x) => x.stat === s.key && x.confidence_bucket === b.key);
-        map[s.key][b.key] = toCell(r);
+        // HR rule: exclude predictions below 19% from HR hit-rate grading.
+        // The LOW bucket (<50%) contains the sub-19% "no play" predictions, so we
+        // mark it excluded and label it "No HR Play".
+        if (s.key === "hr" && b.key === "low") {
+          map[s.key][b.key] = toCell(r, { excluded: true, excludedLabel: "No HR Play" });
+        } else {
+          map[s.key][b.key] = toCell(r);
+        }
       }
     }
     return map;
