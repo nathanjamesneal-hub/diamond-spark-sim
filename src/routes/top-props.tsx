@@ -161,7 +161,7 @@ function TopPropsPage() {
   const { data } = useSuspenseQuery(diamondQuery(search.date));
 
   const setSearch = (patch: Record<string, string | number | undefined>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
 
   const allRows = useMemo<PropRow[]>(() => {
     const rows: PropRow[] = [];

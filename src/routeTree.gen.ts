@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TopPropsRouteImport } from './routes/top-props'
 import { Route as StandingsRouteImport } from './routes/standings'
 import { Route as SlateRouteImport } from './routes/slate'
 import { Route as ScoresRouteImport } from './routes/scores'
@@ -29,6 +30,11 @@ import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 
+const TopPropsRoute = TopPropsRouteImport.update({
+  id: '/top-props',
+  path: '/top-props',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StandingsRoute = StandingsRouteImport.update({
   id: '/standings',
   path: '/standings',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
   '/standings': typeof StandingsRoute
+  '/top-props': typeof TopPropsRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/matchups/$gamePk': typeof MatchupsGamePkRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
   '/standings': typeof StandingsRoute
+  '/top-props': typeof TopPropsRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/matchups/$gamePk': typeof MatchupsGamePkRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/scores': typeof ScoresRoute
   '/slate': typeof SlateRoute
   '/standings': typeof StandingsRoute
+  '/top-props': typeof TopPropsRoute
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/bets': typeof AuthenticatedBetsRoute
   '/matchups/$gamePk': typeof MatchupsGamePkRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/scores'
     | '/slate'
     | '/standings'
+    | '/top-props'
     | '/bets'
     | '/matchups/$gamePk'
     | '/players/$playerId'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/scores'
     | '/slate'
     | '/standings'
+    | '/top-props'
     | '/bets'
     | '/matchups/$gamePk'
     | '/players/$playerId'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/scores'
     | '/slate'
     | '/standings'
+    | '/top-props'
     | '/_authenticated/_admin'
     | '/_authenticated/bets'
     | '/matchups/$gamePk'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   ScoresRoute: typeof ScoresRoute
   SlateRoute: typeof SlateRoute
   StandingsRoute: typeof StandingsRoute
+  TopPropsRoute: typeof TopPropsRoute
   MatchupsGamePkRoute: typeof MatchupsGamePkRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
   TeamsTeamIdRoute: typeof TeamsTeamIdRoute
@@ -267,6 +280,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/top-props': {
+      id: '/top-props'
+      path: '/top-props'
+      fullPath: '/top-props'
+      preLoaderRoute: typeof TopPropsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/standings': {
       id: '/standings'
       path: '/standings'
@@ -443,6 +463,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScoresRoute: ScoresRoute,
   SlateRoute: SlateRoute,
   StandingsRoute: StandingsRoute,
+  TopPropsRoute: TopPropsRoute,
   MatchupsGamePkRoute: MatchupsGamePkRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,
   TeamsTeamIdRoute: TeamsTeamIdRoute,
