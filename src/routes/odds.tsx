@@ -261,7 +261,10 @@ export const Route = createFileRoute("/odds")({
   }),
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(leadersQuery(deps.date)),
+  loader: ({ context, deps }) => Promise.all([
+    context.queryClient.ensureQueryData(leadersQuery(deps.date)),
+    context.queryClient.ensureQueryData(actualsQuery(deps.date)),
+  ]),
   component: SimLeadersPage,
   errorComponent: ({ error, reset }) => {
     const router = useRouter();
