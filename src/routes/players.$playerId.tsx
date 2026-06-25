@@ -1,6 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getPlayer, type PlayerStatLine } from "@/lib/mlb.functions";
+import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+import { PrimaryMetricsRow } from "@/components/diamond/primary-metrics-row";
+import { SimDetails } from "@/components/diamond/sim-details";
+import { PredictionDrivers } from "@/components/diamond/prediction-drivers";
+import { WhyTheModelLikesThis } from "@/components/diamond/why-model-likes-this";
+
 
 function playerQuery(playerId: number) {
   return queryOptions({
