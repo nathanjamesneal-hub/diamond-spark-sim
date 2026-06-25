@@ -497,14 +497,6 @@ function CategorySection({
                         ? "Yes"
                         : "No"
                     : fmtInt(actualNum);
-            <tbody>
-              {rows.map((r, i) => {
-                const stat = cat.getStat?.(r) ?? null;
-                const prob = cat.getProb?.(r) ?? null;
-                const lineupStatus =
-                  cat.group === "hitter"
-                    ? (r as SimLeaderHitterRow).lineup_status
-                    : null;
                 return (
                   <tr key={`${cat.key}:${r.mlb_id ?? r.player_name}:${r.game_id}`} className="border-t border-border/30">
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{i + 1}</td>
@@ -533,6 +525,12 @@ function CategorySection({
                     </td>
                     <td className="px-2 py-1 text-right mono tabular-nums">{fmtInt(r.diamond_score)}</td>
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{fmtInt(r.confidence)}</td>
+                    <td className="px-2 py-1 text-right mono tabular-nums text-foreground">{actualLabel}</td>
+                    <td className="px-2 py-1">
+                      <span className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${GRADE_CLASS[grade.tone]}`}>
+                        {grade.label}
+                      </span>
+                    </td>
                     <td className="px-2 py-1 mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       {lineupStatus ? lineupStatus : badgeLabel(r.badge)}
                     </td>
