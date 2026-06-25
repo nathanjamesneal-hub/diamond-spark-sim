@@ -128,15 +128,18 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     is_pitcher: false,
   };
   const rows: PropRow[] = [];
-  const entries: Array<[PropType, number | null]> = [
+  const entries: Array<[string, number | null]> = [
     ["hit", h.hit_probability],
     ["tb",  h.total_base_probability],
     ["hr",  h.hr_probability],
     ["rbi", h.rbi_probability],
+    ["runs", (h as unknown as { run_probability: number | null }).run_probability ?? null],
     ["sb",  h.sb_probability],
   ];
-  for (const [propType, prob] of entries) {
+  for (const [rawType, prob] of entries) {
     if (prob == null) continue;
+    const propType = normalizePropType(rawType);
+    if (!propType) continue;
     const meta = PROP_META[propType];
     rows.push({
       ...base,
@@ -161,6 +164,27 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
     is_pitcher: true,
   };
   const rows: PropRow[] = [];
+
+  // Defensive: pick up any pitcher strikeout probability the server may surface
+  // under a variety of alias keys, and route it into the canonical "k" category.
+  const pAny = p as unknown as Record<string, unknown>;
+  const K_PROB_KEYS = [
+    "strikeout_probability", "k_probability", "pitcher_k_probability", "pitcher_strikeout_probability",
+    "k_over_5_5_probability", "k_over_6_5_probability", "k_over_4_5_probability", "k_over_3_5_probability",
+  ];
+  for (const key of K_PROB_KEYS) {
+    const v = pAny[key];
+    if (typeof v === "number" && isFinite(v)) {
+      rows.push({
+        ...base,
+        key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
+        propType: "k", label: PROP_META.k.label, line: key.includes("over") ? key.replace("k_over_", "").replace("_probability", "").replace("_", ".") + "+ K" : PROP_META.k.line,
+        probability: v,
+      });
+      break; // only emit one K row per pitcher (prefer first available alias)
+    }
+  }
+
   if (p.pitcher_win_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:win`,
       propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability });
@@ -171,6 +195,7 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
   }
   return rows;
 }
+
 
 function pct(p: number): string {
   return `${Math.round(p * 100)}%`;
