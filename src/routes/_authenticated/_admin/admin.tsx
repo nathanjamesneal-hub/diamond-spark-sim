@@ -362,3 +362,14 @@ function computeNextRefresh(): string {
   }
   return formatDateTimeInAppTz(next.toISOString());
 }
+
+function PipelineRow({ label, ok, msg, error }: { label: string; ok: boolean; msg: string; error?: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border/40 bg-background/40 px-3 py-2">
+      <div className="mono text-[11px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className={`mono text-[12px] ${ok ? "text-edge" : "text-destructive"}`}>
+        {msg}{error ? ` · ${error}` : ""}
+      </div>
+    </div>
+  );
+}
