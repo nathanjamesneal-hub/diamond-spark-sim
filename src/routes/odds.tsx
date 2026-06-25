@@ -512,8 +512,11 @@ function CategorySection({
                   : cat.getBoolActual
                     ? gradeBinary(prob, actualBool)
                     : cat.key === "hr"
-                      ? gradeHR(stat?.mean ?? null, actualNum)
-                      : gradeCounting(stat?.mean ?? null, actualNum);
+                      ? gradeHR(actualNum)
+                      : cat.key === "sb"
+                        ? gradeSB(actualNum)
+                        : gradeCounting(stat?.mean ?? null, actualNum);
+
                 const actualLabel = !isFinal
                   ? "Pending"
                   : cat.getBoolActual
