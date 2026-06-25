@@ -5,10 +5,12 @@ import { useState } from "react";
 import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
-  createModelVersion, recomputePlayerDNA,
+  createModelVersion, recomputePlayerDNA, runDailyPipeline,
+  type DailyPipelineSummary,
 } from "@/lib/ingest.functions";
 import { refreshLineupsAndProject, getCronStatus } from "@/lib/lineups/refresh.functions";
-import { formatDateTimeInAppTz } from "@/lib/timezone";
+import { formatDateTimeInAppTz, todayInAppTz } from "@/lib/timezone";
+
 
 
 export const Route = createFileRoute("/_authenticated/_admin/admin")({
