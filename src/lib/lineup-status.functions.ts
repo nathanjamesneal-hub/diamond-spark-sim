@@ -433,3 +433,28 @@ export const lockGame = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export const unlockGame = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { gameId: string }) => data)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const t0 = Date.now();
+    const date = await dateForGame(data.gameId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("games").update({ lineups_locked_at: null }).eq("id", data.gameId);
+    await supabaseAdmin.from("lineups").update({ locked_at: null }).eq("game_id", data.gameId);
+    await supabaseAdmin
+      .from("game_lineup_status")
+      .update({ status: "confirmed" })
+      .eq("game_id", data.gameId)
+      .eq("status", "locked");
+    await logCronRun({
+      date,
+      notes: `Manual unlock · game ${data.gameId}`,
+      gameIds: [data.gameId],
+      engineRan: false,
+      durationMs: Date.now() - t0,
+    });
+    return { ok: true };
+  });

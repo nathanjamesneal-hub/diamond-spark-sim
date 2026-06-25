@@ -9,6 +9,7 @@ import {
   refreshLineupsForGame,
   runEngineForGame,
   lockGame,
+  unlockGame,
   type LineupStatusRow,
   type PipelineBadge,
 } from "@/lib/lineup-status.functions";
@@ -112,6 +113,7 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
   const refresh = useServerFn(refreshLineupsForGame);
   const runEngine = useServerFn(runEngineForGame);
   const lock = useServerFn(lockGame);
+  const unlock = useServerFn(unlockGame);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -175,6 +177,14 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
             >
               {busy === "lock" ? "…" : row.locked_at ? "Locked" : "Lock"}
             </ActionBtn>
+            {row.locked_at ? (
+              <ActionBtn
+                disabled={busy != null}
+                onClick={() => call("unlock", () => unlock({ data: { gameId: row.game_id } }))}
+              >
+                {busy === "unlock" ? "…" : "Unlock"}
+              </ActionBtn>
+            ) : null}
           </div>
         ) : null}
       </div>
