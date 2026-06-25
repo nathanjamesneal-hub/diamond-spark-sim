@@ -377,32 +377,54 @@ function PitcherCardView({ p }: { p: DiamondPitcherCard }) {
         </span>
       </div>
 
-      <div className="mb-3 flex items-end justify-between border-b border-border/60 pb-3">
-        <div>
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Diamond Pitcher</div>
-          <div className="font-display text-3xl font-bold tabular-nums text-primary">{score(p.diamond_score)}</div>
-        </div>
-        <div className="text-right">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Confidence</div>
-          <div className="mono text-sm tabular-nums">{pct(p.confidence)}</div>
-          <div className="mono mt-1 text-[10px] text-muted-foreground">{p.model_version}</div>
-        </div>
+      {/* Primary metrics: Diamond · Mean Outs · QS Prob · Confidence · Edge */}
+      <div className="mb-3">
+        <PrimaryMetricsRow
+          diamondScore={p.diamond_score}
+          meanProjection={p.projected_outs}
+          meanLabel="Mean Outs"
+          meanFractionDigits={1}
+          probability={p.quality_start_probability}
+          probabilityLabel="QS Probability"
+          confidence={p.confidence}
+          edge={null}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3">
-        <NotPersistedStat label="K proj" />
-        <NotPersistedStat label="K 3.5+" />
-        <NotPersistedStat label="K 4.5+" />
-        <NotPersistedStat label="K 5.5+" />
-        <NotPersistedStat label="K 6.5+" />
+      <SimDetails mean={p.projected_outs} median={null} stdev={null} percentile90={null} fractionDigits={1} />
+
+      <div className="mb-3 mt-3 grid grid-cols-2 gap-1 text-xs sm:grid-cols-3">
         <Stat label="Outs" v={p.projected_outs == null ? "—" : p.projected_outs.toFixed(1)} />
         <Stat label="QS %" v={pct(p.quality_start_probability)} />
         <Stat label="Win %" v={pct(p.pitcher_win_probability)} />
+        <NotPersistedStat label="K proj" />
         <NotPersistedStat label="ER proj" />
-        <NotPersistedStat label="ER<2.5" />
         <NotPersistedStat label="H allow" />
-        <NotPersistedStat label="BB proj" />
       </div>
+
+      <div className="mb-2">
+        <PredictionDrivers
+          battingOrder={null}
+          opposingPitcher={`vs ${p.opp_abbrev || "—"}`}
+          parkFactor={null}
+          platoonAdvantage={null}
+          bullpenAdjustment={null}
+          weather={null}
+          recentForm={null}
+          lineupStatus={p.game_status}
+        />
+      </div>
+
+      <div className="mb-2">
+        <WhyTheModelLikesThis
+          diamondScore={p.diamond_score}
+          meanProjection={p.projected_outs}
+          meanLabel="Mean Outs"
+          probability={p.quality_start_probability}
+          probabilityLabel="QS Probability"
+        />
+      </div>
+
 
       {p.pitcher_components && p.pitcher_components.length > 0 ? (
         <div className="mt-3 rounded-md border border-border/50 bg-secondary/30 p-2">
