@@ -282,6 +282,7 @@ function SimLeadersPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const { data } = useSuspenseQuery(leadersQuery(search.date));
+  const { data: actuals } = useSuspenseQuery(actualsQuery(search.date));
 
   const setSearch = (patch: Record<string, string | undefined>) =>
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
