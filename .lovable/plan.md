@@ -1,64 +1,88 @@
-# Reposition Diamond as a Simulation Engine (UI-only)
+## Top 25 Simulation Leaders
 
-Goal: present existing simulation outputs first, derived probabilities second. No changes to `src/lib/sim/engine.ts`, `src/lib/engines/**`, or any probability math.
+Repurpose `/odds` into a leaderboard ranked by **existing Monte Carlo mean outputs** from the sim engine. No changes to the engine, scoring, or probability math — pure UI + a thin, pass-through server aggregator.
 
-## What we already have (and will reuse as-is)
+### Scope
 
-- **Sim engine** (`src/lib/sim/engine.ts`): per-batter `BatterDist` with `mean`, `stdev`, `p50`, `p90` for H/HR/RBI/R/K/BB; per-pitcher `outs/k/er` dists; runs `DEFAULT_ITERS = 2000`. Currently consumed only by `matchups.$gamePk.tsx`.
-- **Projections row** (persisted): `diamond_score`, `confidence`, prob fields (`hit_/total_base_/hr_/rbi_/run_/sb_/pitcher_win_/quality_start_probability`), `projected_outs`, `inputs` JSON (pitcher components, game environment, narrative), `environment_agreement`.
-- **Drivers available without engine change**: `batting_order` (lineups), opposing pitcher (probable pitcher on `games`), park factor + run-environment rating (game env inputs), `lineup_status` (already surfaced).
-- **Not yet computed/stored**: weather, recent-form (L14 wRC+), explicit bullpen adjustment number, platoon flag. These render as "—" placeholders so the UI is ready when data lands.
+- Replace `src/routes/odds.tsx` content (keep the `/odds` path so existing links don't 404; rename is an easy follow-up).
+- Remove sportsbook/odds language and the value-board UI. Leave `src/lib/odds.functions.ts` untouched (still used by other pages).
+- Header: "Top 25 Simulation Leaders" / subtitle "Ranked from existing Monte Carlo simulation outputs."
 
-## 1. Shared building blocks
+### Data source — strict pass-through
 
-Create small presentational components under `src/components/diamond/`:
+New server function `getSimulationLeaders({ date })` added to `src/lib/sim.functions.ts`.
 
-- `PrimaryMetricsRow.tsx` — Diamond Score · Mean Projection · Sim Probability · Confidence · Edge (Edge hidden when null).
-- `SimDetails.tsx` — collapsible: "2,000 simulations" · Mean · Median (p50) · Std Dev · p90 (percentile) · placeholder slot for future distribution chart.
-- `PredictionDrivers.tsx` — chip/list grid: Batting Order, Opposing Pitcher, Bullpen Adj, Park Factor, Platoon, Weather, Recent Form (L14 wRC+), Lineup Status. Missing values render dimmed "—".
-- `WhyTheModelLikesThis.tsx` — emoji-prefixed bullet list assembled from the same data (📈 Diamond, 🎲 Mean, 💥 Prob, 🏟️ Park, 👊 Opp SP HR/9 or K/9, 📍 Batting #, 🌡️ Weather, 🔥 Recent Form). Bullets with missing inputs are skipped — never invented.
-- `SimMethodologyTooltip.tsx` — info icon with the required copy: *"Mean Projection is the average result across 2,000 Monte Carlo simulations. Probability is calculated from how often a player exceeds the selected threshold across those same simulations."*
+**Hard guardrail:** this function may only call existing functions and reshape their returned values. It will not:
 
-All three sections render in the order: **Expected Performance → Sim Probability → Confidence**.
+- introduce new formulas, weights, or probability conversions,
+- derive probabilities from means or scores,
+- invent thresholds the engine doesn't already expose,
+- compute any new simulated stat.
 
-## 2. Data plumbing (no math, just exposure)
+What it does:
 
-`src/lib/projections.functions.ts` → extend `getDiamondScores` payload per player with the fields already available:
+1. Calls existing `getDiamondScores({ data: { date } })` to get the slate's hitter/pitcher cards (identity, lineup status, badge, opponent, diamond_score, confidence, and the probability fields already persisted on the projection).
+2. For each game on that slate, calls existing `simulateGame({ data: { gamePk } })` and reads the per-batter `BatterDist` / per-pitcher dist objects exactly as the matchups page already does.
+3. Joins by `mlb_id` (and game) and reshapes into two arrays:
+   - `hitters: SimLeaderHitterRow[]`
+   - `pitchers: SimLeaderPitcherRow[]`
+4. For every field — mean, stdev, p50, p90, any threshold probability — if the source value isn't on the dist or the card, the field is `null`. No fallbacks. No conversions.
 
-- From `projections.inputs.game_environment` + game row: `park_factor`, `run_environment_rating`, `opponent_pitcher` (name + handedness + season HR/9, K/9), `team_run_projection`.
-- From `lineups`: `batting_order`, `lineup_status`.
-- Pass-through `projected_outs`, `environment_agreement` for pitchers.
+Row shape (illustrative — all numeric fields nullable):
 
-Add `getGameSimDistributions(gamePk)` server fn that runs (or caches) the same `simulateGame` already used by `matchups.$gamePk.tsx` and returns the per-player `BatterDist`/pitcher dist map. Used by player pages and (lazily, per-game) by Top Props/Diamond Scores when a row is expanded — so we never block the leaderboard on 2k-iter sims.
+```text
+SimLeaderHitterRow {
+  player_name, mlb_id, team_abbrev, opp_abbrev, game_id,
+  batting_order, lineup_status, badge,
+  diamond_score, confidence,
+  H:    { mean, stdev, p50, p90, probAtLeast1, probAtLeast2 } | null,
+  HR:   { mean, ..., probAtLeast1 } | null,
+  RBI:  { mean, ..., probAtLeast1 } | null,
+  R:    { mean, ..., probAtLeast1 } | null,
+  TB:   { mean, ..., probAtLeast2 } | null,
+  SB:   { mean, ..., probAtLeast1 } | null,   // present only if engine exposes it
+  K:    { mean, ..., probAtLeast1 } | null,   // batter K
+}
 
-## 3. Page changes
+SimLeaderPitcherRow {
+  player_name, mlb_id, team_abbrev, opp_abbrev, game_id,
+  diamond_score, confidence, lineup_status, badge,
+  outs:  { mean, p50, stdev, p90 } | null,
+  K:     { mean, p50, stdev, p90 } | null,
+  BB:    { mean, ... } | null,
+  ER:    { mean, ... } | null,
+  win_probability:           number | null,  // pass-through from card
+  quality_start_probability: number | null,  // pass-through from card
+  // future probability fields read by key from the dist when present;
+  // missing keys stay null.
+}
+```
 
-- `**src/routes/diamond-scores.tsx**`: rebuild hitter & pitcher cards using the new components. Header shows Diamond Score + Mean Projection (top stat for the card's category) + Sim Prob; "Sim Details" and "Why the Model Likes This" expand inline. Adds methodology tooltip in the page header.
-- `**src/routes/top-props.tsx**`: each leaderboard row reordered to `Mean Projection · Monte Carlo Prob · Diamond Score · Confidence · Edge`. Mean column pulled from the per-game sim cache (lazy). "Best of the Day" hero re-labelled to surface mean + prob together. Tooltip added.
-- `**src/routes/players.$playerId.tsx**`: new top section with Primary Metrics, Sim Details (live `BatterDist`), Prediction Drivers grid, and the "Why the Model Likes This" card. Distribution chart slot added (empty placeholder for now).
-- `**src/routes/matchups.$gamePk.tsx**`: unchanged math; relabel column headers to "Mean H / Mean HR / …" and add tooltip to clarify these are post-simulation means.
+Cached per (date, lineup signature) the same way `simulateGame` already is.
 
-## 4. Copy + framing
+### Page UI (`src/routes/odds.tsx`)
 
-- Site header tagline updated to "MLB Simulation & Projection Engine".
-- Diamond Score badge gets a small "model output" subtitle so it no longer reads as a betting grade.
-- Probabilities everywhere get `%` suffix + the shared tooltip; no isolated probability displays without a paired mean.
+- Tabs/sections in this order: Hits, Home Runs, RBI, Runs, Total Bases, Stolen Bases, Batter Strikeouts, Pitcher Strikeouts, Pitcher Outs, Quality Start, Pitcher Win.
+- Per category:
+  - Top 25 rows.
+  - Default sort: that category's **mean** desc; secondary sort by the matching threshold probability when present, else by `diamond_score` desc.
+  - If zero rows have a real mean for that category, the section is hidden by default and shows "No simulation data available for this category." when the user filters to it.
+- Columns: Rank · Player (links to `/players/$mlbId`) · Team · Opp · **Mean** · **Sim Prob %** (or `—`) · Diamond Score · Confidence · Lineup Status · Drivers ("Why" using the existing `WhyTheModelLikesThis`, only when its inputs are present).
+- Reuse `SimMethodologyTooltip` on the page header and on the Mean / Sim Prob column headers with the exact required copy.
+- Filters: Team filter and a lineup-status filter (Locked / Verified / Waiting). No min-% slider — mean-based ranking doesn't need it.
 
-## 5. Out of scope (explicit)
+### Future pitcher probability readiness
 
-- No new probability fields invented. Strikeouts section in Top Props stays gated on real K-probability presence.
-- No engine, weight, or calibration changes.
-- Weather/platoon/recent-form remain placeholder slots until upstream ingestion exists.
+The page declares an extensible list of pitcher probability fields it knows how to render: `win`, `quality_start`, `k_over_5`/`6`/`8`/`10`, `outs_over_X`, `er_zero`, `er_over_1`/`2`/`3`/`4`, `lasts_5`/`6`/`7`. For each pitcher row it reads those keys from the row payload; missing keys render `—`. When the engine starts emitting them, `getSimulationLeaders` will pass them through unchanged and the UI lights up — no math added in the UI, no new code.
 
-## Technical notes
+### Safety
 
-- Sim caching: memoize `simulateGame` results per `gamePk` in a server-side LRU keyed by `(gamePk, lineupHash)` to keep Top Props responsive.
-- All new components are presentational + typed against existing `DiamondHitterCard`/`DiamondPitcherCard` shapes extended with optional sim fields, so absent data degrades gracefully.
-- Hydration fix bundled in: replace `toLocaleString(..., { dateStyle, timeStyle })` formatting in the index header with the existing `formatChicago` helper to stop the SSR/client mismatch shown in runtime errors.
+- No edits to `src/lib/engines/**`, `src/lib/sim/engine.ts`, `runDiamondEngineForGames`, `simulateGame`, or any scoring/probability math.
+- `getSimulationLeaders` is a thin orchestrator: existing functions in, reshaped DTO out, `null` whenever a field is absent.
+- `getOdds` stays in place for other consumers.
+- Site header link relabeled "Odds" → "Sim Leaders" (path unchanged).
 
-Critical safety rule:  
-Do not delete, replace, simplify, or rewrite the existing Diamond engine, simulation engine, scoring engine, or probability math. This is a UI/data-exposure refactor only. Existing model outputs must remain the source of truth.
+### Out of scope
 
-If a requested sim distribution field is not already available to a page, render — or a placeholder instead of changing engine logic. Ask before adding new server functions.
-
-&nbsp;
+- Renaming `/odds` to `/sim-leaders`.
+- Persisting sim distributions to a DB table to skip per-load recomputation (today it re-runs sims per slate, cached in-memory).
