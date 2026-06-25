@@ -45,20 +45,32 @@ const BUCKETS: { key: BucketKey; label: string; range: string }[] = [
 type Cell = {
   predictedPct: number | null;
   observedPct: number | null;
+  observedHits: number | null;
   deltaPp: number | null;
   sampleSize: number;
   brier: number | null;
+  excluded?: boolean;
+  excludedLabel?: string;
 };
 
-function toCell(r: CalibrationRow | undefined): Cell {
+function toCell(r: CalibrationRow | undefined, opts?: { excluded?: boolean; excludedLabel?: string }): Cell {
+  if (opts?.excluded) {
+    return {
+      predictedPct: null, observedPct: null, observedHits: null, deltaPp: null,
+      sampleSize: r?.sample_size ?? 0, brier: null,
+      excluded: true, excludedLabel: opts.excludedLabel,
+    };
+  }
   if (!r || !r.sample_size) {
-    return { predictedPct: null, observedPct: null, deltaPp: null, sampleSize: 0, brier: r?.brier_score ?? null };
+    return { predictedPct: null, observedPct: null, observedHits: null, deltaPp: null, sampleSize: 0, brier: r?.brier_score ?? null };
   }
   const p = (r.predicted_mean ?? 0) * 100;
   const o = (r.observed_mean ?? 0) * 100;
+  const hits = Math.round((r.observed_mean ?? 0) * r.sample_size);
   return {
     predictedPct: p,
     observedPct: o,
+    observedHits: hits,
     deltaPp: o - p,
     sampleSize: r.sample_size,
     brier: r.brier_score,
