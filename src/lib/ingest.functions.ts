@@ -781,6 +781,140 @@ export const runEngineForGame = createServerFn({ method: "POST" })
     }
   });
 
+// ---------- Force run (admin manual fallback) ----------
+
+export type ForceEngineSummary = {
+  ok: boolean;
+  date: string;
+  version: string;
+  games_found: number;
+  games_processed: number;
+  games_skipped: number;
+  hitter_predictions: number;
+  pitcher_predictions: number;
+  environment_failures: number;
+  per_game: Array<{
+    game_id: string;
+    mlb_game_id: number | null;
+    matchup: string;
+    lineup_players: number;
+    pitchers: number;
+    hitter_projections: number;
+    pitcher_projections: number;
+    note?: string;
+  }>;
+  duration_ms: number;
+  error?: string;
+};
+
+export const forceRunDiamondEngine = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date?: string } | undefined) => data ?? {})
+  .handler(async ({ data, context }): Promise<ForceEngineSummary> => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const t0 = Date.now();
+    const date = data.date ?? todayIso();
+
+    const summary: ForceEngineSummary = {
+      ok: false, date, version: "", games_found: 0, games_processed: 0,
+      games_skipped: 0, hitter_predictions: 0, pitcher_predictions: 0,
+      environment_failures: 0, per_game: [], duration_ms: 0,
+    };
+
+    try {
+      const { data: games } = await supabaseAdmin
+        .from("games")
+        .select("id, mlb_game_id, home_team_id, away_team_id, home_team:teams!games_home_team_id_fkey(abbreviation), away_team:teams!games_away_team_id_fkey(abbreviation)")
+        .eq("date", date);
+      summary.games_found = games?.length ?? 0;
+      if (!summary.games_found) {
+        summary.ok = true;
+        summary.duration_ms = Date.now() - t0;
+        return summary;
+      }
+
+      const gameIds = (games ?? []).map((g: any) => g.id);
+      const [lineupsRes, spsRes] = await Promise.all([
+        supabaseAdmin.from("lineups").select("game_id, player_id").in("game_id", gameIds),
+        supabaseAdmin.from("starting_pitchers").select("game_id, player_id").in("game_id", gameIds),
+      ]);
+      const lineupsByGame = new Map<string, number>();
+      for (const l of lineupsRes.data ?? []) {
+        lineupsByGame.set(l.game_id, (lineupsByGame.get(l.game_id) ?? 0) + 1);
+      }
+      const spsByGame = new Map<string, number>();
+      for (const sp of spsRes.data ?? []) {
+        spsByGame.set(sp.game_id, (spsByGame.get(sp.game_id) ?? 0) + 1);
+      }
+
+      // Run engine for every game with at least one player (lineup or SP).
+      const runnable = (games ?? []).filter((g: any) =>
+        (lineupsByGame.get(g.id) ?? 0) + (spsByGame.get(g.id) ?? 0) > 0
+      );
+      summary.games_skipped = summary.games_found - runnable.length;
+
+      if (runnable.length) {
+        const r = await runDiamondEngineForGames(date, runnable.map((g: any) => g.id));
+        summary.version = r.version;
+        summary.games_processed = r.gamesProcessed;
+        summary.environment_failures = r.environmentFailures;
+
+        // Per-role counts via projections query (active rows only).
+        const { data: proj } = await supabaseAdmin
+          .from("projections")
+          .select("game_id, projection_role")
+          .in("game_id", runnable.map((g: any) => g.id))
+          .eq("model_version", r.version)
+          .eq("projection_status", "active");
+        const hitterByGame = new Map<string, number>();
+        const pitcherByGame = new Map<string, number>();
+        for (const p of proj ?? []) {
+          if (p.projection_role === "pitcher") {
+            pitcherByGame.set(p.game_id, (pitcherByGame.get(p.game_id) ?? 0) + 1);
+            summary.pitcher_predictions++;
+          } else {
+            hitterByGame.set(p.game_id, (hitterByGame.get(p.game_id) ?? 0) + 1);
+            summary.hitter_predictions++;
+          }
+        }
+
+        for (const g of games ?? []) {
+          const lineupCt = lineupsByGame.get(g.id) ?? 0;
+          const spCt = spsByGame.get(g.id) ?? 0;
+          const ran = runnable.some((x: any) => x.id === g.id);
+          summary.per_game.push({
+            game_id: g.id,
+            mlb_game_id: g.mlb_game_id,
+            matchup: `${g.away_team?.abbreviation ?? "?"} @ ${g.home_team?.abbreviation ?? "?"}`,
+            lineup_players: lineupCt,
+            pitchers: spCt,
+            hitter_projections: hitterByGame.get(g.id) ?? 0,
+            pitcher_projections: pitcherByGame.get(g.id) ?? 0,
+            note: ran ? undefined : "skipped · no lineup or SP",
+          });
+        }
+      } else {
+        for (const g of games ?? []) {
+          summary.per_game.push({
+            game_id: g.id,
+            mlb_game_id: g.mlb_game_id,
+            matchup: `${g.away_team?.abbreviation ?? "?"} @ ${g.home_team?.abbreviation ?? "?"}`,
+            lineup_players: 0, pitchers: 0,
+            hitter_projections: 0, pitcher_projections: 0,
+            note: "skipped · no lineup or SP",
+          });
+        }
+      }
+
+      summary.ok = true;
+    } catch (e: any) {
+      summary.error = e?.message ?? String(e);
+    }
+    summary.duration_ms = Date.now() - t0;
+    return summary;
+  });
+
 
 
 
