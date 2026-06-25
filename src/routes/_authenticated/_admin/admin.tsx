@@ -5,10 +5,12 @@ import { useState } from "react";
 import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
-  createModelVersion, recomputePlayerDNA,
+  createModelVersion, recomputePlayerDNA, runDailyPipeline,
+  type DailyPipelineSummary,
 } from "@/lib/ingest.functions";
 import { refreshLineupsAndProject, getCronStatus } from "@/lib/lineups/refresh.functions";
-import { formatDateTimeInAppTz } from "@/lib/timezone";
+import { formatDateTimeInAppTz, todayInAppTz } from "@/lib/timezone";
+
 
 
 export const Route = createFileRoute("/_authenticated/_admin/admin")({
@@ -19,7 +21,12 @@ export const Route = createFileRoute("/_authenticated/_admin/admin")({
 type RunState = { running: boolean; last?: { ok: boolean; msg: string; at: string } };
 
 function AdminPanel() {
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => todayInAppTz());
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<DailyPipelineSummary | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const runPipeline = useServerFn(runDailyPipeline);
+
   const [state, setState] = useState<Record<string, RunState>>({});
   const [newVersion, setNewVersion] = useState("");
   const [newNotes, setNewNotes] = useState("");
@@ -77,11 +84,62 @@ function AdminPanel() {
 
       <CronStatusPanel />
 
-      <div className="mb-6 flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-4">
-        <label className="mono text-[11px] uppercase tracking-widest text-muted-foreground">Date</label>
+      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-4">
+        <label className="mono text-[11px] uppercase tracking-widest text-muted-foreground">Date (CT)</label>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
           className="mono rounded-md border border-border/60 bg-background px-2 py-1 text-sm" />
+        <button
+          onClick={async () => {
+            setPipelineRunning(true); setPipelineError(null); setPipelineResult(null);
+            try {
+              const r = await runPipeline({ data: { date } });
+              setPipelineResult(r);
+              qc.invalidateQueries({ queryKey: ["cron-status"] });
+            } catch (e: any) {
+              setPipelineError(e?.message ?? String(e));
+            } finally { setPipelineRunning(false); }
+          }}
+          disabled={pipelineRunning}
+          className="mono ml-auto rounded-md bg-primary px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+        >
+          {pipelineRunning ? "Updating slate…" : "Update Today's Slate"}
+        </button>
       </div>
+
+      {(pipelineResult || pipelineError) && (
+        <div className="mb-6 rounded-lg border border-border/60 bg-card/40 p-4">
+          <div className="mono mb-3 text-[11px] uppercase tracking-widest text-edge">Pipeline debug · {pipelineResult?.date ?? date}</div>
+          {pipelineError ? (
+            <div className="mono text-[12px] text-destructive">Pipeline crashed: {pipelineError}</div>
+          ) : pipelineResult ? (
+            <div className="grid gap-2 text-[12px]">
+              <PipelineRow label="1 · Schedule" ok={!pipelineResult.schedule.error}
+                msg={`${pipelineResult.schedule.games_upserted} games · ${pipelineResult.schedule.teams_upserted} teams`}
+                error={pipelineResult.schedule.error} />
+              <PipelineRow label="2 · Probable pitchers" ok={!pipelineResult.pitchers.error}
+                msg={`${pipelineResult.pitchers.sp_upserted} SP assignments`}
+                error={pipelineResult.pitchers.error} />
+              <PipelineRow label="3 · Confirmed lineups" ok={!pipelineResult.lineups.error}
+                msg={`${pipelineResult.lineups.lineup_rows} spots · ${pipelineResult.lineups.players_upserted} players · ${pipelineResult.lineups.games_with_confirmed} games confirmed`}
+                error={pipelineResult.lineups.error} />
+              <PipelineRow label="4 · Aggregator refresh" ok={!pipelineResult.refresh.error}
+                msg={`${pipelineResult.refresh.providers.map(p => `${p.id}:${p.ok ? p.count : "err"}`).join(" · ") || "no providers"} · ${pipelineResult.refresh.changed_game_ids.length} changed games`}
+                error={pipelineResult.refresh.error
+                  ?? pipelineResult.refresh.providers.find(p => !p.ok)?.error} />
+              <PipelineRow label="5 · Diamond Engine" ok={!pipelineResult.engine.error}
+                msg={`${pipelineResult.engine.projections_inserted} projections across ${pipelineResult.engine.games_processed} games (v${pipelineResult.engine.version || "?"})${pipelineResult.engine.environment_failures ? ` · ${pipelineResult.engine.environment_failures} env failures` : ""}`}
+                error={pipelineResult.engine.error} />
+              <PipelineRow label="6 · Player cards" ok={pipelineResult.cards.games_pending === 0}
+                msg={`${pipelineResult.cards.hitters} hitter · ${pipelineResult.cards.pitchers} pitcher cards · ${pipelineResult.cards.games_with_projections} games populated · ${pipelineResult.cards.games_pending} pending`} />
+              <div className="mono mt-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                Total {pipelineResult.duration_ms} ms
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+
 
       <div className="grid gap-3">
         {ops.map((op) => {
@@ -303,4 +361,15 @@ function computeNextRefresh(): string {
     next.setUTCHours(next.getUTCHours() + 1, 0, 0, 0);
   }
   return formatDateTimeInAppTz(next.toISOString());
+}
+
+function PipelineRow({ label, ok, msg, error }: { label: string; ok: boolean; msg: string; error?: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border/40 bg-background/40 px-3 py-2">
+      <div className="mono text-[11px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className={`mono text-[12px] ${ok ? "text-edge" : "text-destructive"}`}>
+        {msg}{error ? ` · ${error}` : ""}
+      </div>
+    </div>
+  );
 }

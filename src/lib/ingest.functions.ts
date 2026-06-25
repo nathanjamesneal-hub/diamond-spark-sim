@@ -503,6 +503,286 @@ export const runDiamondEngine = createServerFn({ method: "POST" })
     }
   });
 
+// ---------- One-click daily pipeline ----------
+// One admin click runs: schedule → SP → confirmed lineups → aggregator
+// refresh → Diamond Engine (always, for every game with a lineup OR a
+// probable SP). Returns a structured debug payload so the admin UI can
+// surface counts + errors per step without spelunking the logs.
+
+export type DailyPipelineSummary = {
+  ok: boolean;
+  date: string;
+  schedule:  { games_upserted: number; teams_upserted: number; error?: string };
+  pitchers:  { sp_upserted: number; error?: string };
+  lineups:   { lineup_rows: number; players_upserted: number; games_with_confirmed: number; error?: string };
+  refresh:   { providers: { id: string; ok: boolean; count: number; error?: string }[]; changed_game_ids: string[]; players_changed: number; pitchers_changed: number; error?: string };
+  engine:    { games_processed: number; projections_inserted: number; environment_failures: number; version: string; error?: string };
+  cards:     { hitters: number; pitchers: number; games_with_projections: number; games_pending: number };
+  duration_ms: number;
+};
+
+export const runDailyPipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date?: string }) => data ?? {})
+  .handler(async ({ data, context }): Promise<DailyPipelineSummary> => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { runRefresh } = await import("@/lib/lineups/refresh.functions");
+
+    const date = data.date ?? todayIso();
+    const t0 = Date.now();
+    const out: DailyPipelineSummary = {
+      ok: true,
+      date,
+      schedule: { games_upserted: 0, teams_upserted: 0 },
+      pitchers: { sp_upserted: 0 },
+      lineups:  { lineup_rows: 0, players_upserted: 0, games_with_confirmed: 0 },
+      refresh:  { providers: [], changed_game_ids: [], players_changed: 0, pitchers_changed: 0 },
+      engine:   { games_processed: 0, projections_inserted: 0, environment_failures: 0, version: "" },
+      cards:    { hitters: 0, pitchers: 0, games_with_projections: 0, games_pending: 0 },
+      duration_ms: 0,
+    };
+
+    // Step 1 — schedule (inline; mirrors importSchedule)
+    try {
+      const json = await mlb<any>(`/schedule?sportId=1&date=${date}&hydrate=team,linescore,venue`);
+      const teamUpserts = new Map<number, any>();
+      const gameStubs: any[] = [];
+      for (const d of json.dates ?? []) {
+        for (const g of d.games ?? []) {
+          for (const side of ["home", "away"] as const) {
+            const t = g.teams?.[side]?.team;
+            if (t?.id) teamUpserts.set(t.id, {
+              mlb_team_id: t.id,
+              abbreviation: t.abbreviation ?? t.teamCode ?? "",
+              name: t.name ?? t.teamName ?? "",
+              league: t.league?.name ?? null,
+              division: t.division?.name ?? null,
+            });
+          }
+          gameStubs.push({
+            mlb_game_id: g.gamePk, date,
+            ballpark: g.venue?.name ?? null,
+            game_status: g.status?.detailedState ?? null,
+            first_pitch_at: g.gameDate ?? null,
+            _home_mlb: g.teams?.home?.team?.id,
+            _away_mlb: g.teams?.away?.team?.id,
+          });
+        }
+      }
+      if (teamUpserts.size) {
+        const { error } = await supabaseAdmin.from("teams")
+          .upsert(Array.from(teamUpserts.values()), { onConflict: "mlb_team_id" });
+        if (error) throw new Error(error.message);
+        out.schedule.teams_upserted = teamUpserts.size;
+      }
+      const { data: teamRows } = await supabaseAdmin.from("teams").select("id, mlb_team_id");
+      const teamByMlb = new Map((teamRows ?? []).map((t: any) => [t.mlb_team_id, t.id]));
+      const gameRows = gameStubs.map((g) => ({
+        mlb_game_id: g.mlb_game_id, date: g.date, ballpark: g.ballpark,
+        game_status: g.game_status, first_pitch_at: g.first_pitch_at,
+        home_team_id: teamByMlb.get(g._home_mlb) ?? null,
+        away_team_id: teamByMlb.get(g._away_mlb) ?? null,
+      }));
+      if (gameRows.length) {
+        const { error } = await supabaseAdmin.from("games")
+          .upsert(gameRows, { onConflict: "mlb_game_id" });
+        if (error) throw new Error(error.message);
+      }
+      out.schedule.games_upserted = gameRows.length;
+    } catch (e: any) {
+      out.schedule.error = e?.message ?? String(e);
+    }
+
+    // Step 2 — starting pitchers
+    try {
+      const json = await mlb<any>(`/schedule?sportId=1&date=${date}&hydrate=probablePitcher`);
+      const { data: gameRows } = await supabaseAdmin.from("games")
+        .select("id, mlb_game_id, home_team_id, away_team_id").eq("date", date);
+      const gameByMlb = new Map((gameRows ?? []).map((g: any) => [g.mlb_game_id, g]));
+      let count = 0;
+      for (const d of json.dates ?? []) {
+        for (const g of d.games ?? []) {
+          const game = gameByMlb.get(g.gamePk);
+          if (!game) continue;
+          for (const side of ["home", "away"] as const) {
+            const pp = g.teams?.[side]?.probablePitcher;
+            if (!pp?.id) continue;
+            await supabaseAdmin.from("players").upsert(
+              { mlb_id: pp.id, name: pp.fullName ?? `Pitcher ${pp.id}`, position: "P", active: true,
+                team_id: side === "home" ? game.home_team_id : game.away_team_id },
+              { onConflict: "mlb_id" });
+            const { data: pRow } = await supabaseAdmin.from("players")
+              .select("id").eq("mlb_id", pp.id).maybeSingle();
+            if (!pRow?.id) continue;
+            await supabaseAdmin.from("starting_pitchers").upsert({
+              game_id: game.id,
+              team_id: side === "home" ? game.home_team_id : game.away_team_id,
+              player_id: pRow.id, confirmed: true,
+            }, { onConflict: "game_id,team_id" });
+            count++;
+          }
+        }
+      }
+      out.pitchers.sp_upserted = count;
+    } catch (e: any) {
+      out.pitchers.error = e?.message ?? String(e);
+    }
+
+    // Step 3 — confirmed lineups (best-effort; games without batting orders are silently skipped)
+    try {
+      const { data: games } = await supabaseAdmin.from("games")
+        .select("id, mlb_game_id, home_team_id, away_team_id").eq("date", date);
+      let totalLineups = 0, totalPlayers = 0, gamesConfirmed = 0;
+      for (const game of games ?? []) {
+        try {
+          const box = await mlb<any>(`/game/${game.mlb_game_id}/boxscore`);
+          let gameHadConfirmed = false;
+          for (const s of [
+            { teamId: game.home_team_id, box: box.teams?.home },
+            { teamId: game.away_team_id, box: box.teams?.away },
+          ]) {
+            if (!s.box || !s.teamId) continue;
+            const battingOrder = (s.box.battingOrder ?? []) as number[];
+            if (!battingOrder.length) continue;
+            gameHadConfirmed = true;
+            const playerUpserts = battingOrder.map((mlbId) => {
+              const p = s.box.players?.[`ID${mlbId}`]?.person;
+              const pos = s.box.players?.[`ID${mlbId}`]?.position?.abbreviation ?? null;
+              return { mlb_id: mlbId, name: p?.fullName ?? `Player ${mlbId}`,
+                position: pos, team_id: s.teamId, active: true };
+            });
+            const { error: pErr } = await supabaseAdmin.from("players")
+              .upsert(playerUpserts, { onConflict: "mlb_id" });
+            if (pErr) throw pErr;
+            totalPlayers += playerUpserts.length;
+            const { data: playerRows } = await supabaseAdmin.from("players")
+              .select("id, mlb_id").in("mlb_id", battingOrder);
+            const pByMlb = new Map((playerRows ?? []).map((p: any) => [p.mlb_id, p.id]));
+            const nowIso = new Date().toISOString();
+            const lineupRows = battingOrder.map((mlbId, idx) => ({
+              game_id: game.id, player_id: pByMlb.get(mlbId), team_id: s.teamId,
+              batting_order: idx + 1, confirmed: true,
+              lineup_status: "confirmed", lineup_source: "mlb",
+              imported_at: nowIso, confirmed_at: nowIso,
+            })).filter((r) => r.player_id);
+            if (lineupRows.length) {
+              const { error } = await supabaseAdmin.from("lineups")
+                .upsert(lineupRows, { onConflict: "game_id,player_id" });
+              if (error) throw error;
+              totalLineups += lineupRows.length;
+            }
+            const playerIds = (playerRows ?? []).map((p: any) => p.id);
+            if (playerIds.length) {
+              const { data: existing } = await supabaseAdmin.from("player_dna")
+                .select("player_id").in("player_id", playerIds);
+              const have = new Set((existing ?? []).map((r: any) => r.player_id));
+              const need = playerIds.filter((id: string) => !have.has(id));
+              if (need.length) await supabaseAdmin.from("player_dna")
+                .insert(need.map((pid: string) => ({ player_id: pid })));
+            }
+          }
+          if (gameHadConfirmed) gamesConfirmed++;
+        } catch { continue; }
+      }
+      out.lineups.lineup_rows = totalLineups;
+      out.lineups.players_upserted = totalPlayers;
+      out.lineups.games_with_confirmed = gamesConfirmed;
+    } catch (e: any) {
+      out.lineups.error = e?.message ?? String(e);
+    }
+
+    // Step 4 — aggregator refresh (will now find games + may add projected lineups)
+    try {
+      const r = await runRefresh(date);
+      out.refresh.providers = r.providers.map((p) => ({
+        id: p.id, ok: p.ok, count: p.count, error: p.error,
+      }));
+      out.refresh.changed_game_ids = r.changedGameIds;
+      out.refresh.players_changed = r.playersChanged;
+      out.refresh.pitchers_changed = r.pitchersChanged;
+    } catch (e: any) {
+      out.refresh.error = e?.message ?? String(e);
+    }
+
+    // Step 5 — ALWAYS run engine for every game that has a lineup OR a probable SP.
+    // This is the regression fix: refresh's incremental path skips the engine
+    // when nothing changed, leaving brand-new days with no projections.
+    try {
+      const { data: games } = await supabaseAdmin.from("games")
+        .select("id").eq("date", date);
+      const allGameIds = (games ?? []).map((g: any) => g.id);
+      let gamesToRun: string[] = [];
+      if (allGameIds.length) {
+        const [{ data: lns }, { data: sps2 }] = await Promise.all([
+          supabaseAdmin.from("lineups").select("game_id").in("game_id", allGameIds),
+          supabaseAdmin.from("starting_pitchers").select("game_id").in("game_id", allGameIds),
+        ]);
+        const have = new Set<string>([
+          ...((lns ?? []).map((r: any) => r.game_id)),
+          ...((sps2 ?? []).map((r: any) => r.game_id)),
+        ]);
+        gamesToRun = Array.from(have);
+      }
+      if (gamesToRun.length) {
+        const r = await runDiamondEngineForGames(date, gamesToRun);
+        out.engine.games_processed = r.gamesProcessed;
+        out.engine.projections_inserted = r.projectionsInserted;
+        out.engine.environment_failures = r.environmentFailures;
+        out.engine.version = r.version;
+      }
+    } catch (e: any) {
+      out.engine.error = e?.message ?? String(e);
+    }
+
+    // Step 6 — read back what made it to the cards
+    try {
+      const { data: games } = await supabaseAdmin.from("games")
+        .select("id").eq("date", date);
+      const allGameIds = (games ?? []).map((g: any) => g.id);
+      if (allGameIds.length) {
+        const { data: projs } = await supabaseAdmin.from("projections")
+          .select("game_id, projection_role")
+          .in("game_id", allGameIds)
+          .eq("projection_status", "active");
+        const gamesWith = new Set<string>();
+        let h = 0, p = 0;
+        for (const r of projs ?? []) {
+          gamesWith.add(r.game_id);
+          if (r.projection_role === "pitcher") p++; else h++;
+        }
+        out.cards.hitters = h;
+        out.cards.pitchers = p;
+        out.cards.games_with_projections = gamesWith.size;
+        out.cards.games_pending = allGameIds.length - gamesWith.size;
+      }
+    } catch { /* non-fatal */ }
+
+    out.duration_ms = Date.now() - t0;
+    out.ok = !out.schedule.error && !out.engine.error;
+    return out;
+  });
+
+// Per-game engine retry (used by "Needs engine run" affordance on cards).
+export const runEngineForGame = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date: string; gameId: string }) => {
+    if (!data?.date || !data?.gameId) throw new Error("date and gameId required");
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<ImportResult> => {
+    await assertAdmin(context);
+    try {
+      const r = await runDiamondEngineForGames(data.date, [data.gameId]);
+      return { ok: true, count: r.projectionsInserted,
+        details: `${r.projectionsInserted} projections for game (v${r.version}).` };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
+    }
+  });
+
+
+
 
 // ---------- Lock ----------
 
