@@ -53,6 +53,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.hit,
     ),
     probLabel: "P(1+ H)",
+    getActual: (a) => (a as HitterActual).H ?? null,
   },
   {
     key: "hr", label: "Home Runs", group: "hitter", meanLabel: "Mean HR", meanDigits: 2,
@@ -62,6 +63,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.hr,
     ),
     probLabel: "P(1+ HR)",
+    getActual: (a) => (a as HitterActual).HR ?? null,
   },
   {
     key: "rbi", label: "RBI", group: "hitter", meanLabel: "Mean RBI", meanDigits: 2,
@@ -71,6 +73,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.rbi,
     ),
     probLabel: "P(1+ RBI)",
+    getActual: (a) => (a as HitterActual).RBI ?? null,
   },
   {
     key: "runs", label: "Runs", group: "hitter", meanLabel: "Mean R", meanDigits: 2,
@@ -80,6 +83,7 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.run,
     ),
     probLabel: "P(1+ R)",
+    getActual: (a) => (a as HitterActual).R ?? null,
   },
   {
     key: "tb", label: "Total Bases", group: "hitter", meanLabel: "Mean TB", meanDigits: 2,
@@ -89,18 +93,21 @@ const CATEGORIES: CatDef[] = [
       (r as SimLeaderHitterRow).card_probabilities.total_base,
     ),
     probLabel: "P(2+ TB)",
+    getActual: (a) => (a as HitterActual).TB ?? null,
   },
   {
     key: "sb", label: "Stolen Bases", group: "hitter", meanLabel: "Mean SB", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).SB,
     getProb: (r) => preferFraction(null, (r as SimLeaderHitterRow).card_probabilities.sb),
     probLabel: "P(1+ SB)",
+    getActual: (a) => (a as HitterActual).SB ?? null,
   },
   {
     key: "bk", label: "Batter Strikeouts", group: "hitter", meanLabel: "Mean K", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).K,
     getProb: (r) => preferFraction((r as SimLeaderHitterRow).K?.probAtLeast1 ?? null, null),
     probLabel: "P(1+ K)",
+    getActual: (a) => (a as HitterActual).K ?? null,
   },
   {
     key: "pk", label: "Pitcher Strikeouts", group: "pitcher", meanLabel: "Mean K", meanDigits: 1,
@@ -108,24 +115,28 @@ const CATEGORIES: CatDef[] = [
     // No threshold K probability is exposed by the engine yet; show — until it exists.
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).extra_probabilities?.["k_over"] ?? null),
     probLabel: "P(K thr)",
+    getActual: (a) => (a as PitcherActual).K ?? null,
   },
   {
     key: "outs", label: "Pitcher Outs", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: () => null,
     probLabel: "P(Outs)",
+    getActual: (a) => (a as PitcherActual).outs ?? null,
   },
   {
     key: "qs", label: "Quality Start", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).quality_start_probability),
     probLabel: "P(QS)",
+    getBoolActual: (a) => a.qualityStart ?? null,
   },
   {
     key: "win", label: "Pitcher Win", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
     getProb: (r) => preferFraction(null, (r as SimLeaderPitcherRow).win_probability),
     probLabel: "P(W)",
+    getBoolActual: (a) => a.win ?? null,
   },
 ];
 
