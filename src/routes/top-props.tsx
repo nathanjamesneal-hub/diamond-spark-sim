@@ -279,10 +279,18 @@ function TopPropsPage() {
   }, [allRows]);
 
   // Apply filters (team + min) but NOT prop type — prop type controls which sections show
+  // The user-controlled "min %" slider is calibrated for high-frequency props
+  // (Hits, TB, Win, QS). Low-baseline props (HR, RBI, Runs, SB, K) rarely exceed
+  // 50% even for the best plays of the day, so applying the same threshold wipes
+  // those categories out. Apply min only to high-frequency props; show the rest
+  // ranked as-is so the leaderboard is never empty when real data exists.
+  const HIGH_FREQ: PropType[] = ["hit", "tb", "win", "qs"];
   const baseFiltered = useMemo(() => {
     let rows = allRows.slice();
     if (search.team) rows = rows.filter((r) => r.team_abbrev === search.team);
-    rows = rows.filter((r) => r.probability * 100 >= search.min);
+    rows = rows.filter((r) =>
+      HIGH_FREQ.includes(r.propType) ? r.probability * 100 >= search.min : true
+    );
     return rows;
   }, [allRows, search.team, search.min]);
 
@@ -300,15 +308,20 @@ function TopPropsPage() {
   const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
 
   const sectionsData = useMemo(() => {
-    return visibleCategories
+    const out = visibleCategories
       .map((propType) => {
         const rows = sortRows(baseFiltered.filter((r) => r.propType === propType)).slice(0, 25);
         return { propType, rows };
       })
-      // TODO: Strikeouts will populate when the engine provides real K probability fields;
-      // do not use inputs.pitcher_components.strikeoutScore as a probability.
-      // Keep the section hidden unless a real K probability field exists or the user explicitly filters here.
+      // Strikeouts will populate when the engine provides real K probability fields;
+      // hide until then unless user explicitly filtered to k.
       .filter((s) => s.propType !== "k" || s.rows.length > 0 || search.prop === "k");
+
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.log("[top-props] rows per category:", Object.fromEntries(out.map((s) => [s.propType, s.rows.length])));
+    }
+    return out;
   }, [baseFiltered, search.sort, search.prop]);
 
 
