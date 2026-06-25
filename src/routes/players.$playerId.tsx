@@ -125,32 +125,57 @@ function StatBlock({
 }
 
 function ProjectionPlaceholder({ name, group }: { name: string; group: "hitting" | "pitching" }) {
-  // Placeholder for Phase 2 sim engine.
-  const props = group === "hitting"
-    ? [{ k: "1+ Hit", v: "72%" }, { k: "1+ HR", v: "14%" }, { k: "2+ TB", v: "41%" }, { k: "Proj H", v: "1.2" }]
-    : [{ k: "5+ K", v: "68%" }, { k: "Under 2.5 ER", v: "55%" }, { k: "Win", v: "47%" }, { k: "Proj K", v: "6.3" }];
+  // Per-player Monte Carlo distributions are produced on the matchup page.
+  // Here we expose the simulation engine's structure transparently — without
+  // synthesizing any numbers — so the player profile reads as a model output.
   return (
-    <div className="rounded-lg border border-dashed border-edge/40 bg-edge/[0.03] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="mono text-[10px] uppercase tracking-widest text-edge">
-          Next game projection · sim engine preview
+    <div className="space-y-3 rounded-lg border border-edge/40 bg-edge/[0.03] p-4">
+      <div className="flex items-center justify-between">
+        <div className="mono flex items-center gap-1 text-[10px] uppercase tracking-widest text-edge">
+          Next-game simulation
+          <SimMethodologyTooltip />
         </div>
-        <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">v0 stub</div>
+        <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          Diamond engine · 2,000 sims
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {props.map((p) => (
-          <div key={p.k} className="rounded-md bg-secondary/40 p-3">
-            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{p.k}</div>
-            <div className="mono mt-1 text-xl font-bold tabular-nums text-edge">{p.v}</div>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Real Monte Carlo projections for {name} ship in Phase 2.
+
+      <PrimaryMetricsRow
+        diamondScore={null}
+        meanProjection={null}
+        meanLabel={group === "hitting" ? "Mean Hits" : "Mean Outs"}
+        probability={null}
+        probabilityLabel={group === "hitting" ? "Hit Probability" : "QS Probability"}
+        confidence={null}
+        edge={null}
+      />
+
+      <SimDetails
+        mean={null}
+        median={null}
+        stdev={null}
+        percentile90={null}
+        fractionDigits={group === "hitting" ? 2 : 1}
+      />
+
+      <PredictionDrivers
+        battingOrder={null}
+        opposingPitcher={null}
+        parkFactor={null}
+        platoonAdvantage={null}
+        bullpenAdjustment={null}
+        weather={null}
+        recentForm={null}
+        lineupStatus={null}
+      />
+
+      <p className="text-xs text-muted-foreground">
+        Open today's matchup page to see {name}'s live per-batter Monte Carlo distribution.
       </p>
     </div>
   );
 }
+
 
 function StatTable({ history, group }: { history: PlayerStatLine[]; group: "hitting" | "pitching" }) {
   if (history.length === 0) {
