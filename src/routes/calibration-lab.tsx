@@ -130,7 +130,7 @@ function CalibrationLabPage() {
     return map;
   }, [rows]);
 
-  const { avgAbs, totalN, statSummary, overallBias, bestStat, worstStat } = useMemo(() => {
+  const { avgAbs, totalN, overallBias, bestStat, worstStat } = useMemo(() => {
     const summary: Record<StatKey, { avgAbs: number | null; avgDelta: number | null; totalN: number }> = {} as any;
     let globalAbsSum = 0;
     let globalDeltaSum = 0;
@@ -175,10 +175,12 @@ function CalibrationLabPage() {
       }
     }
 
-    return { avgAbs, totalN, statSummary: summary, overallBias, bestStat, worstStat };
+    return { avgAbs, totalN, overallBias, bestStat, worstStat };
   }, [grid]);
 
   const grade = gradeFor(avgAbs);
+  const bestStatLabel = bestStat ? STATS.find((s) => s.key === bestStat)?.label ?? "—" : "—";
+  const worstStatLabel = worstStat ? STATS.find((s) => s.key === worstStat)?.label ?? "—" : "—";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
@@ -208,7 +210,7 @@ function CalibrationLabPage() {
         ) : null}
       </div>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-border/60 bg-card/60 p-5">
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Overall grade</div>
           <div className={`font-display text-5xl font-bold leading-none ${grade.tone}`}>{grade.grade}</div>
@@ -220,6 +222,30 @@ function CalibrationLabPage() {
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Total events graded</div>
           <div className="font-display text-3xl font-bold">{totalN.toLocaleString()}</div>
           <div className="mt-2 text-xs text-muted-foreground">Aggregate sample across all stat × bucket cells.</div>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
+          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
+          <div className="mt-2 space-y-1.5 text-xs text-foreground/90">
+            <div>
+              <span className="text-muted-foreground">Best calibrated:</span>{" "}
+              <span className="font-medium text-emerald-400">{bestStatLabel}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Worst calibrated:</span>{" "}
+              <span className="font-medium text-rose-400">{worstStatLabel}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Overall bias:</span>{" "}
+              <span className="font-medium">
+                {overallBias == null ? "—" : `${overallBias >= 0 ? "+" : ""}${overallBias.toFixed(1)}pp`}
+              </span>
+              {overallBias != null ? (
+                <span className="ml-1 text-muted-foreground">
+                  ({overallBias < 0 ? "overconfident" : "underestimating"})
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="rounded-xl border border-border/60 bg-card/60 p-5">
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Color key</div>
@@ -338,6 +364,21 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
           })}
         </tbody>
       </table>
+      <div className="mt-4 border-t border-border/40 pt-3">
+        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
+        <div className="space-y-1.5">
+          {BUCKETS.map((b) => {
+            const c = buckets[b.key];
+            const text = c.excluded ? (c.excludedLabel ?? "Excluded") : takeawayForCell(c);
+            return (
+              <div key={b.key} className="flex items-start gap-2 text-xs">
+                <span className="mono mt-0.5 shrink-0 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{b.label}</span>
+                <span className="text-foreground/80">{text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
