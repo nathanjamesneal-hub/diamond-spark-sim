@@ -452,9 +452,51 @@ function CategorySection({
                 </th>
                 <th className="px-2 text-right">DS</th>
                 <th className="px-2 text-right">Conf</th>
+                <th className="px-2 text-right">Actual</th>
+                <th className="px-2">Result</th>
                 <th className="px-2">Lineup</th>
               </tr>
             </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const stat = cat.getStat?.(r) ?? null;
+                const prob = cat.getProb?.(r) ?? null;
+                const lineupStatus =
+                  cat.group === "hitter"
+                    ? (r as SimLeaderHitterRow).lineup_status
+                    : null;
+                const gamePk = r.mlb_game_id;
+                const isFinal = gamePk != null && actuals.finalGames.includes(gamePk);
+                const actualRecord =
+                  r.mlb_id != null
+                    ? cat.group === "hitter"
+                      ? actuals.hitters[String(r.mlb_id)]
+                      : actuals.pitchers[String(r.mlb_id)]
+                    : undefined;
+                const actualNum =
+                  isFinal && actualRecord && cat.getActual
+                    ? cat.getActual(actualRecord) ?? null
+                    : null;
+                const actualBool =
+                  isFinal && actualRecord && cat.getBoolActual
+                    ? cat.getBoolActual(actualRecord as PitcherActual)
+                    : null;
+                const grade: Grade = !isFinal
+                  ? { label: "Pending", tone: "muted" }
+                  : cat.getBoolActual
+                    ? gradeBinary(prob, actualBool)
+                    : cat.key === "hr"
+                      ? gradeHR(stat?.mean ?? null, actualNum)
+                      : gradeCounting(stat?.mean ?? null, actualNum);
+                const actualLabel = !isFinal
+                  ? "Pending"
+                  : cat.getBoolActual
+                    ? actualBool == null
+                      ? "—"
+                      : actualBool
+                        ? "Yes"
+                        : "No"
+                    : fmtInt(actualNum);
             <tbody>
               {rows.map((r, i) => {
                 const stat = cat.getStat?.(r) ?? null;
