@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js";
 const nav = [
   { to: "/", label: "Today" },
   { to: "/scores", label: "Scores" },
-  { to: "/odds", label: "Odds" },
+  { to: "/odds", label: "Sim Leaders" },
   { to: "/standings", label: "Standings" },
   { to: "/slate", label: "Projections" },
   { to: "/diamond-scores", label: "Diamond" },
