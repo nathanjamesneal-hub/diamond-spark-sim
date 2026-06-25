@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { todayInAppTz } from "@/lib/timezone";
 
 function publicClient() {
   return createClient<Database>(
@@ -15,9 +16,34 @@ function publicClient() {
 }
 
 function todayIso(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  // App is pinned to America/Chicago — "today" must match what the user sees.
+  return todayInAppTz();
 }
+
+export type SlateGame = {
+  gamePk: number | null;
+  game_id: string | null;
+  status: string;
+  abstractStatus: string | null;
+  isFinal: boolean;
+  first_pitch_at: string | null;
+  home: { abbrev: string; name: string; probablePitcher: string | null };
+  away: { abbrev: string; name: string; probablePitcher: string | null };
+  lineup_status: "locked" | "verified" | "waiting" | "missing";
+  lineup_source: string | null;
+  hitters_set: number;
+  has_projections: boolean;
+};
+
+export type SlateDiagnostics = {
+  api_game_count: number;
+  api_games_included: number;
+  filtered_out: { gamePk: number; reason: string }[];
+  db_game_count: number;
+  lineup_count: number;
+  projection_count: number;
+  note: string | null;
+};
 
 export type SlateRow = {
   player_id: string;
