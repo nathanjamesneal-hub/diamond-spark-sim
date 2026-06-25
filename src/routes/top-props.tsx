@@ -326,7 +326,9 @@ function TopPropsPage() {
             <option value="hit">Hit 1+</option>
             <option value="tb">TB 2+</option>
             <option value="rbi">RBI 1+</option>
+            <option value="runs">Runs 1+</option>
             <option value="sb">SB 1+</option>
+            <option value="k">Strikeouts</option>
             <option value="win">Pitcher Win</option>
             <option value="qs">Quality Start</option>
           </select>
