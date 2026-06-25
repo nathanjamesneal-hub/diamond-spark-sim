@@ -177,6 +177,14 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
             >
               {busy === "lock" ? "…" : row.locked_at ? "Locked" : "Lock"}
             </ActionBtn>
+            {row.locked_at ? (
+              <ActionBtn
+                disabled={busy != null}
+                onClick={() => call("unlock", () => unlock({ data: { gameId: row.game_id } }))}
+              >
+                {busy === "unlock" ? "…" : "Unlock"}
+              </ActionBtn>
+            ) : null}
           </div>
         ) : null}
       </div>
