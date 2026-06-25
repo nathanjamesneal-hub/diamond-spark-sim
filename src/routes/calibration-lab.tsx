@@ -222,7 +222,18 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
           <tr>
             <th className="px-1 py-1.5 text-left uppercase tracking-widest">Bucket</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Pred</th>
-            <th className="px-1 py-1.5 text-right uppercase tracking-widest">Obs</th>
+            <th
+              className="px-1 py-1.5 text-right uppercase tracking-widest"
+              title="Observed count shows how many props actually hit out of total tracked props in this bucket."
+            >
+              Obs
+            </th>
+            <th
+              className="px-1 py-1.5 text-right uppercase tracking-widest"
+              title="Observed count shows how many props actually hit out of total tracked props in this bucket."
+            >
+              Hits
+            </th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Δpp</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">n</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Brier</th>
@@ -233,6 +244,25 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
             const c = buckets[b.key];
             const tone = deltaTone(c.deltaPp);
             const lowN = c.sampleSize > 0 && c.sampleSize < 100;
+            if (c.excluded) {
+              return (
+                <tr key={b.key} className="border-t border-border/40 text-muted-foreground">
+                  <td className="px-1 py-2 text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{b.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{b.range}</span>
+                    </div>
+                  </td>
+                  <td colSpan={6} className="px-1 py-2 text-right italic">
+                    {c.excludedLabel ?? "Excluded"} · not graded
+                  </td>
+                </tr>
+              );
+            }
+            const hitsCell =
+              c.observedHits != null && c.sampleSize > 0
+                ? `${c.observedHits} / ${c.sampleSize}`
+                : "—";
             return (
               <tr key={b.key} className="border-t border-border/40">
                 <td className="px-1 py-2 text-left">
@@ -246,6 +276,12 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
                 </td>
                 <td className="px-1 py-2 text-right text-foreground">
                   {c.observedPct == null ? "—" : `${c.observedPct.toFixed(0)}%`}
+                </td>
+                <td
+                  className="px-1 py-2 text-right text-foreground"
+                  title="Observed count shows how many props actually hit out of total tracked props in this bucket."
+                >
+                  {hitsCell}
                 </td>
                 <td className={`px-1 py-2 text-right ${tone.className}`}>
                   {c.deltaPp == null ? "—" : `${c.deltaPp >= 0 ? "+" : ""}${c.deltaPp.toFixed(1)}`}
