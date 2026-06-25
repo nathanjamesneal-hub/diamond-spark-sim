@@ -261,11 +261,17 @@ function TopPropsPage() {
   const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
 
   const sectionsData = useMemo(() => {
-    return visibleCategories.map((propType) => {
-      const rows = sortRows(baseFiltered.filter((r) => r.propType === propType)).slice(0, 25);
-      return { propType, rows };
-    });
+    return visibleCategories
+      .map((propType) => {
+        const rows = sortRows(baseFiltered.filter((r) => r.propType === propType)).slice(0, 25);
+        return { propType, rows };
+      })
+      // TODO: Strikeouts will populate when the engine provides real K probability fields;
+      // do not use inputs.pitcher_components.strikeoutScore as a probability.
+      // Keep the section hidden unless a real K probability field exists or the user explicitly filters here.
+      .filter((s) => s.propType !== "k" || s.rows.length > 0 || search.prop === "k");
   }, [baseFiltered, search.sort, search.prop]);
+
 
   const totalShown = sectionsData.reduce((n, s) => n + s.rows.length, 0);
 
