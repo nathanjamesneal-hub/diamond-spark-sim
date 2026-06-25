@@ -269,19 +269,26 @@ function HitterCardView({ h }: { h: DiamondHitterCard }) {
       </div>
 
 
-      <div className="mb-3 flex items-end justify-between border-b border-border/60 pb-3">
-        <div>
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Diamond</div>
-          <div className="font-display text-3xl font-bold tabular-nums text-primary">{score(h.diamond_score)}</div>
-        </div>
-        <div className="text-right">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Confidence</div>
-          <div className="mono text-sm tabular-nums">{pct(h.confidence)}</div>
-          <div className="mono mt-1 text-[10px] text-muted-foreground">{h.model_version}</div>
-        </div>
+      {/* Primary metrics: Diamond · Mean · Sim Prob · Confidence · Edge */}
+      <div className="mb-3">
+        <PrimaryMetricsRow
+          diamondScore={h.diamond_score}
+          meanProjection={null}
+          meanLabel="Mean Hits"
+          probability={h.hit_probability}
+          probabilityLabel="Hit Probability"
+          confidence={h.confidence}
+          edge={null}
+        />
       </div>
 
-      <div className="mb-3 grid grid-cols-5 gap-1 text-center">
+      {/* Simulation details — per-batter Monte Carlo distribution is computed live
+          on the matchup page; persisted projections only expose probabilities,
+          so mean/median/stdev render as "—" placeholders here. */}
+      <SimDetails mean={null} median={null} stdev={null} percentile90={null} />
+
+      {/* Existing sub-score detail kept for transparency */}
+      <div className="mb-2 mt-3 grid grid-cols-5 gap-1 text-center">
         <Mini label="Contact" v={score(h.contact_score)} />
         <Mini label="Power" v={score(h.power_score)} />
         <Mini label="Speed" v={score(h.speed_score)} />
@@ -289,24 +296,46 @@ function HitterCardView({ h }: { h: DiamondHitterCard }) {
         <Mini label="MG" v={score(h.matchup_grade)} />
       </div>
 
-      <div className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3">
-        <Stat label="Hit" v={pct(h.hit_probability)} />
-        <Stat label="Hit 0.5+" v="n/a" muted />
-        <Stat label="Hit 1.5+" v="n/a" muted />
-        <Stat label="TB proj" v="n/a" muted />
+      <div className="mb-3 grid grid-cols-2 gap-1 text-xs sm:grid-cols-3">
+        <Stat label="Hit %" v={pct(h.hit_probability)} />
         <Stat label="TB %" v={pct(h.total_base_probability)} />
-        <Stat label="TB 0.5+" v="n/a" muted />
-        <Stat label="TB 1.5+" v="n/a" muted />
-        <Stat label="TB 2.5+" v="n/a" muted />
-        <Stat label="HR" v={pct(h.hr_probability)} />
-        <Stat label="RBI" v={pct(h.rbi_probability)} />
-        <Stat label="Run" v={pct(h.run_probability)} />
-        <Stat label="SB" v={pct(h.sb_probability)} />
+        <Stat label="HR %" v={pct(h.hr_probability)} />
+        <Stat label="RBI %" v={pct(h.rbi_probability)} />
+        <Stat label="Run %" v={pct(h.run_probability)} />
+        <Stat label="SB %" v={pct(h.sb_probability)} />
       </div>
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <div className="mb-2">
+        <PredictionDrivers
+          battingOrder={h.batting_order}
+          opposingPitcher={null}
+          parkFactor={null}
+          platoonAdvantage={null}
+          bullpenAdjustment={null}
+          weather={null}
+          recentForm={null}
+          lineupStatus={h.lineup_status}
+        />
+      </div>
+
+      <div className="mb-2">
+        <WhyTheModelLikesThis
+          diamondScore={h.diamond_score}
+          meanProjection={null}
+          probability={h.hr_probability ?? h.hit_probability}
+          probabilityLabel={h.hr_probability != null ? "HR Probability" : "Hit Probability"}
+          parkFactor={null}
+          opposingPitcher={null}
+          battingOrder={h.batting_order ?? null}
+          weather={null}
+          recentForm={null}
+        />
+      </div>
+
+      <p className="text-xs text-muted-foreground">
         {h.inputs_narrative ?? buildHitterReason(h)}
       </p>
+
 
       {h.mlb_game_id ? (
         <Link
