@@ -16,11 +16,10 @@ const padBySize: Record<Size, string> = {
 
 export const DiamondCard = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { size?: Size; as?: "div" | "section" | "article" }
->(({ className, size = "md", as: Tag = "div", ...props }, ref) => {
+  React.HTMLAttributes<HTMLDivElement> & { size?: Size }
+>(({ className, size = "md", ...props }, ref) => {
   return (
-    <Tag
-      // @ts-expect-error polymorphic ref
+    <div
       ref={ref}
       className={cn("card-elevated", padBySize[size], className)}
       {...props}
