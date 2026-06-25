@@ -146,7 +146,95 @@ function AdminPanel() {
 
 
 
+      <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mono text-[11px] uppercase tracking-widest text-amber-400">Manual fallback</div>
+            <div className="font-display text-lg font-semibold">Force Run Diamond Engine</div>
+            <p className="text-xs text-muted-foreground">
+              Runs predictions for every game on today's slate, even with partial lineups. Use when the
+              automatic post-lineup trigger fails to populate player cards.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setForceRunning(true); setForceError(null); setForceResult(null);
+              try {
+                const r = await forceEngine({ data: { date } });
+                setForceResult(r);
+                qc.invalidateQueries({ queryKey: ["diamond-scores"] });
+                qc.invalidateQueries({ queryKey: ["lineup-status"] });
+                qc.invalidateQueries({ queryKey: ["slate"] });
+                qc.invalidateQueries({ queryKey: ["cron-status"] });
+              } catch (e: any) {
+                setForceError(e?.message ?? String(e));
+              } finally { setForceRunning(false); }
+            }}
+            disabled={forceRunning}
+            className="mono rounded-md bg-amber-500 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-black disabled:opacity-50"
+          >
+            {forceRunning ? "Running engine…" : "Force Run Engine"}
+          </button>
+        </div>
+
+        {(forceResult || forceError) && (
+          <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+            {forceError ? (
+              <div className="mono text-[12px] text-destructive">Force run crashed: {forceError}</div>
+            ) : forceResult ? (
+              <div className="grid gap-2 text-[12px]">
+                <div className="mono text-[11px] uppercase tracking-widest text-edge">
+                  Force run · {forceResult.date} {forceResult.version ? `· v${forceResult.version}` : ""}
+                </div>
+                <div className="mono text-[11px] text-muted-foreground">
+                  {forceResult.games_found} games found · {forceResult.games_processed} processed · {forceResult.games_skipped} skipped
+                </div>
+                <div className="mono text-[11px] text-muted-foreground">
+                  {forceResult.hitter_predictions} hitter + {forceResult.pitcher_predictions} pitcher = {forceResult.hitter_predictions + forceResult.pitcher_predictions} predictions generated
+                  {forceResult.environment_failures ? ` · ${forceResult.environment_failures} env failures` : ""}
+                  {` · ${forceResult.duration_ms} ms`}
+                </div>
+                {forceResult.per_game.length > 0 && (
+                  <details className="mt-1">
+                    <summary className="mono cursor-pointer text-[11px] uppercase tracking-widest text-muted-foreground">
+                      Per-game breakdown ({forceResult.per_game.length})
+                    </summary>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="mono w-full text-[11px]">
+                        <thead className="text-muted-foreground">
+                          <tr>
+                            <th className="px-2 py-1 text-left">Matchup</th>
+                            <th className="px-2 py-1 text-left">Lineup</th>
+                            <th className="px-2 py-1 text-left">SP</th>
+                            <th className="px-2 py-1 text-left">Hit proj</th>
+                            <th className="px-2 py-1 text-left">Pit proj</th>
+                            <th className="px-2 py-1 text-left">Note</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {forceResult.per_game.map((g) => (
+                            <tr key={g.game_id} className="border-t border-border/40">
+                              <td className="px-2 py-1">{g.matchup}</td>
+                              <td className="px-2 py-1">{g.lineup_players}</td>
+                              <td className="px-2 py-1">{g.pitchers}</td>
+                              <td className="px-2 py-1">{g.hitter_projections}</td>
+                              <td className="px-2 py-1">{g.pitcher_projections}</td>
+                              <td className="px-2 py-1 text-muted-foreground">{g.note ?? "ok"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-3">
+
         {ops.map((op) => {
           const s = state[op.key];
           return (
