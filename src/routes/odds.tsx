@@ -175,6 +175,47 @@ function badgeLabel(b: string): string {
   return "Projected";
 }
 
+// ----- Result grading -----
+// "Pending" = game not Final, "—" = stat unavailable.
+type Grade = {
+  label: "Beat Projection" | "Met Projection" | "Close" | "Missed" | "Pending" | "—";
+  tone: "strong" | "good" | "warn" | "bad" | "muted";
+};
+const GRADE_CLASS: Record<Grade["tone"], string> = {
+  strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
+  good: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  bad: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  muted: "bg-zinc-500/10 text-muted-foreground border-border/40",
+};
+
+function gradeCounting(mean: number | null, actual: number | null): Grade {
+  if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  const floor = Math.floor(mean);
+  const ceil = Math.ceil(mean);
+  if (actual >= ceil) return { label: "Beat Projection", tone: "strong" };
+  if (actual >= floor) return { label: "Met Projection", tone: "good" };
+  if (Math.abs(actual - floor) <= 1) return { label: "Close", tone: "warn" };
+  return { label: "Missed", tone: "bad" };
+}
+function gradeHR(mean: number | null, actual: number | null): Grade {
+  if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  if (actual >= 1 && (mean ?? 0) >= 0.25) return { label: "Beat Projection", tone: "strong" };
+  if (actual >= 1) return { label: "Met Projection", tone: "good" };
+  // never punish low-prob HR rows aggressively
+  return { label: "Missed", tone: (mean ?? 0) >= 0.5 ? "bad" : "muted" };
+}
+function gradeBinary(prob: number | null, actual: boolean | null): Grade {
+  if (actual == null) return { label: "—", tone: "muted" };
+  if (actual) {
+    if (prob != null && prob >= 0.5) return { label: "Met Projection", tone: "good" };
+    return { label: "Beat Projection", tone: "strong" };
+  }
+  if (prob != null && prob >= 0.5) return { label: "Missed", tone: "bad" };
+  return { label: "Met Projection", tone: "muted" };
+}
+
+
 const searchSchema = z.object({
   date: z.string().optional(),
   cat: fallback(
