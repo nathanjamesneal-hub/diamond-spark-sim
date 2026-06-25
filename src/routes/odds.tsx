@@ -378,12 +378,14 @@ function SimLeadersPage() {
 function CategorySection({
   cat,
   payload,
+  actuals,
   team,
   lineupFilter,
   explicit,
 }: {
   cat: CatDef;
   payload: SimulationLeadersPayload;
+  actuals: ActualsPayload;
   team: string | undefined;
   lineupFilter: "all" | "locked" | "verified" | "waiting";
   explicit: boolean;
