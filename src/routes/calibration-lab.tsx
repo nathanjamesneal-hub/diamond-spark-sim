@@ -283,7 +283,7 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
         <div className="mono text-[10px] uppercase tracking-widest text-edge">{stat.sub}</div>
         <h2 className="font-display text-lg font-semibold">{stat.label}</h2>
       </div>
-      <table className="mono w-full text-xs">
+      <table className="table-modern mono w-full text-xs">
         <thead className="text-muted-foreground">
           <tr>
             <th className="px-1 py-1.5 text-left uppercase tracking-widest">Bucket</th>

@@ -454,7 +454,7 @@ function TopPropsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border/60">
-                <table className="w-full text-sm">
+                <table className="table-modern w-full text-sm">
                   <thead className="bg-card/50 text-muted-foreground">
                     <tr className="mono text-[10px] uppercase tracking-widest">
                       <th className="px-3 py-2 text-left">#</th>

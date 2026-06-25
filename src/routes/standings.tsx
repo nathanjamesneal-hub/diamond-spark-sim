@@ -56,7 +56,7 @@ function League({ label, divisions }: { label: string; divisions: DivisionStandi
               {div.divisionName}
             </span>
           </div>
-          <table className="w-full text-sm">
+          <table className="table-modern w-full text-sm">
             <thead>
               <tr className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 <th className="px-3 py-2 text-left">Team</th>
