@@ -49,12 +49,19 @@ export function formatTimeInAppTz(iso: string): string {
 export function formatDateTimeInAppTz(iso: string): string {
   try {
     const d = new Date(iso);
+    // Use explicit options (not dateStyle/timeStyle) — ICU versions differ
+    // between Node SSR and the browser and cause hydration mismatches.
     return d.toLocaleString(APP_LOCALE, {
       timeZone: APP_TIMEZONE,
-      dateStyle: "medium",
-      timeStyle: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
   } catch {
     return "";
   }
 }
+
