@@ -5,7 +5,7 @@ import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
 
-type PropType = "hit" | "tb" | "hr" | "rbi" | "sb" | "win" | "qs";
+type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
 
 type PropRow = {
   key: string;
@@ -25,18 +25,46 @@ type PropRow = {
 };
 
 const PROP_META: Record<PropType, { label: string; line: string; hero: string }> = {
-  hit:  { label: "Hit",         line: "1+ H",   hero: "Safest Hit" },
-  tb:   { label: "Total Bases", line: "2+ TB",  hero: "Top Total Bases" },
-  hr:   { label: "Home Run",    line: "1+ HR",  hero: "Top HR" },
-  rbi:  { label: "RBI",         line: "1+ RBI", hero: "Top RBI" },
-  sb:   { label: "Stolen Base", line: "1+ SB",  hero: "Top SB" },
-  win:  { label: "Pitcher Win", line: "W",      hero: "Top Pitcher Win" },
-  qs:   { label: "Quality Start", line: "QS",   hero: "Top Quality Start" },
+  hit:  { label: "Hits",          line: "1+ H",      hero: "Safest Hit" },
+  tb:   { label: "Total Bases",   line: "2+ TB",     hero: "Top Total Bases" },
+  hr:   { label: "Home Runs",     line: "1+ HR",     hero: "Top HR" },
+  rbi:  { label: "RBI",           line: "1+ RBI",    hero: "Top RBI" },
+  runs: { label: "Runs",          line: "1+ R",      hero: "Top Runs" },
+  sb:   { label: "Stolen Bases",  line: "1+ SB",     hero: "Top SB" },
+  k:    { label: "Strikeouts",    line: "Pitcher K", hero: "Top Strikeouts" },
+  win:  { label: "Pitcher Win",   line: "W",         hero: "Top Pitcher Win" },
+  qs:   { label: "Quality Start", line: "QS",        hero: "Top Quality Start" },
 };
+
+// Display-only normalization: map propType aliases to canonical category keys.
+// Does not change the engine, scoring, or persisted data.
+const PROP_ALIASES: Record<string, PropType> = {
+  h: "hit", hit: "hit", hits: "hit",
+  tb: "tb", "total base": "tb", "total bases": "tb", total_base: "tb", total_bases: "tb",
+  hr: "hr", "home run": "hr", "home runs": "hr", home_run: "hr", home_runs: "hr", homer: "hr", homers: "hr",
+  rbi: "rbi", rbis: "rbi", "runs batted in": "rbi",
+  r: "runs", run: "runs", runs: "runs", runs_scored: "runs", "runs scored": "runs",
+  sb: "sb", "stolen base": "sb", "stolen bases": "sb", stolen_base: "sb", stolen_bases: "sb",
+  k: "k", ks: "k", so: "k", strikeout: "k", strikeouts: "k",
+  "pitcher k": "k", "pitcher ks": "k", "pitcher strikeout": "k", "pitcher strikeouts": "k",
+  pitcher_k: "k", pitcher_ks: "k", pitcher_strikeout: "k", pitcher_strikeouts: "k",
+  w: "win", win: "win", wins: "win", pitcher_win: "win", "pitcher win": "win",
+  qs: "qs", "quality start": "qs", "quality starts": "qs", quality_start: "qs", quality_starts: "qs", qualitystart: "qs",
+};
+
+const CANONICAL_PROPS: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
+
+function normalizePropType(raw: string | null | undefined): PropType | null {
+  if (!raw) return null;
+  const key = String(raw).trim().toLowerCase();
+  if (key in PROP_ALIASES) return PROP_ALIASES[key];
+  if ((CANONICAL_PROPS as string[]).includes(key)) return key as PropType;
+  return null;
+}
 
 const searchSchema = z.object({
   date: z.string().optional(),
-  prop: fallback(z.enum(["all", "hit", "tb", "hr", "rbi", "sb", "win", "qs"]), "all").default("all"),
+  prop: fallback(z.enum(["all", "hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"]), "all").default("all"),
   min: fallback(z.coerce.number().min(0).max(100), 60).default(60),
   team: z.string().optional(),
   sort: fallback(z.enum(["probability", "diamond"]), "probability").default("probability"),
@@ -100,15 +128,18 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     is_pitcher: false,
   };
   const rows: PropRow[] = [];
-  const entries: Array<[PropType, number | null]> = [
+  const entries: Array<[string, number | null]> = [
     ["hit", h.hit_probability],
     ["tb",  h.total_base_probability],
     ["hr",  h.hr_probability],
     ["rbi", h.rbi_probability],
+    ["runs", (h as unknown as { run_probability: number | null }).run_probability ?? null],
     ["sb",  h.sb_probability],
   ];
-  for (const [propType, prob] of entries) {
+  for (const [rawType, prob] of entries) {
     if (prob == null) continue;
+    const propType = normalizePropType(rawType);
+    if (!propType) continue;
     const meta = PROP_META[propType];
     rows.push({
       ...base,
@@ -133,6 +164,27 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
     is_pitcher: true,
   };
   const rows: PropRow[] = [];
+
+  // Defensive: pick up any pitcher strikeout probability the server may surface
+  // under a variety of alias keys, and route it into the canonical "k" category.
+  const pAny = p as unknown as Record<string, unknown>;
+  const K_PROB_KEYS = [
+    "strikeout_probability", "k_probability", "pitcher_k_probability", "pitcher_strikeout_probability",
+    "k_over_5_5_probability", "k_over_6_5_probability", "k_over_4_5_probability", "k_over_3_5_probability",
+  ];
+  for (const key of K_PROB_KEYS) {
+    const v = pAny[key];
+    if (typeof v === "number" && isFinite(v)) {
+      rows.push({
+        ...base,
+        key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
+        propType: "k", label: PROP_META.k.label, line: key.includes("over") ? key.replace("k_over_", "").replace("_probability", "").replace("_", ".") + "+ K" : PROP_META.k.line,
+        probability: v,
+      });
+      break; // only emit one K row per pitcher (prefer first available alias)
+    }
+  }
+
   if (p.pitcher_win_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:win`,
       propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability });
@@ -143,6 +195,7 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
   }
   return rows;
 }
+
 
 function pct(p: number): string {
   return `${Math.round(p * 100)}%`;
@@ -173,7 +226,7 @@ function TopPropsPage() {
   // Best-of-the-day strip: highest probability per prop type
   const heroes = useMemo(() => {
     const out: Array<{ propType: PropType; row: PropRow | null }> = [];
-    const types: PropType[] = ["hit", "tb", "hr", "rbi", "sb", "win", "qs"];
+    const types: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
     for (const t of types) {
       const best = allRows
         .filter((r) => r.propType === t)
@@ -201,7 +254,7 @@ function TopPropsPage() {
     return out;
   };
 
-  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "sb", "win", "qs"];
+  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "runs", "sb", "k", "win", "qs"];
   const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
 
   const sectionsData = useMemo(() => {
@@ -273,7 +326,9 @@ function TopPropsPage() {
             <option value="hit">Hit 1+</option>
             <option value="tb">TB 2+</option>
             <option value="rbi">RBI 1+</option>
+            <option value="runs">Runs 1+</option>
             <option value="sb">SB 1+</option>
+            <option value="k">Strikeouts</option>
             <option value="win">Pitcher Win</option>
             <option value="qs">Quality Start</option>
           </select>
