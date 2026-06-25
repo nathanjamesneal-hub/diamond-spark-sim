@@ -10,7 +10,9 @@ const nav = [
   { to: "/standings", label: "Standings" },
   { to: "/slate", label: "Projections" },
   { to: "/diamond-scores", label: "Diamond" },
+  { to: "/top-props", label: "Top Props" },
   { to: "/lineup-status", label: "Pipeline" },
+
   { to: "/calibration", label: "Calibration" },
   { to: "/calibration-lab", label: "Cal Lab" },
   { to: "/leaderboards", label: "Leaders" },

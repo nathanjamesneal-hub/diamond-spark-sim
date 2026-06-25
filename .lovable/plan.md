@@ -1,34 +1,34 @@
-# Force Run Diamond Engine — Admin Button
+## Goal
+Add a **Top Props** view that surfaces the highest-probability player props from today's Diamond Engine projections, so you can scan the best bets at a glance.
 
-A manual fallback that bypasses the normal "skip if already projected" guards and runs the Diamond Engine against every game on today's slate, even when lineups are partial.
+## What you'll see
+A new `/top-props` page (also linked from the site header) listing the strongest plays across today's slate:
 
-## What it does
+- **Top Hitter Props**: Hit ≥1, Total Bases ≥2, HR ≥1, RBI ≥1, SB ≥1 — each ranked by probability.
+- **Top Pitcher Props**: Win, Quality Start, Ks ≥ line — ranked by probability.
+- **Filters**: prop type (All / Hit / TB / HR / RBI / SB / Pitcher), minimum probability slider (default 60%), team filter.
+- **Sort**: probability desc (default), or Diamond Score desc.
+- Each row: player name + team + matchup + lineup spot + probability bar + Diamond Score badge + lineup status (Official / Aggregated / Projected).
+- Click row → existing player page.
 
-One click triggers a server function that:
-1. Reads today's date in Chicago timezone (`todayInAppTz()`).
-2. Loads every game scheduled for that date from the `games` table (any status: Scheduled, Pre-Game, Warmup, In Progress, Live, Final).
-3. For each game, gathers all available `lineups` rows + `starting_pitchers` rows — does NOT require a full 9-batter lineup. Games with zero players are skipped and reported.
-4. Runs Diamond Engine for every eligible player (hitters via existing engine, pitchers via `pitcher_diamond_score`), forcing recompute (ignores "already has projection today" short-circuit).
-5. Upserts results into `projections`, superseding prior rows for the same player/game/date.
-6. Returns a structured report: games found, games processed, games skipped (with reasons), hitter predictions generated, pitcher predictions generated, errors per game.
+## Default "Best of the Day" strip
+Top of page shows 5 hero cards (one per prop type) with the single highest-probability play for each — e.g. "Safest Hit: Freeman 82%", "Top HR: Judge 47%".
 
-## UI
+## Data source
+Pure read from existing `projections` table joined with `lineups`, `starting_pitchers`, `players`, `teams`, `games` — same shape as `getDiamondScores`. **No engine changes, no schema changes, no new writes.**
 
-In `src/routes/_authenticated/_admin/admin.tsx`, add a new card next to "Update Today's Slate":
+## Technical details
+- **New server function** `getTopProps(date)` in `src/lib/projections.functions.ts`:
+  - Reuses the `getDiamondScores` query, then flattens each projection into one row per prop type with `{ playerName, team, opponent, propType, line, probability, diamondScore, lineupStatus, mlbId, gamePk }`.
+  - Returns sorted desc by probability; client filters/re-sorts.
+- **New route** `src/routes/top-props.tsx`:
+  - `useSuspenseQuery` with same retry/throwOnError hardening as `/diamond-scores`.
+  - Hero strip computed client-side (max per prop type).
+  - Table + filter controls using existing shadcn `Tabs`, `Slider`, `Select`, `Badge`, `Progress`.
+- **Header link**: add "Top Props" to `src/components/site-header.tsx` between Diamond and Slate.
+- **Empty state**: if no projections for today, show "Run today's pipeline" CTA linking to `/lineup-status`.
 
-- **Title**: "Force Run Diamond Engine"
-- **Subtitle**: "Backup trigger — recomputes projections for every game on today's slate, even with partial lineups."
-- Button with loading spinner.
-- On success, render a result panel with:
-  - Games found / processed / skipped
-  - Hitter predictions generated
-  - Pitcher predictions generated
-  - Per-game breakdown (collapsible) with any errors
-- Toast on completion; invalidates the `diamond-scores` and `lineup-status` query keys so cards refresh.
-
-## Technical changes
-
-- **`src/lib/ingest.functions.ts`**: add `forceRunDiamondEngine` server fn (auth + admin role check). Reuses `runDiamondEngineForGames` internals but passes a `force: true` flag that bypasses the existing-projection skip. If `runDiamondEngineForGames` doesn't already accept a force flag, add one (default `false`) so existing callers are unchanged.
-- **`src/routes/_authenticated/_admin/admin.tsx`**: new card + `useMutation` wired to the server fn, result display, query invalidation.
-
-No schema changes. No changes to engine math, hitter formula, pitcher formula, or auto-trigger pipeline.
+## Out of scope (ask if you want these next)
+- Persisting prop "tickets" or parlays
+- Sportsbook odds comparison / EV calculation
+- Historical hit-rate tracking on top picks
