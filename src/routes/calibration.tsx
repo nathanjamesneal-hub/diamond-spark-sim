@@ -64,7 +64,7 @@ function CalibrationPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="mono w-full text-xs">
+              <table className="table-modern mono w-full text-xs">
                 <thead className="text-muted-foreground">
                   <tr>
                     <th className="px-2 py-2 text-left uppercase tracking-widest">Stat</th>

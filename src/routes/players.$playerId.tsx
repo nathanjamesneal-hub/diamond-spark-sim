@@ -188,7 +188,7 @@ function StatTable({ history, group }: { history: PlayerStatLine[]; group: "hitt
     ? (l: PlayerStatLine) => [l.ab, l.hits, l.hr, l.rbi, l.sb, l.avg, l.obp, l.slg, l.ops]
     : (l: PlayerStatLine) => [l.w, l.l, l.sv, l.ip, l.so, l.era, l.whip];
   return (
-    <table className="w-full text-sm">
+    <table className="table-modern w-full text-sm">
       <thead>
         <tr className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
           {headers.map((h) => (

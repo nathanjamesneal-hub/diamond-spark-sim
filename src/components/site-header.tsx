@@ -85,18 +85,17 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="relative z-10 border-b border-border/60 bg-background/80 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <span className="font-display text-lg font-bold">◆</span>
+    <header className="relative z-10 border-b border-border bg-background/85 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+        <Link to="/" className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-primary shadow-sm">
+            <span className="text-xl leading-none">◆</span>
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-display text-lg font-bold tracking-wider text-foreground">DIAMOND</span>
-            <span className="mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="font-display text-2xl tracking-tight text-foreground">Diamond</span>
+            <span className="mono mt-0.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
               MLB simulation & projection engine
             </span>
-
           </div>
         </Link>
 
@@ -104,16 +103,16 @@ export function SiteHeader() {
           {nav.map((item) => (
             <Link key={item.to} to={item.to}
               activeOptions={{ exact: item.to === "/" }}
-              activeProps={{ className: "bg-secondary text-foreground" }}
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              activeProps={{ className: "text-foreground border-primary" }}
+              className="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {item.label}
             </Link>
           ))}
           {isAdmin ? (
             <Link to="/admin"
-              activeProps={{ className: "bg-secondary text-foreground" }}
-              className="mono rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-edge transition-colors hover:bg-secondary"
+              activeProps={{ className: "text-foreground border-primary" }}
+              className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-primary transition-colors hover:text-foreground"
             >
               Admin
             </Link>
@@ -123,30 +122,30 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           {user ? (
             <button onClick={signOut}
-              className="mono rounded-md border border-border/60 px-2.5 py-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              className="mono rounded-md border border-border px-2.5 py-1 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground">
               Sign out
             </button>
           ) : (
             <Link to="/auth"
-              className="mono rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground hover:bg-primary/90">
+              className="mono rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
               Sign in
             </Link>
           )}
         </div>
       </div>
 
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-border/40 px-4 py-2 md:hidden">
+      <nav className="flex items-center gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden">
         {nav.map((item) => (
           <Link key={item.to} to={item.to}
             activeOptions={{ exact: item.to === "/" }}
-            activeProps={{ className: "bg-secondary text-foreground" }}
-            className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            activeProps={{ className: "text-foreground border-primary" }}
+            className="whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             {item.label}
           </Link>
         ))}
         {isAdmin ? (
-          <Link to="/admin" className="mono whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-edge">
+          <Link to="/admin" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
             Admin
           </Link>
         ) : null}

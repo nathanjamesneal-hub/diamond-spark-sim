@@ -92,18 +92,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Diamond — MLB stats, projections & odds" },
+      { title: "Diamond — MLB simulation & projection engine" },
       {
         name: "description",
         content:
-          "Live MLB scores, deep player stats, Monte Carlo game simulations, projections, and sportsbook odds value board.",
+          "Built for baseball. Monte Carlo simulations, daily projections, and calibration intelligence for every MLB game.",
       },
       { name: "author", content: "Diamond" },
-      { property: "og:title", content: "Diamond — MLB stats, projections & odds" },
+      { property: "og:title", content: "Diamond — Built for baseball" },
       {
         property: "og:description",
         content:
-          "Scores, stats, sims and edges for baseball nerds. Built for fans and bettors.",
+          "MLB simulation & projection engine. Mean projections, prediction drivers, and model calibration.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -118,7 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

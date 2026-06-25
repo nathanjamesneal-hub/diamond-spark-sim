@@ -457,7 +457,7 @@ function CategorySection({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
-          <table className="w-full text-left text-xs">
+          <table className="table-modern w-full text-left text-xs">
             <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
               <tr className="border-b border-border/40">
                 <th className="px-2 py-2 text-right">#</th>

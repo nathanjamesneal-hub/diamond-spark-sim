@@ -122,7 +122,7 @@ function LineupBadge({ status, hitters }: { status: SlateGame["lineup_status"]; 
 function SlateTable({ rows }: { rows: SlateRow[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border/60">
-      <table className="mono w-full text-xs">
+      <table className="table-modern mono w-full text-xs">
         <thead className="bg-secondary/40 text-muted-foreground">
           <tr>
             {["Player", "Team", "Opp", "Diamond", "Hit%", "TB%", "HR%", "RBI%", "Run%", "SB%", "Conf", "Status"].map((h) => (

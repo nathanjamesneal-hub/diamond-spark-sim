@@ -184,7 +184,7 @@ function MatchupPage() {
           Hook into a sportsbook line (Phase 2.5) to see edge %. For now, these are pure model probabilities.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="table-modern w-full text-left text-xs">
             <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
               <tr>
                 <th className="py-2 pr-2">Player</th>
@@ -260,7 +260,7 @@ function LineupCard({ title, accent, batters }: { title: string; accent: string;
         Post-simulation means (2,000 sims)
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="table-modern w-full text-left text-xs">
           <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
             <tr>
               <th className="py-1.5 pr-1">#</th>

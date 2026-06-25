@@ -121,12 +121,12 @@ function DashboardGrid() {
         <Link
           key={c.to}
           to={c.to}
-          className="group flex flex-col rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-primary/50 hover:bg-card/80"
+          className="card-elevated group flex flex-col p-4"
         >
-          <div className={`mono text-[10px] uppercase tracking-[0.25em] ${c.accent}`}>
+          <div className={`mono text-[10px] font-semibold uppercase tracking-[0.22em] ${c.accent}`}>
             {c.kicker}
           </div>
-          <div className="mt-1 font-display text-lg font-bold tracking-tight text-foreground">
+          <div className="mt-1 font-display text-xl tracking-tight text-foreground">
             {c.title}
           </div>
           <p className="mt-1 flex-1 text-xs text-muted-foreground">{c.desc}</p>
@@ -143,12 +143,12 @@ function SectionHeader({
   kicker, title, subtitle,
 }: { kicker: string; title: string; subtitle?: string }) {
   return (
-    <div className="mb-6">
-      <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">{kicker}</div>
-      <h1 className="font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+    <div className="mb-8">
+      <div className="mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">{kicker}</div>
+      <h1 className="font-display text-4xl tracking-tight text-foreground md:text-5xl">
         {title}
       </h1>
-      {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+      {subtitle ? <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p> : null}
     </div>
   );
 }
