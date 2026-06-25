@@ -94,6 +94,15 @@ function gradeFor(avgAbs: number | null): { grade: string; tone: string } {
   return { grade: "F", tone: "text-rose-400" };
 }
 
+function takeawayForCell(c: Cell): string {
+  if (c.sampleSize < 25) return "Small sample — do not overreact yet.";
+  if (c.deltaPp == null || c.sampleSize === 0) return "Not enough data to grade.";
+  if (c.deltaPp <= -15) return "Model is overconfident for this bucket.";
+  if (c.deltaPp >= 15) return "Model is underestimating this bucket.";
+  if (Math.abs(c.deltaPp) <= 5) return "Well calibrated.";
+  return "Slight calibration drift.";
+}
+
 function CalibrationLabPage() {
   const { data } = useSuspenseQuery(q);
   const versions = data.versions;
@@ -121,24 +130,57 @@ function CalibrationLabPage() {
     return map;
   }, [rows]);
 
-  const { avgAbs, totalN } = useMemo(() => {
-    let sum = 0;
-    let count = 0;
-    let n = 0;
+  const { avgAbs, totalN, overallBias, bestStat, worstStat } = useMemo(() => {
+    const summary: Record<StatKey, { avgAbs: number | null; avgDelta: number | null; totalN: number }> = {} as any;
+    let globalAbsSum = 0;
+    let globalDeltaSum = 0;
+    let globalCount = 0;
+    let totalN = 0;
+
     for (const s of STATS) {
+      let absSum = 0;
+      let deltaSum = 0;
+      let count = 0;
+      let n = 0;
       for (const b of BUCKETS) {
         const c = grid[s.key][b.key];
         if (c.deltaPp != null && c.sampleSize > 0) {
-          sum += Math.abs(c.deltaPp);
+          absSum += Math.abs(c.deltaPp);
+          deltaSum += c.deltaPp;
           count += 1;
           n += c.sampleSize;
         }
       }
+      summary[s.key] = { avgAbs: count ? absSum / count : null, avgDelta: count ? deltaSum / count : null, totalN: n };
+      if (count > 0) {
+        globalAbsSum += absSum;
+        globalDeltaSum += deltaSum;
+        globalCount += count;
+        totalN += n;
+      }
     }
-    return { avgAbs: count ? sum / count : null, totalN: n };
+
+    const avgAbs = globalCount ? globalAbsSum / globalCount : null;
+    const overallBias = globalCount ? globalDeltaSum / globalCount : null;
+
+    let bestStat: StatKey | null = null;
+    let worstStat: StatKey | null = null;
+    let bestVal = Infinity;
+    let worstVal = -Infinity;
+    for (const s of STATS) {
+      const v = summary[s.key].avgAbs;
+      if (v != null) {
+        if (v < bestVal) { bestVal = v; bestStat = s.key; }
+        if (v > worstVal) { worstVal = v; worstStat = s.key; }
+      }
+    }
+
+    return { avgAbs, totalN, overallBias, bestStat, worstStat };
   }, [grid]);
 
   const grade = gradeFor(avgAbs);
+  const bestStatLabel = bestStat ? STATS.find((s) => s.key === bestStat)?.label ?? "—" : "—";
+  const worstStatLabel = worstStat ? STATS.find((s) => s.key === worstStat)?.label ?? "—" : "—";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
@@ -168,7 +210,7 @@ function CalibrationLabPage() {
         ) : null}
       </div>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-border/60 bg-card/60 p-5">
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Overall grade</div>
           <div className={`font-display text-5xl font-bold leading-none ${grade.tone}`}>{grade.grade}</div>
@@ -180,6 +222,30 @@ function CalibrationLabPage() {
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Total events graded</div>
           <div className="font-display text-3xl font-bold">{totalN.toLocaleString()}</div>
           <div className="mt-2 text-xs text-muted-foreground">Aggregate sample across all stat × bucket cells.</div>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
+          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
+          <div className="mt-2 space-y-1.5 text-xs text-foreground/90">
+            <div>
+              <span className="text-muted-foreground">Best calibrated:</span>{" "}
+              <span className="font-medium text-emerald-400">{bestStatLabel}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Worst calibrated:</span>{" "}
+              <span className="font-medium text-rose-400">{worstStatLabel}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Overall bias:</span>{" "}
+              <span className="font-medium">
+                {overallBias == null ? "—" : `${overallBias >= 0 ? "+" : ""}${overallBias.toFixed(1)}pp`}
+              </span>
+              {overallBias != null ? (
+                <span className="ml-1 text-muted-foreground">
+                  ({overallBias < 0 ? "overconfident" : "underestimating"})
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="rounded-xl border border-border/60 bg-card/60 p-5">
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Color key</div>
@@ -298,6 +364,21 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
           })}
         </tbody>
       </table>
+      <div className="mt-4 border-t border-border/40 pt-3">
+        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
+        <div className="space-y-1.5">
+          {BUCKETS.map((b) => {
+            const c = buckets[b.key];
+            const text = c.excluded ? (c.excludedLabel ?? "Excluded") : takeawayForCell(c);
+            return (
+              <div key={b.key} className="flex items-start gap-2 text-xs">
+                <span className="mono mt-0.5 shrink-0 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{b.label}</span>
+                <span className="text-foreground/80">{text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
