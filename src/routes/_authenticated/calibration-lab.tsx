@@ -255,12 +255,32 @@ function MeanProjectionAccuracy({
   hero,
   scope,
   setScope,
+  snapshotsLocked,
+  isHistorical,
 }: {
   summaries: MRCategorySummary[];
   hero: ReturnType<typeof buildHero>;
   scope: MRScope;
   setScope: (s: MRScope) => void;
+  snapshotsLocked: number;
+  isHistorical: boolean;
 }) {
+  if (isHistorical && snapshotsLocked === 0) {
+    return (
+      <section className="space-y-3">
+        <div className="border-b border-border/40 pb-3">
+          <div className="mono text-[10px] uppercase tracking-widest text-edge">Section 1</div>
+          <h2 className="font-display text-2xl font-bold tracking-wide">
+            Mean Projection Accuracy
+          </h2>
+        </div>
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Pregame mean snapshot unavailable for this date. Historical Mean Accuracy begins with the
+          first locked snapshot date.
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/40 pb-3">
