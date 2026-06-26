@@ -511,6 +511,8 @@ function DiamondConsensusPage() {
         Consensus = 40% Diamond Score percentile · 30% Sim Mean percentile · 20% Sim Probability percentile · 10% Confidence/lineup.
         When a real probability isn't available, the 20% is redistributed to Diamond Score and Sim Mean.
         Percentiles are computed strictly within each category and slate — Hits vs Hits, HR vs HR, never across categories.
+        A high consensus score means the signals agree within that category, not that the event is the most likely to happen on the slate.
+        For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
     </section>
   );
