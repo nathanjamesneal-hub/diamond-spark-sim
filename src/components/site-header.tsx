@@ -11,6 +11,7 @@ const nav = [
   { to: "/slate", label: "Projections" },
   { to: "/diamond-scores", label: "Diamond" },
   { to: "/top-props", label: "Top Props" },
+  { to: "/diamond-consensus", label: "Consensus" },
   { to: "/lineup-status", label: "Pipeline" },
 
   { to: "/calibration", label: "Calibration" },
