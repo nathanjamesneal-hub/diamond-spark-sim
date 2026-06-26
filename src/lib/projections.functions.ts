@@ -239,19 +239,21 @@ export type CalibrationRow = {
   sample_size: number;
 };
 
-export const getCalibration = createServerFn({ method: "GET" }).handler(async (): Promise<{
-  rows: CalibrationRow[]; versions: { version: string; active: boolean; release_date: string; notes: string | null }[];
-}> => {
-  const sb = publicClient();
-  const { data: rows } = await sb
-    .from("calibration_summary")
-    .select("model_version, stat, confidence_bucket, predicted_mean, observed_mean, brier_score, sample_size")
-    .order("model_version", { ascending: false });
-  const { data: versions } = await sb
-    .from("model_versions").select("version, active, release_date, notes")
-    .order("release_date", { ascending: false });
-  return { rows: (rows ?? []) as CalibrationRow[], versions: (versions ?? []) as any };
-});
+export const getCalibration = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .handler(async ({ context }): Promise<{
+    rows: CalibrationRow[]; versions: { version: string; active: boolean; release_date: string; notes: string | null }[];
+  }> => {
+    const sb = context.supabase;
+    const { data: rows } = await sb
+      .from("calibration_summary")
+      .select("model_version, stat, confidence_bucket, predicted_mean, observed_mean, brier_score, sample_size")
+      .order("model_version", { ascending: false });
+    const { data: versions } = await sb
+      .from("model_versions").select("version, active, release_date, notes")
+      .order("release_date", { ascending: false });
+    return { rows: (rows ?? []) as CalibrationRow[], versions: (versions ?? []) as any };
+  });
 
 export type PlayerProjectionSnapshot = {
   player: { id: string; name: string; position: string | null; team_abbrev: string | null } | null;
