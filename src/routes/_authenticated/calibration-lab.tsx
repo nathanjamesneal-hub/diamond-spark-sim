@@ -859,9 +859,11 @@ type HrScope = "top25" | "all";
 function HomeRunEventReview({
   leaders,
   actuals,
+  snapshotsLocked,
 }: {
   leaders: import("@/lib/sim.functions").SimulationLeadersPayload;
   actuals: import("@/lib/actuals.functions").ActualsPayload;
+  snapshotsLocked: number;
 }) {
   const [scope, setScope] = useState<HrScope>("top25");
 
