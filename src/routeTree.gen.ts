@@ -20,6 +20,7 @@ import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/o
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
+import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
 import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
 import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenticated/calibration'
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
@@ -88,6 +89,12 @@ const AuthenticatedDiamondScoresRoute =
     path: '/diamond-scores',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDiamondConsensusRoute =
+  AuthenticatedDiamondConsensusRouteImport.update({
+    id: '/diamond-consensus',
+    path: '/diamond-consensus',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCalibrationLabRoute =
   AuthenticatedCalibrationLabRouteImport.update({
     id: '/calibration-lab',
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -172,6 +180,7 @@ export interface FileRoutesByTo {
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/_authenticated/bets': typeof AuthenticatedBetsRoute
   '/_authenticated/calibration': typeof AuthenticatedCalibrationRoute
   '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/bets'
     | '/calibration'
     | '/calibration-lab'
+    | '/diamond-consensus'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/bets'
     | '/calibration'
     | '/calibration-lab'
+    | '/diamond-consensus'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
@@ -262,6 +274,7 @@ export interface FileRouteTypes {
     | '/_authenticated/bets'
     | '/_authenticated/calibration'
     | '/_authenticated/calibration-lab'
+    | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
     | '/_authenticated/leaderboards'
     | '/_authenticated/lineup-status'
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDiamondScoresRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/diamond-consensus': {
+      id: '/_authenticated/diamond-consensus'
+      path: '/diamond-consensus'
+      fullPath: '/diamond-consensus'
+      preLoaderRoute: typeof AuthenticatedDiamondConsensusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/calibration-lab': {
       id: '/_authenticated/calibration-lab'
       path: '/calibration-lab'
@@ -457,6 +477,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
   AuthenticatedCalibrationRoute: typeof AuthenticatedCalibrationRoute
   AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
+  AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
@@ -476,6 +497,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBetsRoute: AuthenticatedBetsRoute,
   AuthenticatedCalibrationRoute: AuthenticatedCalibrationRoute,
   AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
+  AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,

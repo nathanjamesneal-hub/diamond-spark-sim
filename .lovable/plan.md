@@ -1,179 +1,127 @@
-## Diagnosis (root cause)
+# Unify Diamond Score, Sim Mean, Probability + Add Diamond Consensus Board
 
-Verified against the live database:
+Two deliverables, both display-only. No engine, simulation, Diamond Score, probability, snapshot, or calibration math will change.
 
+---
 
-| Source                                                | Newest date                                         |
-| ----------------------------------------------------- | --------------------------------------------------- |
-| `games`                                               | 2026-06-26 (today CT)                               |
-| `projections`                                         | 2026-06-26 (per-date rows exist back through 06-23) |
-| `projection_results` (stored actuals from box scores) | 2026-06-25                                          |
-| `cron_runs`                                           | 2026-06-26                                          |
+## Part 1 — Data-Flow Audit (written into the chat reply, not a new file)
 
+I'll trace each value end-to-end and post the audit in the response after you approve this plan. Audit will cover:
 
-What the page is actually doing:
+**Where each value is produced**
 
-1. `src/routes/_authenticated/calibration-lab.tsx` calls `getSimulationLeaders({})` and `getActualsForDate({})` with **no date**. Both server fns default to `chicagoToday()` → 2026-06-26.
-2. Today's games are not Final yet, so the page shows ~0 qualified / mostly empty. There is no UI affordance to move back a day.
-3. `getSimulationLeaders` does NOT read a stored snapshot — it re-runs `buildMonteCarloGameEnvironment(gamePk)` against the live MLB feed for every game on the selected date. For yesterday this both wastes work and violates "use the stored pregame projection snapshot."
-4. There is no persisted mean-projection snapshot anywhere — `projections.inputs` only stores DNA/role; means come from the live sim run. So even with a date selector, history would be reconstructed, not the actual pregame snapshot.
-5. The "June 24" appearance is the most-recent date with both stored projections AND fully-final actuals — the page latches there if Query has a cached result, or shows "today empty" otherwise.
+- `player_dna` (rolling rates, power tier, contact, plate discipline) → input to engine
+- Matchup, pitcher/bullpen context, park, opportunity (batting order), lineup status → input to engine
+- Engine (`src/lib/engines/alpha_0_3/engine.ts`) → produces per-player `diamond_score`, `confidence`, and per-category Monte Carlo `mean` + `probability` + `p50`/`p90`/`stdev`
+- All persisted to `projections` table (single row per player+game+role+category-set)
+- Snapshot copy → `sim_snapshot` JSONB (immutable pregame copy)
 
-Root cause: **no date control + no persisted pregame snapshot + actuals/leaders default to today**. The postgame pipeline also never freezes a per-day Model Results record.
+**Where each value is displayed**
 
-## Fix plan (UI + storage + pipeline)
+- `/diamond-scores` — diamond_score + confidence
+- `/odds` (Sim Leaders) — sim mean + probability, with diamond_score shown alongside
+- `/top-props` — probability-led rankings
+- `/slate`, `/matchups/$gamePk`, `/players/$id` — mixed
+- `primary-metrics-row.tsx`, `why-model-likes-this.tsx` — labels
 
-### 1. Persist a pregame mean snapshot (new column, no schema-breaking change)
+**Overlap / conflict points I expect to flag**
 
-Migration:
+- `diamond-scores.tsx` and parts of `slate.tsx` label probabilities or DS as "Diamond Projection," which collides conceptually with Sim Mean.
+- `primary-metrics-row` currently leads with Mean Projection but secondary cards re-show DS in a way that reads as a competing expected value.
+- `why-model-likes-this` mixes input-side drivers (DNA/matchup) with output-side numbers without separating conviction vs expectation.
 
-- `ALTER TABLE public.projections ADD COLUMN sim_snapshot jsonb;` (nullable, defaults null).
-- Re-grant unchanged (column inherits table grants).
-- Keep existing RLS; `sim_snapshot` is a passive payload `{ H:{mean,p50,p90,probAtLeast1,probAtLeast2}, TB:{…}, RBI, R, K, HR, outs, BB, ER, win_probability, quality_start_probability }`.
+**Recommendation (smallest safe refactor)**
 
-Writer:
+- Standardize three labels everywhere: **Sim Mean** (expected outcome) · **Sim Probability** (threshold/event likelihood) · **Diamond Score / Confidence** (conviction & input agreement).
+- Fix label-only changes in: `primary-metrics-row.tsx`, `why-model-likes-this.tsx`, `diamond-scores.tsx`, `slate.tsx`, `top-props.tsx`, `odds.tsx`, `players.$playerId.tsx`. No data path changes.
+- Add a small display-only `agreementClass(meanPct, probPct, dsPct)` helper in `src/lib/consensus.ts` returning `Strong Alignment | Simulation-Led | Diamond-Led | Low Alignment`. Used in tooltips/badges only.
+- Will include 10 real-player example rows pulled from today's slate in the audit reply.
 
-- In `src/lib/ingest.functions.ts` (`runDailyPipeline`) and wherever projections are upserted after a Monte Carlo run, write the per-player distribution into `projections.sim_snapshot` for that `(player_id, game_id)` row.
-- Engine math is untouched — we just persist the existing `BatterDist` / `PitcherDist` outputs.
+---
 
-### 2. Date-aware historical reader
+## Part 2 — Diamond Consensus Board (display-only)
 
-`src/lib/sim.functions.ts`:
+### New files
 
-- Add `getSimulationLeadersForDate(date)` that:
-  - If `date === todayInAppTz()` → existing behavior (live sim, today's slate).
-  - Else → read `projections` joined to `games` for that date, hydrate `H/TB/RBI/R/K/HR/outs/…` from `projections.sim_snapshot`. Never call `buildMonteCarloGameEnvironment` for past dates.
-  - If snapshot is missing for a past row, surface `null` (UI shows "snapshot unavailable" for that row) — never substitute today's sim.
+- `src/lib/consensus.ts` — pure functions:
+  - `categoryPercentile(values, value)` — rank-based percentile within a category+slate.
+  - `consensusScore({ dsPct, meanPct, probPct, confidenceFactor })` — weighted 40/30/20/10; if `probPct` is null, redistribute the 20% proportionally to DS (8/12 → +13.3% to DS, +6.7% to Mean) — equivalent to 53.3/36.7/0/10.
+  - `alignmentLabel(...)` — Full / Strong / Simulation-Led / Diamond-Led / Needs Context.
+  - `lineupFactor(status)` — confirmed=1.0, projected=0.7, waiting=0.5, missing=0.3.
+- `src/lib/consensus.functions.ts` — `getDiamondConsensus({ date, category?, team?, lineupStatus?, scope: "top25"|"all" })` server fn (member-gated). Reads existing `getSimulationLeaders` data per category for the date (no new queries against engine internals), computes percentiles within each category+slate, dedupes on `gamePk + mlbId + category + role`, returns rows with sim_mean, sim_probability, diamond_score, confidence, consensusScore, alignment, why-rank breakdown.
+- `src/routes/_authenticated/diamond-consensus.tsx` — new route. Header "Diamond Consensus" / subtitle "Where Diamond Score, simulation output, and confidence align." Filters: Category, Team, Lineup Status, Top 25 / All Qualified. Default sort: consensusScore desc. Columns: Rank · Player · Team · Opp · Category · Sim Mean · Sim Probability · Diamond Score · Confidence · Consensus · Alignment. Row expander → "Why ranked" drawer with percentile breakdown.
 
-`src/lib/actuals.functions.ts`:
+### Nav
 
-- Add an option to read box-score actuals from `projection_results` first (we already store them), falling back to the MLB live API only when a row is missing. Same payload shape.
+- Add link in the authenticated nav next to Sim Leaders / Top Props.
 
-New helper `getModelResultsForDate(date)` (server fn) returns `{ date, leaders, actuals, status: 'final' | 'partial' | 'no_games' | 'no_snapshot' | 'pending_import', finalCount, pendingCount }`.
+### Categories included
 
-### 3. Default-date logic (Chicago)
+Hits, HR, RBI, Runs, Total Bases, SB, Pitcher Ks, Pitcher Outs, Win, QS. Percentiles computed strictly within category for the chosen date.
 
-New utility `getDefaultModelResultsDate()` (server fn, cheap SQL):
+### Safety guarantees
 
-- Pick the **most recent `games.date` where every scheduled game has `game_status = 'Final'` AND a stored snapshot exists AND `projection_results` rows exist**.
-- If nothing qualifies, fall back to the most recent date with any finalized games.
-- Never silently return a date older than the latest finalized slate.
+- Pulls only from existing projection rows for the active model version (already filtered server-side, dedupe key matches Sim Leaders fix).
+- No write-back of consensusScore to `projections` or `sim_snapshot`.
+- No probability synthesis: missing prob → reweight, never invent.
+- No sportsbook wording ("best bet" etc.).
+- Sim Leaders, Top Props, Diamond Scores, calibration outputs untouched.
 
-Page loader calls it; the date is always shown in the header.
+**Required Consensus Board refinements**
 
-### 4. Date controls (Model Results page only)
+**Correct source-of-truth wording**
 
-`src/routes/_authenticated/calibration-lab.tsx`:
+Keep Diamond Score and Monte Carlo outputs explicitly separate in the data-flow audit:
 
-- Convert `date` to a URL search param via `validateSearch` (Zod) — `?date=YYYY-MM-DD`.
-- Loader resolves: `date = search.date ?? await getDefaultModelResultsDate()`.
-- Header shows: `Reviewing results: {long date} · N finalized · M pending` and status messages:
-  - `Results pending — X games still live or incomplete.` (partial)
-  - `No games scheduled for this date.` (no_games)
-  - `Final box scores have not been imported yet. Try refresh after the postgame pipeline runs.` (pending_import)
-  - `Pregame snapshot unavailable for this date — historical review not possible.` (no_snapshot, for dates before the snapshot column was deployed)
-- Controls row:
-  - `← Previous day` (always enabled if any earlier date with games exists)
-  - Shadcn date picker bound to `?date`
-  - `Next day →` (disabled when no later finalized date exists)
-  - `Latest Finalized` quick action → re-runs the default-date resolver
-- Keep existing dark MLB styling (`mono`, `font-display`, `border-border/60`, etc.). No engine, scoring, probability, or security changes.
+- Diamond engine / Alpha 0.3 produces Diamond Score, confidence, and input-side model context.
+- Monte Carlo simulation produces Sim Mean, Sim Probability, p50/p90/stdev, and stat distributions.
+- The Consensus Board combines existing outputs for display only.
 
-### 5. Daily finalization job
+Do not describe Alpha 0.3 as directly producing Monte Carlo means/probabilities unless the audit confirms that exact code path.
 
-New endpoint `src/routes/api/public/hooks/finalize-slate.ts` (bearer `CRON_WEBHOOK_SECRET`, same pattern as `refresh-lineups.ts`):
+**Add a Balanced consensus view**
 
-- Accepts `{ date }`; if absent uses `todayInAppTz()` — but for the cron schedule we pass **yesterday's Chicago date** explicitly so the post-midnight run finalizes the correct slate.
-- For the target date: (a) import final box scores into `projection_results`, (b) confirm `sim_snapshot` exists for every projection row, (c) recompute the Model Results aggregates, (d) write a `cron_runs` row tagged with that game date.
+Keep the default Top 25 Overall Consensus ranking, but add a second scope/view:
 
-Schedule via `pg_cron` at 08:00 UTC (03:00 CT) every day calling the endpoint with `body := jsonb_build_object('date', (now() AT TIME ZONE 'America/Chicago' - interval '1 day')::date::text)`.
+- **Top 25 Overall** — highest consensus scores regardless of category.
+- **Balanced Board** — show the strongest 3–5 qualifying signals from each available category, then sort those selected rows by consensus score.
 
-### 6. Safety / non-goals
+Reason:  
+Percentiles make categories comparable, but an overall Top 25 can still become visually dominated by categories with more eligible players or more available probability fields.
 
-- No changes to engine math, simulation iterations, probability math, calibration formulas, projection logic, RLS, `requireAppMember`, or auth.
-- Existing per-day rows in `projections` / `projection_results` are preserved.
-- Probability Calibration section is unchanged.
+**Confidence integrity**
 
-## Files touched
+Use confidence only as a modest ranking modifier.
 
-- `supabase/migrations/<new>.sql` — add `projections.sim_snapshot` column.
-- `src/lib/ingest.functions.ts` — persist snapshot in `runDailyPipeline`.
-- `src/lib/sim.functions.ts` — add historical reader; keep today path intact.
-- `src/lib/actuals.functions.ts` — prefer stored `projection_results` for past dates.
-- `src/lib/model-results.functions.ts` (new) — `getModelResultsForDate`, `getDefaultModelResultsDate`.
-- `src/routes/_authenticated/calibration-lab.tsx` — date controls, status banner, URL search params.
-- `src/routes/api/public/hooks/finalize-slate.ts` (new) + `pg_cron` schedule SQL.
-- No changes to engines, security middleware, or design tokens.
+- Confirm the stored confidence scale and meaning before converting it to a factor.
+- Do not treat confidence as an independently calibrated probability.
+- Lineup status should act as an eligibility/reliability modifier only.
+- A player should not leapfrog materially stronger simulation outputs solely because of confirmed-lineup status.
 
-## Outcome
+**Consensus transparency**
 
-Opening `/calibration-lab` after midnight CT lands on the most recent finalized slate (yesterday) and shows the real pregame-snapshot grades. Date controls let you walk backward through completed slates; forward is disabled until the next slate finalizes. Today's in-progress slate shows a clear "Results pending" banner instead of silently masquerading as historical data
+For every Consensus Score, show the exact component contribution:
 
-## Required historical-integrity additions
+- Diamond Score percentile
+- Sim Mean percentile
+- Sim Probability percentile or not available
+- Confidence contribution
+- Lineup-status contribution
+- Final weighted score
 
-### Snapshot immutability
+Label the score:  
+Consensus Rank — display-only agreement signal
 
-`projections.sim_snapshot` must represent the final pregame model output, not a mutable cache.
+Do not call it a new model projection, probability, Diamond Score replacement, or prediction grade.
 
-- Persist the snapshot only after the final pregame pipeline run / lineup lock for that game.
-- Include metadata inside the payload:
-  - `captured_at`
-  - `game_pk`
-  - `player_id`
-  - `lineup_hash` if available
-  - `model_version`
-  - `iterations`
-  - `snapshot_status: "locked"`
-- Once `snapshot_status` is locked, later projection refreshes must not overwrite that historical snapshot.
-- A new live projection run may update normal current projection fields, but never rewrite the locked historical sim snapshot.
+---
 
-### Historical cutoff
+## Out of scope (explicitly)
 
-Do not reconstruct historical mean projections for dates before snapshots existed.
+- Engine math, Monte Carlo, Diamond Score formula, probability math, snapshots, calibration grading, pitcher-outs fix.
 
-For dates before `sim_snapshot` deployment:
+## Verification after build
 
-- Probability Calibration may continue using legitimately stored probability/result data.
-- Mean Projection Accuracy must show:  
-`Pregame mean snapshot unavailable for this date. Historical Mean Accuracy begins with the first locked snapshot date.`
-- Never rerun the live engine to fill historical Mean Accuracy rows.
-
-### Completed-slate logic
-
-Do not require every game to have status exactly `Final`.
-
-Treat a date as terminal when every scheduled game is one of:
-
-- Final
-- Postponed
-- Cancelled
-- Suspended / rescheduled
-
-Only grade player rows from completed Final games with:
-
-- a locked pregame snapshot
-- a matching stored actual result
-
-Postponed, cancelled, and incomplete games should be excluded from qualified counts and visibly noted in the date status.
-
-### Finalization reliability
-
-The postgame finalization job must be idempotent and retry-safe.
-
-- First scheduled run checks yesterday’s Chicago slate.
-- If any game is still live/incomplete, write a `partial` status and do not freeze incomplete aggregates.
-- Retry on a later schedule until all games are terminal.
-- Once finalization succeeds, lock the daily Model Results record and avoid duplicate grading.
-- Use the explicit target game date passed by cron; never infer historical game date from current UTC date.
-- The cron endpoint must return only a minimal success/failure payload and remain protected by `CRON_WEBHOOK_SECRET`.
-
-### Immediate UX fix
-
-Ship the date selector and “Latest Finalized” behavior now.
-
-Until valid mean snapshots exist:
-
-- Default to the latest date with final actuals.
-- Clearly label whether Mean Projection Accuracy is available for that date.
-- Keep Probability Calibration visible when its stored data exists.
-- Never show a reconstructed simulation as a historical pregame prediction.
+- Spot-check 5 players in audit table vs `/odds`, `/diamond-scores`, and new `/diamond-consensus` to confirm same underlying values.
+- Confirm percentiles are within-category (no cross-stat comparison).
+- Confirm dedupe key removes duplicate roles.
