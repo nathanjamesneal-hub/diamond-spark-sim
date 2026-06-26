@@ -1,160 +1,89 @@
-## Goal
+# Pre-Publish Lockdown — Final Remediation Plan
 
-Rework `/calibration-lab` into a "Model Results" page that leads with plain‑English Mean Projection Accuracy, with Probability Calibration as a separate second section. Also add a Top 25 / All Qualified scope toggle to `/odds` (Sim Leaders).
+Three security gaps will be closed before publish, with verification run end-to-end. No URLs change. No simulation, scoring, or UI logic changes.
 
-No changes to engines, simulations, scoring, probability math, calibration math, data fetching, schemas, or routes. Aggregation + labeling + display only.
+## 1. New shared middleware: `requireAppMember`
 
----
+New file `src/integrations/supabase/member-middleware.ts`. Layered on top of `requireSupabaseAuth`:
 
-## Part 1 — Rename + restructure `/calibration-lab` into "Model Results"
+1. Run `requireSupabaseAuth` first → throws `Response('Unauthorized', { status: 401 })` when no valid session.
+2. Call `context.supabase.rpc('is_app_member')` (zero-arg, already exists).
+3. If RPC errors or returns `false` → throw `Response('Forbidden', { status: 403 })`.
+4. Pass `{ supabase, userId, claims, isMember: true }` to handler.
 
-File: `src/routes/calibration-lab.tsx` (keep route path; update page chrome, head meta, and layout).
+`assertAdmin(context)` helper (existing inline pattern in `ingest.functions.ts`) stays and is layered on top of `requireAppMember` for operational/admin functions — no behavior change there.
 
-Page title: **Model Results**
-Subtitle: *How Diamond's finalized simulation projections performed against actual box scores.*
+### Apply `requireAppMember` to every private read
 
-Two stacked sections, never mixed:
+Add `.middleware([requireAppMember])` to:
+- `src/lib/projections.functions.ts`: `getTodaysSlate`, `getCalibration`, `getPlayerProjection`, `getDiamondScores`
+- `src/lib/mlb.functions.ts`: `getSchedule`, `getStandings`, `getTeam`, `getPlayer`, `getLeaderboards`
+- `src/lib/sim.functions.ts`: `simulateGame`, `getSimulationLeaders`
+- `src/lib/odds.functions.ts`: `getOdds`
+- `src/lib/actuals.functions.ts`: `getActualsForDate`
+- `src/lib/lineups/refresh.functions.ts`: `getCronStatus`
+- `src/lib/lineup-status.functions.ts`: `getLineupStatus` (currently unguarded read)
 
-### Section A — Mean Projection Accuracy
+Replace the `publicClient()` (anon publishable key) in `projections.functions.ts` with `context.supabase` so reads run as the signed-in member; delete the helper.
 
-Data source (new, display-only aggregation):
+All existing mutations keep `requireSupabaseAuth` + `assertAdmin` — re-audited, no change needed.
 
-- For the selected date(s), call `getSimulationLeaders` (already used by `/odds`) to get every player's mean projections per category, plus `getActualsForDate` for finalized box-score actuals.
-- New helper module `src/lib/model-results.ts` (pure functions, no server fn) that takes the leaders payload + actuals payload and returns per-category aggregates.
+## 2. SSR-safe route gating (no reliance on client-side `AppGate`)
 
-Categories graded as count-stats:
+Every route that loads Diamond data must sit under the integration-managed `_authenticated/` layout so SSR / prerender hits the gate before the loader runs.
 
-- Hitters: Hits, Total Bases, RBI, Runs, Batter Strikeouts (K)
-- Pitchers: Strikeouts (K), Outs, Walks (BB)
+Audit + move (route file renames, identical URL via re-exported route path):
+- `/diamond-scores`, `/top-props`, `/odds`, `/lineup-status`, `/calibration-lab`, `/players/$id`, `/games/$id` and any other route whose loader calls a `requireAppMember` function must live under `src/routes/_authenticated/...`.
+- Index `/` keeps its public landing shell; any Diamond-data loader on it is moved into a child component that calls via `useServerFn` after the gate passes, or the route itself is moved under `_authenticated/`.
 
-Qualification + grading rules (exactly as specified):
+`AppGate` stays as a defense-in-depth client check; it is no longer the only line of defense.
 
-- A row is *qualified* only if: game Final, actual exists, mean exists, `mean >= 0.5`.
-- `target = Math.max(1, Math.round(mean))`
-- `actual >= target + 1` → **Beat Projection** (strong green)
-- `actual === target` → **Met Projection** (green)
-- `actual === target - 1 && actual > 0` → **Close** (amber)
-- `actual === 0` → **Missed** (red) — never green, never counted as success
-- all other lower → **Missed** (red)
-- For rows with `mean < 0.5`: actual `0` → *Low Projection / No Event* (gray), actual `>0` → *Unexpected Event* (amber/red). Both excluded from Met/Beat denominator; never count as a success.
+## 3. Replace DB signup-block with Supabase Before-User-Created Auth Hook
 
-Hero summary cards (computed from qualified rows only):
+Drop the proposed `BEFORE INSERT ON auth.users` trigger plan.
 
-- Qualified Projections (count)
-- Met or Beat (count + percentage of qualified)
-- Close (count)
-- Missed (count)
-- Mean Absolute Error: `avg(|actual − mean|)`
-- Avg Projection vs Actual: `avg(mean) → avg(actual)`
-- Tooltip on the hero block: "Qualified projections have a mean of at least 0.5. A zero actual result never counts as a successful projection."
+Implementation:
+- New server route `src/routes/api/public/hooks/before-user-created.ts` that verifies the Supabase Auth Hook HMAC header (`webhook-signature`, standard-webhooks format) and returns the documented rejection payload:
+  ```json
+  { "error": { "http_code": 403, "message": "Sign-ups are disabled for this app." } }
+  ```
+  for every request. No allowlist — even the existing admin owner is unaffected because they already exist in `auth.users` and the hook only fires on user creation.
+- Configure the hook in Supabase Auth (`auth.hook_before_user_created`) to call this URL, with the hook's signing secret stored in Vault and read at runtime as `BEFORE_USER_CREATED_HOOK_SECRET`.
+- Keep public signup UI removed in `src/routes/auth.tsx`. Keep email signup disabled at the Auth provider level; keep Google enabled for sign-in only (Google still triggers the hook on first-time identities, which the hook will reject — admin owner is already provisioned).
+- Existing `public.block_new_signups()` function and any orphan references are dropped in the same migration to remove dead code.
 
-Category accuracy table:
+## 4. Webhook secret rotation (Vault-stored)
 
-- Columns: Category · Qualified · Met/Beat · Close · Missed · Hit Rate · Avg Mean · Avg Actual · MAE · Bias
-- Hit Rate = (Met + Beat) / Qualified
-- Bias = avg(actual − mean) (label "+ under-projection / − over-projection")
-- Each row expandable into the underlying player rows: Player · Team · Mean · Target · Actual · Result (with player link + team-color styling reused from existing components).
+- Generate `CRON_WEBHOOK_SECRET` (64 chars) as a server-only secret via `generate_secret`. Also mirror it into Supabase Vault (`vault.secrets`) so the cron SQL can read it without the literal value appearing in the SQL text or `cron.job` listing.
+- Update `pg_cron` job (via `supabase--insert`, not migration) to fetch the secret from Vault and send `Authorization: Bearer <secret>` — no `apikey` header, no literal in SQL.
+- Rewrite `src/routes/api/public/hooks/refresh-lineups.ts`:
+  - Read the bearer from `Authorization`.
+  - Read `process.env.CRON_WEBHOOK_SECRET` inside the handler.
+  - Compare lengths first; if they differ, return a generic `new Response('Unauthorized', { status: 401 })`. Otherwise `timingSafeEqual`. Same generic response on mismatch.
+  - Remove the `SUPABASE_PUBLISHABLE_KEY` branch entirely.
+- Verify the secret is absent from: source files (`rg`), browser network responses (network panel), runtime logs (`server-function-logs`), and `select jobname, command from cron.job` output.
 
-Filters:
+## 5. Verification matrix (returned before publish)
 
-- Scope toggle: **All Qualified Projections** | **Top 25 Simulation Leaders Only**
-  - "Top 25" mode reuses the same Top 25 slice the leaderboard already uses (per category, then union).
-- Keep existing date/category/team filtering hooks where present; date already comes from `getActualsForDate` (defaults to Chicago today). Add a date input here if not already wired (read-only display, no business changes).
+Run with Playwright + curl + SQL probes; report observed result per row.
 
-### Section B — Probability Calibration
+| Case | Surface | Expected |
+| --- | --- | --- |
+| Logged out | GET `/diamond-scores`, `/top-props`, `/odds`, `/admin` | Redirect to `/auth` (SSR), no Diamond data in HTML |
+| Logged out | Direct POST to `getDiamondScores` / `getSchedule` / `getSimulationLeaders` server fn | 401 |
+| Signed-in non-member (fresh Google) | Protected routes | Redirect / access-denied; `is_app_member()` = false |
+| Signed-in non-member | Direct private read server fn | 403 |
+| Signed-in non-member | RLS probe via `context.supabase` | 0 rows on `players`, `projections` |
+| Admin owner (`nathanjamesneal`) | All reads, `/admin`, `runDailyPipeline`, `lockGame`, `unlockGame` | Success |
+| Webhook | POST with old publishable key in `apikey` | 401 |
+| Webhook | POST with no/short/wrong `Authorization` | Generic 401, no leak |
+| Webhook | POST with valid `Bearer $CRON_WEBHOOK_SECRET` | 200, refresh runs |
+| Signup | Email signup via UI | Blocked at UI; if forced via GoTrue REST, hook returns 403; observed message reported verbatim |
+| Signup | Google first-time sign-in for a new identity | Hook rejects; observed message reported verbatim |
+| Signup | `select count(*) from auth.users` before/after each signup attempt | Unchanged |
+| Secret leak | `rg CRON_WEBHOOK_SECRET src/`, browser Network, `server-function-logs`, `select command from cron.job` | No matches |
 
-Reuse the existing calibration grid (`getCalibration` + current `StatCard` / bucket table) untouched mathematically. Only relabel + reframe:
+Publish only proceeds if every row passes.
 
-- Section heading: **Probability Calibration**
-- Sub: *"Does a 70% model probability happen about 70% of the time over a meaningful sample?"*
-- Keep current columns: Predicted, Observed, Hits / Sample, Δpp, n, Brier; keep version selector; keep "No HR Play" exclusion.
-- Add a one-line note above the grid: "Actual 0 is always a miss; actual ≥ 1 is a hit. A zero actual is never counted as a successful prediction."
-
-### Visual rules
-
-- Green only for genuine Met/Beat outcomes.
-- Amber for Close.
-- Red for Missed.
-- Gray for Low Projection / No Event.
-- Existing dark MLB visual system, team colors, player links preserved.
-
-Update `head()` title to "Model Results · Diamond" and refresh description.
-
----
-
-## Part 2 — `/odds` (Sim Leaders) scope toggle
-
-File: `src/routes/odds.tsx` only (no logic change in `src/lib/sim.functions.ts`).
-
-- Add a URL-backed control `scope = "top25" | "all"` (default `top25`) using the existing `zodValidator`/`fallback` pattern alongside `cat`, `lineup`, etc.
-- After existing filtering + sorting:
-  - `top25`: `slice(0, 25)` (current behavior).
-  - `all`: render every qualified row (row has a real mean for the active category — same qualification predicate used today to include a row, just without the slice).
-- Result count display:
-  - `top25` → "Top 25 of N qualified"
-  - `all` → "N qualified players"
-- Performance for `all`:
-  - Render first 50 rows, then a **Load 50 more** button that appends batches client-side. Keep table wrapper, sticky header, horizontal scroll, team colors, player links unchanged.
-- Keep category, team, lineup-status, sort controls and current Top 25 fast path visually prominent.
-
-No changes to scoring, probability, calibration math, simulation, or data-fetch logic.
-
----
-
-## Files touched
-
-- `src/routes/calibration-lab.tsx` — restructure into Model Results (Section A + relabeled Section B). Keep route path.
-- `src/lib/model-results.ts` (new) — pure aggregation/labeling helpers for Section A (qualification, grading, per-category summary, hero totals).
-- `src/components/diamond/model-results/` (new, small) — `HeroSummary.tsx`, `CategoryTable.tsx`, `CategoryExpansion.tsx` for clarity; or inline into the route file if small.
-- `src/routes/odds.tsx` — add scope toggle + count line + "Load 50 more" pager.
-
-## Non-goals / safety
-
-- Do not edit `src/lib/sim.functions.ts`, `src/lib/actuals.functions.ts`, `src/lib/projections.functions.ts` math, engines, or DB schema.
-- Do not change route paths (URL stays `/calibration-lab`; nav label updates to "Model Results").
-
-No new server functions, no new tables, no fabricated actuals.
-
-## Accuracy integrity guardrails
-
-### Historical prediction integrity
-
-A Model Results record represents one **player + game + category** prediction made from pregame simulation output.
-
-- Never re-run today’s model after a game is final and label the result as that day’s historical prediction if player rates, lineups, pitcher data, or inputs may have changed.
-- Only grade dates where a matching pregame simulation snapshot / stored leader output is available.
-- If historical simulation output is unavailable for a selected date, show:  
-**“Simulation snapshot unavailable for this date.”**  
-Do not reconstruct or fabricate a historical projection.
-- Reusing existing query APIs in this route is allowed, but do not modify upstream fetching logic, schemas, simulation logic, or prediction math.
-
-### Metric integrity
-
-Do not blend raw Hits, Total Bases, and Pitcher Outs into one misleading global MAE or one global “Average Projection → Actual” number.
-
-Instead:
-
-- Calculate MAE and Bias per category exactly as specified.
-- In the hero, show **Average Category MAE**: the equal-weight average of available category MAEs.
-- Show projection-versus-actual separately for:
-  - **Hitters**
-  - **Pitchers**
-- Keep the category table as the detailed source of truth.
-
-### Scope integrity
-
-For the **Top 25 Simulation Leaders Only** toggle:
-
-- Use the same pregame category-specific sort and Top 25 selection used by `/odds`.
-- Build the union from `player + game + category` rows, not unique players.
-- A player appearing in Hits and Total Bases counts as two distinct projections because they are two distinct model outputs.
-- Apply Top 25 selection before joining final actuals, so results cannot be influenced by what happened in the game.
-
-### Missing-data rule
-
-- Missing actual, missing mean, non-final game, or unavailable simulation snapshot means the row is excluded from Qualified Projections.
-- Never substitute `0`, a fallback mean, or an inferred actual.
-
-### Category boundary
-
-Keep Home Runs and Stolen Bases in Probability Calibration unless there is a deliberately defined mean-projection accuracy framework for them later. They are event-style outcomes and should not inflate or distort the count-stat Met/Beat record.
+## Out of scope (unchanged)
+Simulation math, scoring, calibration, Diamond Engine internals, table schemas other than the migration to drop `block_new_signups()`, UI/visual design, public landing copy.
