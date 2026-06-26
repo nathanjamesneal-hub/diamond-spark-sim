@@ -4,7 +4,7 @@
  * getSimulationLeaders — no math is performed in this file.
  */
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -186,9 +186,10 @@ type Grade = {
     | "No Event"
     | "Beat Low Projection"
     | "Hit Event"
+    | "Live"
     | "Pending"
     | "—";
-  tone: "strong" | "good" | "warn" | "bad" | "muted";
+  tone: "strong" | "good" | "warn" | "bad" | "muted" | "live";
   excludeFromAccuracy?: boolean;
 };
 const GRADE_CLASS: Record<Grade["tone"], string> = {
@@ -197,7 +198,9 @@ const GRADE_CLASS: Record<Grade["tone"], string> = {
   warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   bad: "bg-rose-500/15 text-rose-300 border-rose-500/30",
   muted: "bg-zinc-500/10 text-muted-foreground border-border/40",
+  live: "bg-sky-500/15 text-sky-300 border-sky-500/40 animate-pulse",
 };
+
 
 const LOW_MEAN_TOOLTIP =
   "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes. An actual result of zero is never counted as a successful prediction.";
@@ -268,9 +271,12 @@ const actualsQuery = (date: string | undefined) =>
   queryOptions({
     queryKey: ["sim-actuals", date ?? "today"],
     queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
+
 
 export const Route = createFileRoute("/_authenticated/odds")({
   ssr: false,
@@ -314,11 +320,19 @@ export const Route = createFileRoute("/_authenticated/odds")({
 function SimLeadersPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const queryClient = useQueryClient();
   const { data } = useSuspenseQuery(leadersQuery(search.date));
   const { data: actuals } = useSuspenseQuery(actualsQuery(search.date));
 
   const setSearch = (patch: Record<string, string | undefined>) =>
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
+
+  const refreshActuals = () =>
+    queryClient.invalidateQueries({ queryKey: ["sim-actuals", search.date ?? "today"] });
+  const lastUpdate = actuals.fetchedAt
+    ? new Date(actuals.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "—";
+
 
   const teams = useMemo(() => {
     const set = new Set<string>();
@@ -347,7 +361,22 @@ function SimLeadersPage() {
           Date: {data.date} · {data.games_simulated}/{data.game_count} games simulated
           {data.warnings.length > 0 ? ` · ${data.warnings.length} warnings` : ""}
         </p>
+        <div className="mono flex flex-wrap items-center gap-2 pt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${actuals.liveGames.length > 0 ? "bg-sky-400 animate-pulse" : "bg-zinc-500"}`} />
+            {actuals.liveGames.length} live · {actuals.finalGames.length} final · {actuals.pendingGames.length} pending
+          </span>
+          <span>· Last live update: {lastUpdate}</span>
+          <button
+            type="button"
+            onClick={refreshActuals}
+            className="rounded border border-border/60 bg-card/40 px-2 py-0.5 text-[10px] uppercase tracking-widest hover:bg-card"
+          >
+            Refresh Live Results
+          </button>
+        </div>
       </header>
+
 
       {/* Filters */}
       <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card/30 p-3">
@@ -549,6 +578,8 @@ function CategorySection({
                     : null;
                 const gamePk = r.mlb_game_id;
                 const isFinal = gamePk != null && actuals.finalGames.includes(gamePk);
+                const isLive = gamePk != null && actuals.liveGames.includes(gamePk);
+                const isGraded = isFinal || isLive;
                 const actualRecord =
                   r.mlb_id != null
                     ? cat.group === "hitter"
@@ -556,24 +587,48 @@ function CategorySection({
                       : actuals.pitchers[String(r.mlb_id)]
                     : undefined;
                 const actualNum =
-                  isFinal && actualRecord && cat.getActual
+                  isGraded && actualRecord && cat.getActual
                     ? cat.getActual(actualRecord) ?? null
                     : null;
                 const actualBool =
-                  isFinal && actualRecord && cat.getBoolActual
+                  isGraded && actualRecord && cat.getBoolActual
                     ? cat.getBoolActual(actualRecord as PitcherActual)
                     : null;
-                const grade: Grade = !isFinal
-                  ? { label: "Pending", tone: "muted" }
-                  : cat.getBoolActual
+                // While the game is live, only show a positive "Hit Event" /
+                // "Beat" once the actual has crossed the threshold. Otherwise
+                // tag the row as Live (in-progress) so it isn't called Missed
+                // prematurely.
+                let grade: Grade;
+                if (!isGraded) {
+                  grade = { label: "Pending", tone: "muted" };
+                } else if (isLive) {
+                  if (cat.getBoolActual && actualBool === true) {
+                    grade = gradeBinary(prob, true);
+                  } else if (cat.key === "hr" && (actualNum ?? 0) >= 1) {
+                    grade = gradeHR(actualNum);
+                  } else if (cat.key === "sb" && (actualNum ?? 0) >= 1) {
+                    grade = gradeSB(actualNum);
+                  } else if (
+                    !cat.getBoolActual &&
+                    stat?.mean != null &&
+                    actualNum != null &&
+                    actualNum >= Math.ceil(stat.mean)
+                  ) {
+                    grade = { label: "Beat Projection", tone: "strong" };
+                  } else {
+                    grade = { label: "Live", tone: "live" };
+                  }
+                } else {
+                  grade = cat.getBoolActual
                     ? gradeBinary(prob, actualBool)
                     : cat.key === "hr"
                       ? gradeHR(actualNum)
                       : cat.key === "sb"
                         ? gradeSB(actualNum)
                         : gradeCounting(stat?.mean ?? null, actualNum);
+                }
 
-                const actualLabel = !isFinal
+                const actualLabel = !isGraded
                   ? "Pending"
                   : cat.getBoolActual
                     ? actualBool == null
@@ -582,6 +637,7 @@ function CategorySection({
                         ? "Yes"
                         : "No"
                     : fmtInt(actualNum);
+
                 return (
                   <tr key={`${cat.key}:${r.mlb_id ?? r.player_name}:${r.game_id}`} className="border-t border-border/30">
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{i + 1}</td>
