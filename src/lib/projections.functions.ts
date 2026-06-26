@@ -3,17 +3,8 @@
  * No bearer required — these power the public dashboards.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
-
-function publicClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
-}
 
 function todayIso(): string {
   // App is pinned to America/Chicago — "today" must match what the user sees.
