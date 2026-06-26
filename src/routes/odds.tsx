@@ -388,6 +388,22 @@ function SimLeadersPage() {
             <option value="waiting">Waiting</option>
           </select>
         </div>
+        <div className="ml-auto flex items-center gap-1 rounded-md border border-border/60 bg-card/40 p-0.5">
+          {(["top25", "all"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSearch({ scope: s })}
+              className={`mono rounded px-2.5 py-1 text-[10px] uppercase tracking-widest transition ${
+                search.scope === s
+                  ? "bg-primary/20 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {s === "top25" ? "Top 25" : "All Qualified"}
+            </button>
+          ))}
+        </div>
       </section>
 
       {visibleCats.map((cat) => (
@@ -399,6 +415,7 @@ function SimLeadersPage() {
           team={search.team}
           lineupFilter={search.lineup}
           explicit={search.cat === cat.key}
+          scope={search.scope}
         />
       ))}
     </div>
@@ -412,6 +429,7 @@ function CategorySection({
   team,
   lineupFilter,
   explicit,
+  scope,
 }: {
   cat: CatDef;
   payload: SimulationLeadersPayload;
@@ -419,8 +437,10 @@ function CategorySection({
   team: string | undefined;
   lineupFilter: "all" | "locked" | "verified" | "waiting";
   explicit: boolean;
+  scope: "top25" | "all";
 }) {
-  const rows = useMemo(() => {
+  const [visibleCount, setVisibleCount] = useState(50);
+  const { rows, totalQualified } = useMemo(() => {
     const source: (SimLeaderHitterRow | SimLeaderPitcherRow)[] =
       cat.group === "hitter" ? payload.hitters : payload.pitchers;
     let filtered = source.filter((r) => (team ? r.team_abbrev === team : true));
@@ -441,8 +461,11 @@ function CategorySection({
       if (pb !== pa) return pb - pa;
       return (b.diamond_score ?? -Infinity) - (a.diamond_score ?? -Infinity);
     });
-    return withMean.slice(0, 25);
-  }, [cat, payload, team, lineupFilter]);
+    const ranked = scope === "top25" ? withMean.slice(0, 25) : withMean;
+    return { rows: ranked, totalQualified: withMean.length };
+  }, [cat, payload, team, lineupFilter, scope]);
+
+  const visibleRows = scope === "all" ? rows.slice(0, visibleCount) : rows;
 
   if (rows.length === 0 && !explicit) return null;
 
@@ -451,9 +474,13 @@ function CategorySection({
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-lg font-bold tracking-wide">{cat.label}</h2>
         <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {cat.group === "hitter" ? "Hitter" : "Pitcher"} · Top {rows.length}
+          {cat.group === "hitter" ? "Hitter" : "Pitcher"} ·{" "}
+          {scope === "top25"
+            ? `Top ${rows.length} of ${totalQualified} qualified`
+            : `${totalQualified} qualified players`}
         </div>
       </div>
+
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-border/60 bg-card/30 p-6 text-center text-sm text-muted-foreground">
