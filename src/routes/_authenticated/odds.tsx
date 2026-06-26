@@ -463,6 +463,8 @@ function CategorySection({
       seen.add(key);
       deduped.push(r);
     }
+    withMean.length = 0;
+    withMean.push(...deduped);
     withMean.sort((a, b) => {
       const ma = cat.getStat?.(a)?.mean ?? -Infinity;
       const mb = cat.getStat?.(b)?.mean ?? -Infinity;
