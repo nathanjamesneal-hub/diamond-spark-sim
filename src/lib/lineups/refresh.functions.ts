@@ -17,6 +17,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { aggregateLineups } from "./aggregate";
 import { todayInAppTz } from "@/lib/timezone";
 
