@@ -493,7 +493,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     const { data: teamsRows } = await sb.from("teams").select("id, abbreviation");
     const teamAbbrev = new Map((teamsRows ?? []).map((t) => [t.id, t.abbreviation]));
 
-    const [{ data: lineups }, { data: pitchers }, { data: projections }, { data: glsRows }] = await Promise.all([
+    const [{ data: lineups }, { data: pitchers }, { data: projectionsAll }, { data: glsRows }] = await Promise.all([
       sb.from("lineups")
         .select("game_id, player_id, team_id, batting_order, locked_at, confirmed, lineup_status, lineup_source")
         .in("game_id", gameIds),
@@ -512,11 +512,22 @@ export const getDiamondScores = createServerFn({ method: "GET" })
 
     const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
 
-    // Latest projection per (player, game, model_version)
-    const latest = new Map<string, any>();
+    // Track every model version we observed (for UI version pickers / debug).
     const versions = new Set<string>();
-    for (const p of projections ?? []) {
-      versions.add(p.model_version);
+    for (const p of projectionsAll ?? []) versions.add(p.model_version);
+
+    // Leaderboards must render ONE row per (player, game, role). Only emit the
+    // active model version — stale rows from older versions (e.g. 0.1.0 left
+    // active before the version flip) are preserved in the DB for calibration
+    // but excluded from today's current slate.
+    const projections = (projectionsAll ?? []).filter((p) =>
+      activeVersion ? p.model_version === activeVersion : true,
+    );
+
+    // Latest projection per (player, game, model_version) — newest wins (input
+    // is ordered DESC by created_at).
+    const latest = new Map<string, any>();
+    for (const p of projections) {
       const k = `${p.player_id}:${p.game_id}:${p.model_version}`;
       if (!latest.has(k)) latest.set(k, p);
     }
