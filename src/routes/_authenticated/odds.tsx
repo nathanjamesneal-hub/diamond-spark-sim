@@ -4,7 +4,7 @@
  * getSimulationLeaders — no math is performed in this file.
  */
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
