@@ -276,7 +276,10 @@ export async function buildMonteCarloGameEnvironment(
 
 export const simulateGame = createServerFn({ method: "GET" })
   .middleware([requireAppMember])
-  .inputValidator((data: { gamePk: number; iterations?: number }) => data)
+  .inputValidator((data: { gamePk: number; iterations?: number }) => ({
+    ...data,
+    iterations: Math.min(Math.max(data.iterations ?? 2000, 1), 10_000),
+  }))
   .handler(async ({ data }): Promise<{
     meta: SimMeta;
     result: SimResult;

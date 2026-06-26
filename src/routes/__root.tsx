@@ -79,8 +79,7 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
             Error details
           </summary>
           <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-border/60 bg-card p-3 text-[11px] leading-snug text-muted-foreground whitespace-pre-wrap break-words">
-            {e?.name ? `${e.name}: ` : ""}{message}
-            {e?.stack ? `\n\n${e.stack}` : ""}
+            {message}
           </pre>
         </details>
       </div>
