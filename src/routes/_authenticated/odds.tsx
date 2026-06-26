@@ -555,6 +555,8 @@ function CategorySection({
                     : null;
                 const gamePk = r.mlb_game_id;
                 const isFinal = gamePk != null && actuals.finalGames.includes(gamePk);
+                const isLive = gamePk != null && actuals.liveGames.includes(gamePk);
+                const isGraded = isFinal || isLive;
                 const actualRecord =
                   r.mlb_id != null
                     ? cat.group === "hitter"
@@ -562,24 +564,48 @@ function CategorySection({
                       : actuals.pitchers[String(r.mlb_id)]
                     : undefined;
                 const actualNum =
-                  isFinal && actualRecord && cat.getActual
+                  isGraded && actualRecord && cat.getActual
                     ? cat.getActual(actualRecord) ?? null
                     : null;
                 const actualBool =
-                  isFinal && actualRecord && cat.getBoolActual
+                  isGraded && actualRecord && cat.getBoolActual
                     ? cat.getBoolActual(actualRecord as PitcherActual)
                     : null;
-                const grade: Grade = !isFinal
-                  ? { label: "Pending", tone: "muted" }
-                  : cat.getBoolActual
+                // While the game is live, only show a positive "Hit Event" /
+                // "Beat" once the actual has crossed the threshold. Otherwise
+                // tag the row as Live (in-progress) so it isn't called Missed
+                // prematurely.
+                let grade: Grade;
+                if (!isGraded) {
+                  grade = { label: "Pending", tone: "muted" };
+                } else if (isLive) {
+                  if (cat.getBoolActual && actualBool === true) {
+                    grade = gradeBinary(prob, true);
+                  } else if (cat.key === "hr" && (actualNum ?? 0) >= 1) {
+                    grade = gradeHR(actualNum);
+                  } else if (cat.key === "sb" && (actualNum ?? 0) >= 1) {
+                    grade = gradeSB(actualNum);
+                  } else if (
+                    !cat.getBoolActual &&
+                    stat?.mean != null &&
+                    actualNum != null &&
+                    actualNum >= Math.ceil(stat.mean)
+                  ) {
+                    grade = { label: "Beat Projection", tone: "strong" };
+                  } else {
+                    grade = { label: "Live", tone: "live" };
+                  }
+                } else {
+                  grade = cat.getBoolActual
                     ? gradeBinary(prob, actualBool)
                     : cat.key === "hr"
                       ? gradeHR(actualNum)
                       : cat.key === "sb"
                         ? gradeSB(actualNum)
                         : gradeCounting(stat?.mean ?? null, actualNum);
+                }
 
-                const actualLabel = !isFinal
+                const actualLabel = !isGraded
                   ? "Pending"
                   : cat.getBoolActual
                     ? actualBool == null
@@ -588,6 +614,7 @@ function CategorySection({
                         ? "Yes"
                         : "No"
                     : fmtInt(actualNum);
+
                 return (
                   <tr key={`${cat.key}:${r.mlb_id ?? r.player_name}:${r.game_id}`} className="border-t border-border/30">
                     <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{i + 1}</td>
