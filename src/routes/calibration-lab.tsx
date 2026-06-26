@@ -362,11 +362,8 @@ function CategoryRow({
     </>
   );
 }
-        </tbody>
-      </table>
-    </div>
-  );
-}
+
+
 
 function PlayerBreakdown({ summary }: { summary: MRCategorySummary }) {
   if (summary.rows.length === 0 && summary.unqualifiedRows.length === 0) {
