@@ -383,35 +383,86 @@ function reshapeStat(d: PlayerStatDist | undefined | null): SimStat | null {
 export const getSimulationLeaders = createServerFn({ method: "GET" })
   .middleware([requireAppMember])
   .inputValidator((data: { date?: string } | undefined) => data ?? {})
-  .handler(async ({ data }): Promise<SimulationLeadersPayload> => {
+  .handler(async ({ data, context }): Promise<SimulationLeadersPayload> => {
     const warnings: string[] = [];
     const scores = await getDiamondScores({ data: data.date ? { date: data.date } : {} });
+
+    const { todayInAppTz } = await import("@/lib/timezone");
+    const today = todayInAppTz();
+    const requestedDate = data.date ?? scores.date;
+    const isHistorical = requestedDate < today;
 
     const batterDistByMlbId = new Map<number, BatterDist>();
     const pitcherDistByMlbId = new Map<number, PitcherDist>();
 
+    // Snapshot-backed maps for historical reads.
+    type SnapStat = import("./sim-snapshot").StoredStatDist;
+    const hitterSnapByPlayer = new Map<string, Record<string, SnapStat | undefined>>();
+    const pitcherSnapByPlayer = new Map<string, Record<string, SnapStat | undefined>>();
+
     let gamesSimulated = 0;
     const gamePks = scores.games.map((g) => g.mlb_game_id).filter((x): x is number => x != null);
+    const gameIds = scores.games.map((g) => g.id);
 
-    await Promise.all(
-      gamePks.map(async (gamePk) => {
-        try {
-          const sim = await buildMonteCarloGameEnvironment(gamePk);
-          gamesSimulated += 1;
-          for (const b of sim.result.homeBatters) batterDistByMlbId.set(b.playerId, b);
-          for (const b of sim.result.awayBatters) batterDistByMlbId.set(b.playerId, b);
-          if (sim.result.homePitcher?.playerId)
-            pitcherDistByMlbId.set(sim.result.homePitcher.playerId, sim.result.homePitcher);
-          if (sim.result.awayPitcher?.playerId)
-            pitcherDistByMlbId.set(sim.result.awayPitcher.playerId, sim.result.awayPitcher);
-        } catch (e) {
-          warnings.push(`sim failed for gamePk ${gamePk}: ${(e as Error).message}`);
+    if (isHistorical) {
+      // HISTORICAL: read locked pregame snapshots from projections.sim_snapshot.
+      // Never re-run the live simulator and never call MLB lineup APIs.
+      const { supabase } = context;
+      const { data: snapRows } = gameIds.length
+        ? await supabase
+            .from("projections")
+            .select("player_id, game_id, projection_role, sim_snapshot, projection_status, created_at")
+            .in("game_id", gameIds)
+            .not("sim_snapshot", "is", null)
+            .order("created_at", { ascending: false })
+        : { data: [] as any[] };
+
+      const seen = new Set<string>();
+      for (const r of snapRows ?? []) {
+        const key = `${r.game_id}:${r.player_id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const snap = (r as any).sim_snapshot;
+        if (!snap || typeof snap !== "object") continue;
+        const dists = (snap.distributions ?? {}) as Record<string, SnapStat>;
+        if (snap.projection_role === "pitcher") {
+          pitcherSnapByPlayer.set(r.player_id, dists);
+        } else {
+          hitterSnapByPlayer.set(r.player_id, dists);
         }
-      }),
-    );
+      }
+    } else {
+      // LIVE (today): keep existing live Monte Carlo behavior.
+      await Promise.all(
+        gamePks.map(async (gamePk) => {
+          try {
+            const sim = await buildMonteCarloGameEnvironment(gamePk);
+            gamesSimulated += 1;
+            for (const b of sim.result.homeBatters) batterDistByMlbId.set(b.playerId, b);
+            for (const b of sim.result.awayBatters) batterDistByMlbId.set(b.playerId, b);
+            if (sim.result.homePitcher?.playerId)
+              pitcherDistByMlbId.set(sim.result.homePitcher.playerId, sim.result.homePitcher);
+            if (sim.result.awayPitcher?.playerId)
+              pitcherDistByMlbId.set(sim.result.awayPitcher.playerId, sim.result.awayPitcher);
+          } catch (e) {
+            warnings.push(`sim failed for gamePk ${gamePk}: ${(e as Error).message}`);
+          }
+        }),
+      );
+    }
+
+    const { reshapeStoredToSimStat } = await import("./sim-snapshot");
 
     const hitters: SimLeaderHitterRow[] = scores.hitters.map((h) => {
-      const dist = h.mlb_id != null ? batterDistByMlbId.get(h.mlb_id) : undefined;
+      const liveDist = !isHistorical && h.mlb_id != null
+        ? batterDistByMlbId.get(h.mlb_id)
+        : undefined;
+      const snap = isHistorical ? hitterSnapByPlayer.get(h.player_id) : undefined;
+      const pick = (k: keyof BatterDist & string): SimStat | null => {
+        if (liveDist) return reshapeStat(liveDist[k] as PlayerStatDist);
+        if (snap) return reshapeStoredToSimStat(snap[k]);
+        return null;
+      };
       return {
         player_name: h.player_name,
         mlb_id: h.mlb_id,
@@ -424,13 +475,13 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         badge: h.badge,
         diamond_score: h.diamond_score,
         confidence: h.confidence,
-        H: reshapeStat(dist?.H),
-        HR: reshapeStat(dist?.HR),
-        RBI: reshapeStat(dist?.RBI),
-        R: reshapeStat(dist?.R),
-        TB: reshapeStat(dist?.TB),
+        H: pick("H"),
+        HR: pick("HR"),
+        RBI: pick("RBI"),
+        R: pick("R"),
+        TB: pick("TB"),
         SB: null,
-        K: reshapeStat(dist?.K),
+        K: pick("K"),
         card_probabilities: {
           hit: h.hit_probability,
           total_base: h.total_base_probability,
@@ -443,7 +494,15 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     });
 
     const pitchers: SimLeaderPitcherRow[] = scores.pitchers.map((p) => {
-      const dist = p.mlb_id != null ? pitcherDistByMlbId.get(p.mlb_id) : undefined;
+      const liveDist = !isHistorical && p.mlb_id != null
+        ? pitcherDistByMlbId.get(p.mlb_id)
+        : undefined;
+      const snap = isHistorical ? pitcherSnapByPlayer.get(p.player_id) : undefined;
+      const pick = (k: keyof PitcherDist & string): SimStat | null => {
+        if (liveDist) return reshapeStat(liveDist[k] as PlayerStatDist);
+        if (snap) return reshapeStoredToSimStat(snap[k]);
+        return null;
+      };
       return {
         player_name: p.player_name,
         mlb_id: p.mlb_id,
@@ -456,16 +515,26 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         diamond_score: p.diamond_score,
         confidence: p.confidence,
         projected_outs: p.projected_outs,
-        outs: reshapeStat(dist?.outs),
-        K: reshapeStat(dist?.K),
-        BB: reshapeStat(dist?.BB),
-        ER: reshapeStat(dist?.ER),
-        H: reshapeStat(dist?.H),
+        outs: pick("outs"),
+        K: pick("K"),
+        BB: pick("BB"),
+        ER: pick("ER"),
+        H: pick("H"),
         win_probability: p.pitcher_win_probability,
         quality_start_probability: p.quality_start_probability,
         extra_probabilities: {},
       };
     });
+
+    if (isHistorical) {
+      const lockedHitters = hitterSnapByPlayer.size;
+      const lockedPitchers = pitcherSnapByPlayer.size;
+      if (lockedHitters === 0 && lockedPitchers === 0) {
+        warnings.push(
+          "No locked pregame snapshots exist for this date — Mean Projection Accuracy is unavailable.",
+        );
+      }
+    }
 
     return {
       date: scores.date,
