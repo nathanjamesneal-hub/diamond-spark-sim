@@ -386,6 +386,27 @@ function DiamondConsensusPage() {
             <option value="waiting">Waiting</option>
           </select>
         </Filter>
+        <Filter label="Min Prob">
+          <label className="mono flex items-center gap-1 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={minProbOn}
+              onChange={(e) => setMinProbOn(e.target.checked)}
+            />
+            <span>{minProbOn ? "On" : "Off"}</span>
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            disabled={!minProbOn}
+            value={minProbPct}
+            onChange={(e) => setMinProbPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+            className="mono w-14 rounded border border-border/60 bg-background px-1 py-1 text-xs disabled:opacity-40"
+          />
+          <span className="mono text-[10px] text-muted-foreground">%</span>
+        </Filter>
       </div>
 
       <div className="overflow-x-auto rounded-md border border-border/60 bg-card/30">
