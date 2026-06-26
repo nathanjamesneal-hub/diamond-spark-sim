@@ -248,7 +248,7 @@ function consensusTone(score: number) {
   return "muted";
 }
 
-type ScopeMode = "top25" | "balanced" | "all";
+type ScopeMode = "balanced" | "top25" | "high-prob" | "all";
 
 function DiamondConsensusPage() {
   const { data: payload } = useSuspenseQuery(leadersQuery(undefined));
@@ -259,7 +259,9 @@ function DiamondConsensusPage() {
   const [category, setCategory] = useState<CatKey | "all">("all");
   const [team, setTeam] = useState<string>("all");
   const [lineup, setLineup] = useState<"all" | "locked" | "verified" | "waiting">("all");
-  const [scope, setScope] = useState<ScopeMode>("top25");
+  const [scope, setScope] = useState<ScopeMode>("balanced");
+  const [minProbOn, setMinProbOn] = useState<boolean>(false);
+  const [minProbPct, setMinProbPct] = useState<number>(20);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const teams = useMemo(() => {
@@ -271,13 +273,17 @@ function DiamondConsensusPage() {
   }, [rows]);
 
   const filtered = useMemo(() => {
+    const threshold = minProbOn ? minProbPct / 100 : null;
     return rows.filter((r) => {
       if (category !== "all" && r.catKey !== category) return false;
       if (team !== "all" && r.team_abbrev !== team) return false;
       if (lineup !== "all" && r.lineupStatus !== lineup) return false;
+      if (threshold != null) {
+        if (r.simProb == null || r.simProb < threshold) return false;
+      }
       return true;
     });
-  }, [rows, category, team, lineup]);
+  }, [rows, category, team, lineup, minProbOn, minProbPct]);
 
   const sorted = useMemo(
     () => [...filtered].sort((a, b) => b.consensus - a.consensus),
@@ -286,6 +292,13 @@ function DiamondConsensusPage() {
 
   const display = useMemo(() => {
     if (scope === "top25") return sorted.slice(0, 25);
+    if (scope === "high-prob") {
+      // Show only rows with real existing threshold probabilities,
+      // ranked by raw Sim Probability descending. No DS-based ranking.
+      return filtered
+        .filter((r) => r.probAvailable && r.simProb != null)
+        .sort((a, b) => (b.simProb ?? 0) - (a.simProb ?? 0));
+    }
     if (scope === "balanced") {
       // top 4 per category, then resort by consensus
       const byCat = new Map<CatKey, ConsensusRow[]>();
@@ -299,7 +312,16 @@ function DiamondConsensusPage() {
       return Array.from(byCat.values()).flat().sort((a, b) => b.consensus - a.consensus);
     }
     return sorted;
-  }, [sorted, scope]);
+  }, [sorted, filtered, scope]);
+
+  const scopeBlurb =
+    scope === "high-prob"
+      ? "Most likely event outcomes across the slate, ranked by raw existing Sim Probability. Categories without real threshold probabilities are excluded. Diamond Score does not influence rank here."
+      : scope === "top25"
+      ? "Highest within-category agreement across the slate. HR-heavy by nature — see framing note above."
+      : scope === "balanced"
+      ? "Strongest 3–5 qualifying signals per available category, then sorted by Consensus Score."
+      : "Every qualifying row, sorted by Consensus Score.";
 
   return (
     <section className="space-y-4 p-4">
@@ -308,19 +330,24 @@ function DiamondConsensusPage() {
           Diamond Consensus
         </h1>
         <p className="text-sm text-muted-foreground">
-          Where Diamond Score, simulation output, and confidence align. Display-only — no projections are altered.
+          Where Diamond Score, Sim Mean, probability, and confidence agree within a category. Display-only — not a "most likely to happen" ranking.
+        </p>
+        <p className="mono text-[11px] uppercase tracking-widest text-amber-300/90">
+          Category-relative consensus, not absolute event likelihood.
         </p>
         <p className="text-xs text-muted-foreground">
           Date: <span className="mono text-foreground">{payload.date}</span> ·
           {" "}Games: <span className="mono text-foreground">{payload.game_count}</span> ·
           {" "}Qualified rows: <span className="mono text-foreground">{filtered.length}</span>
         </p>
+        <p className="text-[11px] text-muted-foreground">{scopeBlurb}</p>
       </header>
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
-        <Filter label="Scope">
-          <Pill on={scope === "top25"} onClick={() => setScope("top25")}>Top 25 Overall</Pill>
+        <Filter label="View">
           <Pill on={scope === "balanced"} onClick={() => setScope("balanced")}>Balanced Board</Pill>
+          <Pill on={scope === "top25"} onClick={() => setScope("top25")}>Top 25 Overall Agreement</Pill>
+          <Pill on={scope === "high-prob"} onClick={() => setScope("high-prob")}>High-Probability Outcomes</Pill>
           <Pill on={scope === "all"} onClick={() => setScope("all")}>All Qualified</Pill>
         </Filter>
         <Filter label="Category">
@@ -358,6 +385,27 @@ function DiamondConsensusPage() {
             <option value="verified">Verified</option>
             <option value="waiting">Waiting</option>
           </select>
+        </Filter>
+        <Filter label="Min Prob">
+          <label className="mono flex items-center gap-1 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={minProbOn}
+              onChange={(e) => setMinProbOn(e.target.checked)}
+            />
+            <span>{minProbOn ? "On" : "Off"}</span>
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            disabled={!minProbOn}
+            value={minProbPct}
+            onChange={(e) => setMinProbPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+            className="mono w-14 rounded border border-border/60 bg-background px-1 py-1 text-xs disabled:opacity-40"
+          />
+          <span className="mono text-[10px] text-muted-foreground">%</span>
         </Filter>
       </div>
 
@@ -463,6 +511,8 @@ function DiamondConsensusPage() {
         Consensus = 40% Diamond Score percentile · 30% Sim Mean percentile · 20% Sim Probability percentile · 10% Confidence/lineup.
         When a real probability isn't available, the 20% is redistributed to Diamond Score and Sim Mean.
         Percentiles are computed strictly within each category and slate — Hits vs Hits, HR vs HR, never across categories.
+        A high consensus score means the signals agree within that category, not that the event is the most likely to happen on the slate.
+        For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
     </section>
   );
