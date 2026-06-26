@@ -320,11 +320,19 @@ export const Route = createFileRoute("/_authenticated/odds")({
 function SimLeadersPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const queryClient = useQueryClient();
   const { data } = useSuspenseQuery(leadersQuery(search.date));
   const { data: actuals } = useSuspenseQuery(actualsQuery(search.date));
 
   const setSearch = (patch: Record<string, string | undefined>) =>
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
+
+  const refreshActuals = () =>
+    queryClient.invalidateQueries({ queryKey: ["sim-actuals", search.date ?? "today"] });
+  const lastUpdate = actuals.fetchedAt
+    ? new Date(actuals.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "—";
+
 
   const teams = useMemo(() => {
     const set = new Set<string>();
