@@ -29,6 +29,7 @@ import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/b
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
+import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 
 const TopPropsRoute = TopPropsRouteImport.update({
   id: '/top-props',
@@ -129,6 +130,12 @@ const ApiPublicHooksRefreshLineupsRoute =
     path: '/api/public/hooks/refresh-lineups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksBeforeUserCreatedRoute =
+  ApiPublicHooksBeforeUserCreatedRouteImport.update({
+    id: '/api/public/hooks/before-user-created',
+    path: '/api/public/hooks/before-user-created',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRoutesByTo {
@@ -168,6 +176,7 @@ export interface FileRoutesByTo {
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRoutesById {
@@ -191,6 +200,7 @@ export interface FileRoutesById {
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRouteTypes {
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/admin'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/admin'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   id:
     | '__root__'
@@ -255,6 +267,7 @@ export interface FileRouteTypes {
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/_authenticated/_admin/admin'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesById: FileRoutesById
 }
@@ -275,6 +288,7 @@ export interface RootRouteChildren {
   MatchupsGamePkRoute: typeof MatchupsGamePkRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
   TeamsTeamIdRoute: typeof TeamsTeamIdRoute
+  ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
 }
 
@@ -420,6 +434,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksRefreshLineupsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/before-user-created': {
+      id: '/api/public/hooks/before-user-created'
+      path: '/api/public/hooks/before-user-created'
+      fullPath: '/api/public/hooks/before-user-created'
+      preLoaderRoute: typeof ApiPublicHooksBeforeUserCreatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -467,6 +488,7 @@ const rootRouteChildren: RootRouteChildren = {
   MatchupsGamePkRoute: MatchupsGamePkRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,
   TeamsTeamIdRoute: TeamsTeamIdRoute,
+  ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
 }
 export const routeTree = rootRouteImport
