@@ -225,6 +225,8 @@ function ModelResultsPage() {
         setScope={setScope}
       />
 
+      <HomeRunEventReview leaders={leaders} actuals={actuals} />
+
       <ProbabilityCalibration data={calibration} />
     </div>
   );
@@ -458,7 +460,12 @@ function CategoryRow({
         <td className="px-2 py-2 text-right mono tabular-nums text-amber-300">{s.close}</td>
         <td className="px-2 py-2 text-right mono tabular-nums text-rose-300">{s.missed}</td>
         <td className="px-2 py-2 text-right mono tabular-nums">
-          {s.hitRate == null ? "—" : `${(s.hitRate * 100).toFixed(0)}%`}
+          {s.hitRate == null ? "—" : `${s.metOrBeat} / ${s.qualified} · ${(s.hitRate * 100).toFixed(0)}%`}
+          {s.qualified > 0 && s.qualified < 10 ? (
+            <div className="text-[10px] font-normal italic text-amber-300/80">
+              Early sample — not yet stable
+            </div>
+          ) : null}
         </td>
         <td className="px-2 py-2 text-right mono tabular-nums text-edge">
           {s.avgMean == null ? "—" : s.avgMean.toFixed(s.cat.meanDigits)}
@@ -802,5 +809,210 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ============================================================
+ * Section 1.5 — Home Run Event Review
+ *
+ * Uses only the locked, pregame-stored hr_probability from the projection
+ * row (`card_probabilities.hr`) and HR.mean from the same finalized sim
+ * payload, joined to box-score HR actuals. Never fabricates a HR
+ * probability and never counts an actual of 0 HR as a successful call.
+ * ============================================================ */
+
+type HrScope = "top25" | "all";
+
+function HomeRunEventReview({
+  leaders,
+  actuals,
+}: {
+  leaders: import("@/lib/sim.functions").SimulationLeadersPayload;
+  actuals: import("@/lib/actuals.functions").ActualsPayload;
+}) {
+  const [scope, setScope] = useState<HrScope>("top25");
+
+  const eligible = useMemo(() => {
+    // Locked pregame HR call = stored hr_probability on a hitter card whose
+    // game went Final and whose actuals row is present.
+    const rows: Array<{
+      key: string;
+      player_name: string;
+      mlb_id: number | null;
+      team_abbrev: string;
+      hr_mean: number | null;
+      hr_prob: number;
+      actual_hr: number;
+      hit: boolean;
+    }> = [];
+    for (const h of leaders.hitters) {
+      const prob = h.card_probabilities.hr;
+      if (prob == null || !isFinite(prob)) continue;
+      if (h.mlb_game_id == null || !actuals.finalGames.includes(h.mlb_game_id)) continue;
+      const act = h.mlb_id != null ? actuals.hitters[String(h.mlb_id)] : undefined;
+      if (!act) continue;
+      const actualHr = act.HR ?? 0;
+      rows.push({
+        key: `${h.mlb_id ?? h.player_name}:${h.game_id}`,
+        player_name: h.player_name,
+        mlb_id: h.mlb_id,
+        team_abbrev: h.team_abbrev,
+        hr_mean: h.HR?.mean ?? null,
+        hr_prob: prob,
+        actual_hr: actualHr,
+        hit: actualHr >= 1,
+      });
+    }
+    rows.sort((a, b) => b.hr_prob - a.hr_prob);
+    return rows;
+  }, [leaders, actuals]);
+
+  const selected = scope === "top25" ? eligible.slice(0, 25) : eligible;
+
+  const n = selected.length;
+  const hits = selected.filter((r) => r.hit).length;
+  const avgProb = n > 0 ? selected.reduce((s, r) => s + r.hr_prob, 0) / n : null;
+  const meanRows = selected.filter((r) => r.hr_mean != null) as Array<typeof selected[number] & { hr_mean: number }>;
+  const avgMean =
+    meanRows.length > 0 ? meanRows.reduce((s, r) => s + r.hr_mean, 0) / meanRows.length : null;
+  const brier =
+    n > 0
+      ? selected.reduce((s, r) => s + Math.pow(r.hr_prob - (r.hit ? 1 : 0), 2), 0) / n
+      : null;
+  const hitPct = n > 0 ? hits / n : null;
+  const earlySample = n > 0 && n < 10;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/40 pb-3">
+        <div>
+          <div className="mono text-[10px] uppercase tracking-widest text-edge">Section 1.5</div>
+          <h2 className="font-display text-2xl font-bold tracking-wide">Home Run Event Review</h2>
+          <p className="text-xs text-muted-foreground">
+            Did our locked-pregame HR calls actually homer? Uses the stored hr_probability for each
+            player on this slate vs. final box scores. A zero-HR outcome is never a successful call.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-md border border-border/60 bg-card/40 p-0.5">
+          {(["top25", "all"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              className={`mono rounded px-2.5 py-1 text-[10px] uppercase tracking-widest transition ${
+                scope === s
+                  ? "bg-primary/20 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {s === "top25" ? "Top HR Leaders" : "All HR Candidates"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {n === 0 ? (
+        <div className="rounded-lg border border-border/60 bg-card/30 p-6 text-center text-sm text-muted-foreground">
+          No locked-pregame HR calls with finalized actuals for this slate.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <HeroCard
+              label="HR Calls"
+              value={
+                <>
+                  {hits}
+                  <span className="text-muted-foreground"> / {n}</span>
+                </>
+              }
+              sub={hitPct == null ? "—" : `${(hitPct * 100).toFixed(1)}% Hit HR`}
+              tone={hits > 0 ? "good" : "bad"}
+            />
+            <HeroCard
+              label="Avg HR Probability"
+              value={avgProb == null ? "—" : `${(avgProb * 100).toFixed(1)}%`}
+              sub="Stored pregame hr_probability"
+            />
+            <HeroCard
+              label="Avg HR Mean"
+              value={avgMean == null ? "—" : avgMean.toFixed(3)}
+              sub="HR per game (from finalized sim)"
+            />
+            <HeroCard
+              label="Brier Score"
+              value={brier == null ? "—" : brier.toFixed(3)}
+              sub="Lower is better · 0 = perfect"
+            />
+            <HeroCard
+              label="Sample"
+              value={n.toLocaleString()}
+              sub={scope === "top25" ? "Top 25 HR call leaders" : "All HR candidates on slate"}
+              tone={earlySample ? "warn" : undefined}
+            />
+          </div>
+
+          {earlySample ? (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs italic text-amber-200">
+              Early sample — not yet stable. With n &lt; 10, hit-rate and Brier swing wildly on a
+              single outcome.
+            </div>
+          ) : null}
+
+          <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
+            <table className="table-modern w-full text-left text-xs">
+              <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                <tr className="border-b border-border/40">
+                  <th className="px-2 py-2">Player</th>
+                  <th className="px-2 py-2">Team</th>
+                  <th className="px-2 py-2 text-right">HR Mean</th>
+                  <th className="px-2 py-2 text-right">P(HR ≥1)</th>
+                  <th className="px-2 py-2 text-right">Actual HR</th>
+                  <th className="px-2 py-2">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selected.map((r) => (
+                  <tr key={r.key} className="border-t border-border/30">
+                    <td className="px-2 py-1.5">
+                      {r.mlb_id ? (
+                        <Link
+                          to="/players/$playerId"
+                          params={{ playerId: String(r.mlb_id) }}
+                          className="font-semibold hover:underline"
+                        >
+                          {r.player_name}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold">{r.player_name}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 mono text-muted-foreground">{r.team_abbrev}</td>
+                    <td className="px-2 py-1.5 text-right mono tabular-nums text-edge">
+                      {r.hr_mean == null ? "—" : r.hr_mean.toFixed(3)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right mono tabular-nums">
+                      {(r.hr_prob * 100).toFixed(1)}%
+                    </td>
+                    <td className="px-2 py-1.5 text-right mono tabular-nums">{r.actual_hr}</td>
+                    <td className="px-2 py-1.5">
+                      <span
+                        className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${
+                          r.hit
+                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                            : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                        }`}
+                      >
+                        {r.hit ? "Hit HR" : "No HR"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
