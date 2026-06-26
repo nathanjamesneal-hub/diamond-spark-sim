@@ -513,6 +513,35 @@ export async function runDiamondEngineForGames(
       pitcherQuality: 100 - (Number(dna.contact) || 50),
     });
     const gls = glsByGame.get(sp.game_id);
+
+    // Snapshot resolution — immutable once locked.
+    const snapKey = `${sp.game_id}:${sp.player_id}`;
+    let sim_snapshot: any = priorSnapshotByKey.get(snapKey) ?? null;
+    if (!sim_snapshot) {
+      const eligible =
+        isPregameStatus(game.game_status) &&
+        isLineupConfirmed({
+          gls_status: gls?.status,
+          lineup_confirmed_flag: sp.confirmed === true,
+        });
+      if (eligible) {
+        const mlbId = mlbIdByPlayer.get(sp.player_id) ?? null;
+        const dist =
+          mlbId != null ? distsByGame.get(sp.game_id)?.pitcherByMlbId.get(mlbId) : undefined;
+        if (dist) {
+          sim_snapshot = buildPitcherSnapshot({
+            dist,
+            game_id: sp.game_id,
+            game_pk: game.mlb_game_id ?? null,
+            player_id: sp.player_id,
+            mlb_id: mlbId,
+            model_version: version,
+            iterations: SNAPSHOT_ITERATIONS,
+          }) as any;
+        }
+      }
+    }
+
     projections.push({
       // Tag pitcher rows with the active hitter version so the slate filter
       // (which keys off the active model_version) keeps them visible.
@@ -535,6 +564,7 @@ export async function runDiamondEngineForGames(
       lineup_source: gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      sim_snapshot,
     });
   }
 
