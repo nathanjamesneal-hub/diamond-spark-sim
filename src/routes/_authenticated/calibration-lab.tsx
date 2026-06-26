@@ -225,6 +225,8 @@ function ModelResultsPage() {
         setScope={setScope}
       />
 
+      <HomeRunEventReview leaders={leaders} actuals={actuals} />
+
       <ProbabilityCalibration data={calibration} />
     </div>
   );
