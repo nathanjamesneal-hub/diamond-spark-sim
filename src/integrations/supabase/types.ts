@@ -670,6 +670,7 @@ export type Database = {
           rbi_probability: number | null
           run_probability: number | null
           sb_probability: number | null
+          sim_snapshot: Json | null
           speed_score: number | null
           total_base_probability: number | null
         }
@@ -701,6 +702,7 @@ export type Database = {
           rbi_probability?: number | null
           run_probability?: number | null
           sb_probability?: number | null
+          sim_snapshot?: Json | null
           speed_score?: number | null
           total_base_probability?: number | null
         }
@@ -732,6 +734,7 @@ export type Database = {
           rbi_probability?: number | null
           run_probability?: number | null
           sb_probability?: number | null
+          sim_snapshot?: Json | null
           speed_score?: number | null
           total_base_probability?: number | null
         }
