@@ -55,15 +55,16 @@ export type SlateRow = {
 };
 
 export const getTodaysSlate = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<{
+  .handler(async ({ data, context }): Promise<{
     date: string;
     modelVersion: string | null;
     rows: SlateRow[];
     games: SlateGame[];
     diagnostics: SlateDiagnostics;
   }> => {
-    const sb = publicClient();
+    const sb = context.supabase;
     const date = data.date ?? todayIso();
 
     // ---- 1. Pull the raw MLB schedule for today (CT). Always trust this as truth. ----
