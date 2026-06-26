@@ -290,55 +290,78 @@ function CategoryTable({ summaries }: { summaries: MRCategorySummary[] }) {
           {summaries.map((s) => {
             const isOpen = expanded === s.cat.key;
             return (
-              <>
-                <tr
-                  key={s.cat.key}
-                  className="cursor-pointer border-t border-border/30 hover:bg-card/60"
-                  onClick={() => setExpanded(isOpen ? null : s.cat.key)}
-                >
-                  <td className="px-2 py-2">
-                    <span className="font-semibold">{s.cat.label}</span>
-                    <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {s.cat.group}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{s.qualified}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-emerald-300">{s.metOrBeat}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-amber-300">{s.close}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-rose-300">{s.missed}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">
-                    {s.hitRate == null ? "—" : `${(s.hitRate * 100).toFixed(0)}%`}
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-edge">
-                    {s.avgMean == null ? "—" : s.avgMean.toFixed(s.cat.meanDigits)}
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">
-                    {s.avgActual == null ? "—" : s.avgActual.toFixed(s.cat.meanDigits)}
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">
-                    {s.mae == null ? "—" : s.mae.toFixed(2)}
-                  </td>
-                  <td className={`px-2 py-2 text-right mono tabular-nums ${
-                    s.bias == null
-                      ? "text-muted-foreground"
-                      : s.bias >= 0
-                        ? "text-sky-300"
-                        : "text-amber-300"
-                  }`}>
-                    {s.bias == null ? "—" : `${s.bias >= 0 ? "+" : ""}${s.bias.toFixed(2)}`}
-                  </td>
-                  <td className="px-2 py-2 text-right text-muted-foreground">{isOpen ? "▾" : "▸"}</td>
-                </tr>
-                {isOpen ? (
-                  <tr key={`${s.cat.key}:exp`}>
-                    <td colSpan={11} className="bg-background/40 px-2 py-3">
-                      <PlayerBreakdown summary={s} />
-                    </td>
-                  </tr>
-                ) : null}
-              </>
+              <CategoryRow
+                key={s.cat.key}
+                s={s}
+                isOpen={isOpen}
+                onToggle={() => setExpanded(isOpen ? null : s.cat.key)}
+              />
             );
           })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CategoryRow({
+  s,
+  isOpen,
+  onToggle,
+}: {
+  s: MRCategorySummary;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr
+        className="cursor-pointer border-t border-border/30 hover:bg-card/60"
+        onClick={onToggle}
+      >
+        <td className="px-2 py-2">
+          <span className="font-semibold">{s.cat.label}</span>
+          <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+            {s.cat.group}
+          </span>
+        </td>
+        <td className="px-2 py-2 text-right mono tabular-nums">{s.qualified}</td>
+        <td className="px-2 py-2 text-right mono tabular-nums text-emerald-300">{s.metOrBeat}</td>
+        <td className="px-2 py-2 text-right mono tabular-nums text-amber-300">{s.close}</td>
+        <td className="px-2 py-2 text-right mono tabular-nums text-rose-300">{s.missed}</td>
+        <td className="px-2 py-2 text-right mono tabular-nums">
+          {s.hitRate == null ? "—" : `${(s.hitRate * 100).toFixed(0)}%`}
+        </td>
+        <td className="px-2 py-2 text-right mono tabular-nums text-edge">
+          {s.avgMean == null ? "—" : s.avgMean.toFixed(s.cat.meanDigits)}
+        </td>
+        <td className="px-2 py-2 text-right mono tabular-nums">
+          {s.avgActual == null ? "—" : s.avgActual.toFixed(s.cat.meanDigits)}
+        </td>
+        <td className="px-2 py-2 text-right mono tabular-nums">
+          {s.mae == null ? "—" : s.mae.toFixed(2)}
+        </td>
+        <td className={`px-2 py-2 text-right mono tabular-nums ${
+          s.bias == null
+            ? "text-muted-foreground"
+            : s.bias >= 0
+              ? "text-sky-300"
+              : "text-amber-300"
+        }`}>
+          {s.bias == null ? "—" : `${s.bias >= 0 ? "+" : ""}${s.bias.toFixed(2)}`}
+        </td>
+        <td className="px-2 py-2 text-right text-muted-foreground">{isOpen ? "▾" : "▸"}</td>
+      </tr>
+      {isOpen ? (
+        <tr>
+          <td colSpan={11} className="bg-background/40 px-2 py-3">
+            <PlayerBreakdown summary={s} />
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
         </tbody>
       </table>
     </div>
