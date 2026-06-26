@@ -437,6 +437,36 @@ export async function runDiamondEngineForGames(
     });
 
     const gls = glsByGame.get(l.game_id);
+
+    // Snapshot resolution — locked snapshots are immutable.
+    const snapKey = `${l.game_id}:${l.player_id}`;
+    let sim_snapshot: any = priorSnapshotByKey.get(snapKey) ?? null;
+    if (!sim_snapshot) {
+      const eligible =
+        isPregameStatus(game.game_status) &&
+        isLineupConfirmed({
+          lineup_status: l.lineup_status,
+          gls_status: gls?.status,
+          lineup_confirmed_flag: l.confirmed === true || l.locked_at != null,
+        });
+      if (eligible) {
+        const mlbId = mlbIdByPlayer.get(l.player_id) ?? null;
+        const dist =
+          mlbId != null ? distsByGame.get(l.game_id)?.hittersByMlbId.get(mlbId) : undefined;
+        if (dist) {
+          sim_snapshot = buildHitterSnapshot({
+            dist,
+            game_id: l.game_id,
+            game_pk: game.mlb_game_id ?? null,
+            player_id: l.player_id,
+            mlb_id: mlbId,
+            model_version: version,
+            iterations: SNAPSHOT_ITERATIONS,
+          }) as any;
+        }
+      }
+    }
+
     projections.push({
       player_id: l.player_id, game_id: l.game_id, model_version: version,
       projection_role: out.role,
@@ -457,6 +487,7 @@ export async function runDiamondEngineForGames(
       lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      sim_snapshot,
     });
   }
 
