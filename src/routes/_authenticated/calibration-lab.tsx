@@ -203,6 +203,13 @@ function ModelResultsPage() {
           <span className="mono ml-3 text-[11px] uppercase tracking-widest text-muted-foreground">
             {info.final} finalized · {info.pending} pending · {info.scheduled} scheduled
           </span>
+          <div className="mono mt-1 text-[11px] uppercase tracking-widest text-muted-foreground">
+            Snapshot coverage:{" "}
+            <span className={info.snapshotCoverage.locked > 0 ? "text-emerald-300" : "text-amber-300"}>
+              {info.snapshotCoverage.locked} / {info.snapshotCoverage.eligible}
+            </span>{" "}
+            eligible projections locked
+          </div>
         </div>
 
         {banner ? (
@@ -223,9 +230,15 @@ function ModelResultsPage() {
         hero={hero}
         scope={scope}
         setScope={setScope}
+        snapshotsLocked={info.snapshotCoverage.locked}
+        isHistorical={date < todayInAppTz()}
       />
 
-      <HomeRunEventReview leaders={leaders} actuals={actuals} />
+      <HomeRunEventReview
+        leaders={leaders}
+        actuals={actuals}
+        snapshotsLocked={info.snapshotCoverage.locked}
+      />
 
       <ProbabilityCalibration data={calibration} />
     </div>
