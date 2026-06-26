@@ -1,29 +1,460 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { getCalibration, type CalibrationRow } from "@/lib/projections.functions";
+import { getSimulationLeaders } from "@/lib/sim.functions";
+import { getActualsForDate } from "@/lib/actuals.functions";
+import {
+  MR_CATEGORIES,
+  MR_TONE_CLASS,
+  buildCategorySummary,
+  buildHero,
+  type MRCategorySummary,
+  type MRScope,
+} from "@/lib/model-results";
 
-const q = queryOptions({
+const calibrationQ = queryOptions({
   queryKey: ["calibration"],
   queryFn: () => getCalibration(),
   staleTime: 5 * 60 * 1000,
 });
 
+const leadersQ = (date?: string) =>
+  queryOptions({
+    queryKey: ["mr-leaders", date ?? "today"],
+    queryFn: () => getSimulationLeaders({ data: date ? { date } : {} }),
+    staleTime: 60_000,
+  });
+
+const actualsQ = (date?: string) =>
+  queryOptions({
+    queryKey: ["mr-actuals", date ?? "today"],
+    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
+    staleTime: 60_000,
+  });
+
 export const Route = createFileRoute("/calibration-lab")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Calibration Lab · Diamond" },
-      { name: "description", content: "Hitter model calibration: predicted vs. observed by stat and probability bucket." },
+      { title: "Model Results · Diamond" },
+      {
+        name: "description",
+        content:
+          "How Diamond's finalized simulation projections performed against actual box scores.",
+      },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(q),
-  component: CalibrationLabPage,
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(calibrationQ),
+      context.queryClient.ensureQueryData(leadersQ(undefined)),
+      context.queryClient.ensureQueryData(actualsQ(undefined)),
+    ]),
+  component: ModelResultsPage,
   errorComponent: ({ error }) => (
-    <div className="p-8 text-sm text-muted-foreground">Couldn't load calibration: {error.message}</div>
+    <div className="p-8 text-sm text-muted-foreground">
+      Couldn't load Model Results: {error.message}
+    </div>
   ),
   notFoundComponent: () => <div className="p-8">Not found.</div>,
 });
+
+function ModelResultsPage() {
+  const { data: calibration } = useSuspenseQuery(calibrationQ);
+  const { data: leaders } = useSuspenseQuery(leadersQ(undefined));
+  const { data: actuals } = useSuspenseQuery(actualsQ(undefined));
+
+  const [scope, setScope] = useState<MRScope>("all");
+
+  const summaries = useMemo(
+    () => MR_CATEGORIES.map((c) => buildCategorySummary(c, leaders, actuals, scope)),
+    [leaders, actuals, scope],
+  );
+  const hero = useMemo(() => buildHero(summaries), [summaries]);
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 space-y-10">
+      <header className="space-y-1">
+        <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">
+          Diamond model validation
+        </div>
+        <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
+          Model Results
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          How Diamond's finalized simulation projections performed against actual box scores.
+        </p>
+        <p className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          Slate: {leaders.date} · {actuals.finalGames.length} final ·{" "}
+          {actuals.pendingGames.length} pending
+        </p>
+      </header>
+
+      <MeanProjectionAccuracy
+        summaries={summaries}
+        hero={hero}
+        scope={scope}
+        setScope={setScope}
+      />
+
+      <ProbabilityCalibration data={calibration} />
+    </div>
+  );
+}
+
+/* ============================================================
+ * Section A — Mean Projection Accuracy
+ * ============================================================ */
+
+function MeanProjectionAccuracy({
+  summaries,
+  hero,
+  scope,
+  setScope,
+}: {
+  summaries: MRCategorySummary[];
+  hero: ReturnType<typeof buildHero>;
+  scope: MRScope;
+  setScope: (s: MRScope) => void;
+}) {
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/40 pb-3">
+        <div>
+          <div className="mono text-[10px] uppercase tracking-widest text-edge">Section 1</div>
+          <h2 className="font-display text-2xl font-bold tracking-wide">
+            Mean Projection Accuracy
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Grades existing Monte Carlo mean outputs (H.mean, TB.mean, RBI.mean, R.mean, K.mean,
+            Outs.mean, BB.mean) against final box-score actuals.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-md border border-border/60 bg-card/40 p-0.5">
+          {(["all", "top25"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              className={`mono rounded px-2.5 py-1 text-[10px] uppercase tracking-widest transition ${
+                scope === s
+                  ? "bg-primary/20 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {s === "all" ? "All Qualified" : "Top 25 Only"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hero summary */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <HeroCard
+          label="Qualified Projections"
+          value={hero.qualified.toLocaleString()}
+          sub="Mean ≥ 0.5 with final actual"
+          tooltip="Qualified projections have a mean of at least 0.5. A zero actual result never counts as a successful projection."
+        />
+        <HeroCard
+          label="Met or Beat"
+          value={
+            <>
+              {hero.metOrBeat}
+              <span className="text-muted-foreground">
+                {" "}/ {hero.qualified}
+              </span>
+            </>
+          }
+          sub={
+            hero.metOrBeatPct == null
+              ? "—"
+              : `${(hero.metOrBeatPct * 100).toFixed(1)}% hit rate`
+          }
+          tone="good"
+        />
+        <HeroCard label="Close" value={hero.close} sub="actual = target − 1" tone="warn" />
+        <HeroCard label="Missed" value={hero.missed} sub="incl. all zero actuals" tone="bad" />
+        <HeroCard
+          label="Avg Category MAE"
+          value={hero.avgCategoryMAE == null ? "—" : hero.avgCategoryMAE.toFixed(2)}
+          sub="Equal-weight average of category MAEs"
+        />
+        <HeroCard
+          label="Hitters · Mean → Actual"
+          value={
+            hero.hitterAvgMean == null
+              ? "—"
+              : `${hero.hitterAvgMean.toFixed(2)} → ${hero.hitterAvgActual?.toFixed(2) ?? "—"}`
+          }
+          sub="Average across qualified hitter projections"
+        />
+        <HeroCard
+          label="Pitchers · Mean → Actual"
+          value={
+            hero.pitcherAvgMean == null
+              ? "—"
+              : `${hero.pitcherAvgMean.toFixed(2)} → ${hero.pitcherAvgActual?.toFixed(2) ?? "—"}`
+          }
+          sub="Average across qualified pitcher projections"
+        />
+        <HeroCard
+          label="Scope"
+          value={scope === "top25" ? "Top 25" : "All Qualified"}
+          sub={
+            scope === "top25"
+              ? "Per-category top-25 leaderboard rows only"
+              : "Every player with mean ≥ 0.5 (per category)"
+          }
+        />
+      </div>
+
+      {hero.qualified === 0 ? (
+        <div className="rounded-lg border border-border/60 bg-card/30 p-6 text-center text-sm text-muted-foreground">
+          No finalized projections to grade yet. Once today's games go Final, results appear here.
+        </div>
+      ) : (
+        <CategoryTable summaries={summaries} />
+      )}
+    </section>
+  );
+}
+
+function HeroCard({
+  label,
+  value,
+  sub,
+  tone,
+  tooltip,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  tone?: "good" | "warn" | "bad";
+  tooltip?: string;
+}) {
+  const toneClass =
+    tone === "good"
+      ? "text-emerald-300"
+      : tone === "warn"
+        ? "text-amber-300"
+        : tone === "bad"
+          ? "text-rose-300"
+          : "text-foreground";
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-card/60 p-4"
+      title={tooltip}
+    >
+      <div className="mono flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+        {tooltip ? (
+          <span
+            aria-label={tooltip}
+            className="mono inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-border/70 text-[8px] font-bold text-muted-foreground"
+          >
+            i
+          </span>
+        ) : null}
+      </div>
+      <div className={`font-display mt-1 text-2xl font-bold tabular-nums ${toneClass}`}>
+        {value}
+      </div>
+      {sub ? <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div> : null}
+    </div>
+  );
+}
+
+function CategoryTable({ summaries }: { summaries: MRCategorySummary[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
+      <table className="table-modern w-full text-left text-xs">
+        <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <tr className="border-b border-border/40">
+            <th className="px-2 py-2">Category</th>
+            <th className="px-2 py-2 text-right">Qual</th>
+            <th className="px-2 py-2 text-right">Met/Beat</th>
+            <th className="px-2 py-2 text-right">Close</th>
+            <th className="px-2 py-2 text-right">Missed</th>
+            <th className="px-2 py-2 text-right">Hit Rate</th>
+            <th className="px-2 py-2 text-right">Avg Mean</th>
+            <th className="px-2 py-2 text-right">Avg Actual</th>
+            <th className="px-2 py-2 text-right">MAE</th>
+            <th className="px-2 py-2 text-right" title="avg(actual − mean). Positive = under-projection, negative = over-projection.">Bias</th>
+            <th className="px-2 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {summaries.map((s) => {
+            const isOpen = expanded === s.cat.key;
+            return (
+              <>
+                <tr
+                  key={s.cat.key}
+                  className="cursor-pointer border-t border-border/30 hover:bg-card/60"
+                  onClick={() => setExpanded(isOpen ? null : s.cat.key)}
+                >
+                  <td className="px-2 py-2">
+                    <span className="font-semibold">{s.cat.label}</span>
+                    <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {s.cat.group}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-right mono tabular-nums">{s.qualified}</td>
+                  <td className="px-2 py-2 text-right mono tabular-nums text-emerald-300">{s.metOrBeat}</td>
+                  <td className="px-2 py-2 text-right mono tabular-nums text-amber-300">{s.close}</td>
+                  <td className="px-2 py-2 text-right mono tabular-nums text-rose-300">{s.missed}</td>
+                  <td className="px-2 py-2 text-right mono tabular-nums">
+                    {s.hitRate == null ? "—" : `${(s.hitRate * 100).toFixed(0)}%`}
+                  </td>
+                  <td className="px-2 py-2 text-right mono tabular-nums text-edge">
+                    {s.avgMean == null ? "—" : s.avgMean.toFixed(s.cat.meanDigits)}
+                  </td>
+                  <td className="px-2 py-2 text-right mono tabular-nums">
+                    {s.avgActual == null ? "—" : s.avgActual.toFixed(s.cat.meanDigits)}
+                  </td>
+                  <td className="px-2 py-2 text-right mono tabular-nums">
+                    {s.mae == null ? "—" : s.mae.toFixed(2)}
+                  </td>
+                  <td className={`px-2 py-2 text-right mono tabular-nums ${
+                    s.bias == null
+                      ? "text-muted-foreground"
+                      : s.bias >= 0
+                        ? "text-sky-300"
+                        : "text-amber-300"
+                  }`}>
+                    {s.bias == null ? "—" : `${s.bias >= 0 ? "+" : ""}${s.bias.toFixed(2)}`}
+                  </td>
+                  <td className="px-2 py-2 text-right text-muted-foreground">{isOpen ? "▾" : "▸"}</td>
+                </tr>
+                {isOpen ? (
+                  <tr key={`${s.cat.key}:exp`}>
+                    <td colSpan={11} className="bg-background/40 px-2 py-3">
+                      <PlayerBreakdown summary={s} />
+                    </td>
+                  </tr>
+                ) : null}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PlayerBreakdown({ summary }: { summary: MRCategorySummary }) {
+  if (summary.rows.length === 0 && summary.unqualifiedRows.length === 0) {
+    return <div className="text-xs text-muted-foreground">No finalized rows.</div>;
+  }
+  return (
+    <div className="space-y-3">
+      {summary.rows.length > 0 ? (
+        <div className="overflow-x-auto rounded border border-border/40">
+          <table className="table-modern w-full text-left text-[11px]">
+            <thead className="mono text-[9px] uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-border/40">
+                <th className="px-2 py-1.5">Player</th>
+                <th className="px-2 py-1.5">Team</th>
+                <th className="px-2 py-1.5">Opp</th>
+                <th className="px-2 py-1.5 text-right">Mean</th>
+                <th className="px-2 py-1.5 text-right">Target</th>
+                <th className="px-2 py-1.5 text-right">Actual</th>
+                <th className="px-2 py-1.5">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.rows.map((r) => (
+                <tr key={r.key} className="border-t border-border/30">
+                  <td className="px-2 py-1.5">
+                    {r.mlb_id ? (
+                      <Link
+                        to="/players/$playerId"
+                        params={{ playerId: String(r.mlb_id) }}
+                        className="font-semibold hover:underline"
+                      >
+                        {r.player_name}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold">{r.player_name}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 mono text-muted-foreground">{r.team_abbrev}</td>
+                  <td className="px-2 py-1.5 mono text-muted-foreground">{r.opp_abbrev}</td>
+                  <td className="px-2 py-1.5 text-right mono tabular-nums text-edge">
+                    {r.mean.toFixed(summary.cat.meanDigits)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right mono tabular-nums text-muted-foreground">
+                    {r.target}
+                  </td>
+                  <td className="px-2 py-1.5 text-right mono tabular-nums">{r.actual}</td>
+                  <td className="px-2 py-1.5">
+                    <span className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${MR_TONE_CLASS[r.tone]}`}>
+                      {r.grade}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {summary.unqualifiedRows.length > 0 ? (
+        <details className="rounded border border-border/40 bg-background/30 p-2">
+          <summary className="mono cursor-pointer text-[10px] uppercase tracking-widest text-muted-foreground">
+            Unqualified rows (mean &lt; 0.5) · {summary.unqualifiedRows.length} · excluded from hit rate
+          </summary>
+          <table className="table-modern mt-2 w-full text-left text-[11px]">
+            <thead className="mono text-[9px] uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-border/40">
+                <th className="px-2 py-1.5">Player</th>
+                <th className="px-2 py-1.5">Team</th>
+                <th className="px-2 py-1.5 text-right">Mean</th>
+                <th className="px-2 py-1.5 text-right">Actual</th>
+                <th className="px-2 py-1.5">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.unqualifiedRows.map((r) => (
+                <tr key={r.key} className="border-t border-border/30">
+                  <td className="px-2 py-1.5">
+                    {r.mlb_id ? (
+                      <Link
+                        to="/players/$playerId"
+                        params={{ playerId: String(r.mlb_id) }}
+                        className="hover:underline"
+                      >
+                        {r.player_name}
+                      </Link>
+                    ) : (
+                      r.player_name
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 mono text-muted-foreground">{r.team_abbrev}</td>
+                  <td className="px-2 py-1.5 text-right mono tabular-nums text-edge">
+                    {r.mean.toFixed(summary.cat.meanDigits)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right mono tabular-nums">{r.actual}</td>
+                  <td className="px-2 py-1.5">
+                    <span className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${MR_TONE_CLASS[r.tone]}`}>
+                      {r.grade}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+/* ============================================================
+ * Section B — Probability Calibration (existing, relabeled)
+ * ============================================================ */
 
 type StatKey = "hit" | "tb" | "hr" | "rbi" | "sb";
 type BucketKey = "high" | "med" | "low";
@@ -85,26 +516,7 @@ function deltaTone(deltaPp: number | null): { className: string; badge: string }
   return { className: "text-rose-400", badge: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30" };
 }
 
-function gradeFor(avgAbs: number | null): { grade: string; tone: string } {
-  if (avgAbs == null) return { grade: "—", tone: "text-muted-foreground" };
-  if (avgAbs <= 5) return { grade: "A", tone: "text-emerald-400" };
-  if (avgAbs <= 10) return { grade: "B", tone: "text-lime-400" };
-  if (avgAbs <= 15) return { grade: "C", tone: "text-amber-400" };
-  if (avgAbs <= 25) return { grade: "D", tone: "text-orange-400" };
-  return { grade: "F", tone: "text-rose-400" };
-}
-
-function takeawayForCell(c: Cell): string {
-  if (c.sampleSize < 25) return "Small sample — do not overreact yet.";
-  if (c.deltaPp == null || c.sampleSize === 0) return "Not enough data to grade.";
-  if (c.deltaPp <= -15) return "Model is overconfident for this bucket.";
-  if (c.deltaPp >= 15) return "Model is underestimating this bucket.";
-  if (Math.abs(c.deltaPp) <= 5) return "Well calibrated.";
-  return "Slight calibration drift.";
-}
-
-function CalibrationLabPage() {
-  const { data } = useSuspenseQuery(q);
+function ProbabilityCalibration({ data }: { data: { rows: CalibrationRow[]; versions: { version: string; active: boolean }[] } }) {
   const versions = data.versions;
   const activeVersion = versions.find((v) => v.active)?.version ?? versions[0]?.version ?? "";
   const [version, setVersion] = useState<string>(activeVersion);
@@ -117,9 +529,6 @@ function CalibrationLabPage() {
       map[s.key] = { high: toCell(undefined), med: toCell(undefined), low: toCell(undefined) };
       for (const b of BUCKETS) {
         const r = rows.find((x) => x.stat === s.key && x.confidence_bucket === b.key);
-        // HR rule: exclude predictions below 19% from HR hit-rate grading.
-        // The LOW bucket (<50%) contains the sub-19% "no play" predictions, so we
-        // mark it excluded and label it "No HR Play".
         if (s.key === "hr" && b.key === "low") {
           map[s.key][b.key] = toCell(r, { excluded: true, excludedLabel: "No HR Play" });
         } else {
@@ -130,66 +539,18 @@ function CalibrationLabPage() {
     return map;
   }, [rows]);
 
-  const { avgAbs, totalN, overallBias, bestStat, worstStat } = useMemo(() => {
-    const summary: Record<StatKey, { avgAbs: number | null; avgDelta: number | null; totalN: number }> = {} as any;
-    let globalAbsSum = 0;
-    let globalDeltaSum = 0;
-    let globalCount = 0;
-    let totalN = 0;
-
-    for (const s of STATS) {
-      let absSum = 0;
-      let deltaSum = 0;
-      let count = 0;
-      let n = 0;
-      for (const b of BUCKETS) {
-        const c = grid[s.key][b.key];
-        if (c.deltaPp != null && c.sampleSize > 0) {
-          absSum += Math.abs(c.deltaPp);
-          deltaSum += c.deltaPp;
-          count += 1;
-          n += c.sampleSize;
-        }
-      }
-      summary[s.key] = { avgAbs: count ? absSum / count : null, avgDelta: count ? deltaSum / count : null, totalN: n };
-      if (count > 0) {
-        globalAbsSum += absSum;
-        globalDeltaSum += deltaSum;
-        globalCount += count;
-        totalN += n;
-      }
-    }
-
-    const avgAbs = globalCount ? globalAbsSum / globalCount : null;
-    const overallBias = globalCount ? globalDeltaSum / globalCount : null;
-
-    let bestStat: StatKey | null = null;
-    let worstStat: StatKey | null = null;
-    let bestVal = Infinity;
-    let worstVal = -Infinity;
-    for (const s of STATS) {
-      const v = summary[s.key].avgAbs;
-      if (v != null) {
-        if (v < bestVal) { bestVal = v; bestStat = s.key; }
-        if (v > worstVal) { worstVal = v; worstStat = s.key; }
-      }
-    }
-
-    return { avgAbs, totalN, overallBias, bestStat, worstStat };
-  }, [grid]);
-
-  const grade = gradeFor(avgAbs);
-  const bestStatLabel = bestStat ? STATS.find((s) => s.key === bestStat)?.label ?? "—" : "—";
-  const worstStatLabel = worstStat ? STATS.find((s) => s.key === worstStat)?.label ?? "—" : "—";
-
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/40 pb-3">
         <div>
-          <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">Hitter model validation</div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Calibration Lab</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Predicted vs. observed rates, bucketed by the individual prop's predicted probability.
+          <div className="mono text-[10px] uppercase tracking-widest text-edge">Section 2</div>
+          <h2 className="font-display text-2xl font-bold tracking-wide">Probability Calibration</h2>
+          <p className="text-xs text-muted-foreground">
+            "Does a 70% model probability happen about 70% of the time over a meaningful sample?"
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Actual 0 is always a miss; actual ≥ 1 is a hit. A zero actual is never counted as a
+            successful prediction.
           </p>
         </div>
         {versions.length > 0 ? (
@@ -210,69 +571,12 @@ function CalibrationLabPage() {
         ) : null}
       </div>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Overall grade</div>
-          <div className={`font-display text-5xl font-bold leading-none ${grade.tone}`}>{grade.grade}</div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            {avgAbs == null ? "No samples yet." : `Avg |Δ| ${avgAbs.toFixed(1)} pp across populated buckets.`}
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Total events graded</div>
-          <div className="font-display text-3xl font-bold">{totalN.toLocaleString()}</div>
-          <div className="mt-2 text-xs text-muted-foreground">Aggregate sample across all stat × bucket cells.</div>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
-          <div className="mt-2 space-y-1.5 text-xs text-foreground/90">
-            <div>
-              <span className="text-muted-foreground">Best calibrated:</span>{" "}
-              <span className="font-medium text-emerald-400">{bestStatLabel}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Worst calibrated:</span>{" "}
-              <span className="font-medium text-rose-400">{worstStatLabel}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Overall bias:</span>{" "}
-              <span className="font-medium">
-                {overallBias == null ? "—" : `${overallBias >= 0 ? "+" : ""}${overallBias.toFixed(1)}pp`}
-              </span>
-              {overallBias != null ? (
-                <span className="ml-1 text-muted-foreground">
-                  ({overallBias < 0 ? "overconfident" : "underestimating"})
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Color key</div>
-          <div className="mt-2 flex flex-col gap-1.5 text-xs">
-            <span><span className="mono mr-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300 ring-1 ring-emerald-500/30">≤ 5pp</span>well calibrated</span>
-            <span><span className="mono mr-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-300 ring-1 ring-amber-500/30">5–15pp</span>drift</span>
-            <span><span className="mono mr-2 rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300 ring-1 ring-rose-500/30">&gt; 15pp</span>miscalibrated</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {STATS.map((s) => (
           <StatCard key={s.key} stat={s} buckets={grid[s.key]} />
         ))}
-      </section>
-
-      <section className="mt-8 rounded-xl border border-border/60 bg-card/40 p-5">
-        <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Notes</div>
-        <ul className="mt-3 space-y-2 text-sm text-foreground/90">
-          <li>• HR model is currently best calibrated.</li>
-          <li>• Hit and Total Bases models are overconfident.</li>
-          <li>• SB model is underestimating steal outcomes.</li>
-          <li className="text-muted-foreground">• Sample size warning: results are noisy under n=100.</li>
-        </ul>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -281,25 +585,15 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
     <div className="rounded-xl border border-border/60 bg-card/60 p-5">
       <div className="mb-4">
         <div className="mono text-[10px] uppercase tracking-widest text-edge">{stat.sub}</div>
-        <h2 className="font-display text-lg font-semibold">{stat.label}</h2>
+        <h3 className="font-display text-lg font-semibold">{stat.label}</h3>
       </div>
       <table className="table-modern mono w-full text-xs">
         <thead className="text-muted-foreground">
           <tr>
             <th className="px-1 py-1.5 text-left uppercase tracking-widest">Bucket</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Pred</th>
-            <th
-              className="px-1 py-1.5 text-right uppercase tracking-widest"
-              title="Observed count shows how many props actually hit out of total tracked props in this bucket."
-            >
-              Obs
-            </th>
-            <th
-              className="px-1 py-1.5 text-right uppercase tracking-widest"
-              title="Observed count shows how many props actually hit out of total tracked props in this bucket."
-            >
-              Hits
-            </th>
+            <th className="px-1 py-1.5 text-right uppercase tracking-widest">Obs</th>
+            <th className="px-1 py-1.5 text-right uppercase tracking-widest">Hits</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Δpp</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">n</th>
             <th className="px-1 py-1.5 text-right uppercase tracking-widest">Brier</th>
@@ -343,12 +637,7 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
                 <td className="px-1 py-2 text-right text-foreground">
                   {c.observedPct == null ? "—" : `${c.observedPct.toFixed(0)}%`}
                 </td>
-                <td
-                  className="px-1 py-2 text-right text-foreground"
-                  title="Observed count shows how many props actually hit out of total tracked props in this bucket."
-                >
-                  {hitsCell}
-                </td>
+                <td className="px-1 py-2 text-right text-foreground">{hitsCell}</td>
                 <td className={`px-1 py-2 text-right ${tone.className}`}>
                   {c.deltaPp == null ? "—" : `${c.deltaPp >= 0 ? "+" : ""}${c.deltaPp.toFixed(1)}`}
                 </td>
@@ -364,21 +653,6 @@ function StatCard({ stat, buckets }: { stat: { key: StatKey; label: string; sub:
           })}
         </tbody>
       </table>
-      <div className="mt-4 border-t border-border/40 pt-3">
-        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Model readout</div>
-        <div className="space-y-1.5">
-          {BUCKETS.map((b) => {
-            const c = buckets[b.key];
-            const text = c.excluded ? (c.excludedLabel ?? "Excluded") : takeawayForCell(c);
-            return (
-              <div key={b.key} className="flex items-start gap-2 text-xs">
-                <span className="mono mt-0.5 shrink-0 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{b.label}</span>
-                <span className="text-foreground/80">{text}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

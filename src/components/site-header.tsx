@@ -14,7 +14,7 @@ const nav = [
   { to: "/lineup-status", label: "Pipeline" },
 
   { to: "/calibration", label: "Calibration" },
-  { to: "/calibration-lab", label: "Cal Lab" },
+  { to: "/calibration-lab", label: "Model Results" },
   { to: "/leaderboards", label: "Leaders" },
 ] as const;
 
