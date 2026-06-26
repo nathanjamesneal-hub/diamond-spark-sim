@@ -361,7 +361,22 @@ function SimLeadersPage() {
           Date: {data.date} · {data.games_simulated}/{data.game_count} games simulated
           {data.warnings.length > 0 ? ` · ${data.warnings.length} warnings` : ""}
         </p>
+        <div className="mono flex flex-wrap items-center gap-2 pt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${actuals.liveGames.length > 0 ? "bg-sky-400 animate-pulse" : "bg-zinc-500"}`} />
+            {actuals.liveGames.length} live · {actuals.finalGames.length} final · {actuals.pendingGames.length} pending
+          </span>
+          <span>· Last live update: {lastUpdate}</span>
+          <button
+            type="button"
+            onClick={refreshActuals}
+            className="rounded border border-border/60 bg-card/40 px-2 py-0.5 text-[10px] uppercase tracking-widest hover:bg-card"
+          >
+            Refresh Live Results
+          </button>
+        </div>
       </header>
+
 
       {/* Filters */}
       <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card/30 p-3">
