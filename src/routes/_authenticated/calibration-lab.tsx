@@ -1,9 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { z } from "zod";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getCalibration, type CalibrationRow } from "@/lib/projections.functions";
 import { getSimulationLeaders } from "@/lib/sim.functions";
 import { getActualsForDate } from "@/lib/actuals.functions";
+import {
+  getDefaultModelResultsDate,
+  getModelResultsDateStatus,
+} from "@/lib/model-results.functions";
 import {
   MR_CATEGORIES,
   MR_TONE_CLASS,
@@ -12,6 +18,7 @@ import {
   type MRCategorySummary,
   type MRScope,
 } from "@/lib/model-results";
+import { APP_LOCALE, APP_TIMEZONE } from "@/lib/timezone";
 
 const calibrationQ = queryOptions({
   queryKey: ["calibration"],
@@ -19,19 +26,45 @@ const calibrationQ = queryOptions({
   staleTime: 5 * 60 * 1000,
 });
 
-const leadersQ = (date?: string) =>
+const leadersQ = (date: string) =>
   queryOptions({
-    queryKey: ["mr-leaders", date ?? "today"],
-    queryFn: () => getSimulationLeaders({ data: date ? { date } : {} }),
+    queryKey: ["mr-leaders", date],
+    queryFn: () => getSimulationLeaders({ data: { date } }),
     staleTime: 60_000,
   });
 
-const actualsQ = (date?: string) =>
+const actualsQ = (date: string) =>
   queryOptions({
-    queryKey: ["mr-actuals", date ?? "today"],
-    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
+    queryKey: ["mr-actuals", date],
+    queryFn: () => getActualsForDate({ data: { date } }),
     staleTime: 60_000,
   });
+
+const statusQ = (date: string) =>
+  queryOptions({
+    queryKey: ["mr-status", date],
+    queryFn: () => getModelResultsDateStatus({ data: { date } }),
+    staleTime: 60_000,
+  });
+
+const searchSchema = z.object({
+  date: fallback(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), undefined),
+});
+
+function formatLongDate(iso: string): string {
+  try {
+    // ISO is already a Chicago game date — parse as noon UTC to avoid TZ drift.
+    return new Date(iso + "T12:00:00Z").toLocaleDateString(APP_LOCALE, {
+      timeZone: APP_TIMEZONE,
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
 
 export const Route = createFileRoute("/_authenticated/calibration-lab")({
   ssr: false,
@@ -45,12 +78,22 @@ export const Route = createFileRoute("/_authenticated/calibration-lab")({
       },
     ],
   }),
-  loader: ({ context }) =>
-    Promise.all([
+  validateSearch: zodValidator(searchSchema),
+  loaderDeps: ({ search }) => ({ date: search.date }),
+  loader: async ({ context, deps }) => {
+    let date = deps.date;
+    if (!date) {
+      const def = await getDefaultModelResultsDate();
+      date = def.date;
+    }
+    await Promise.all([
       context.queryClient.ensureQueryData(calibrationQ),
-      context.queryClient.ensureQueryData(leadersQ(undefined)),
-      context.queryClient.ensureQueryData(actualsQ(undefined)),
-    ]),
+      context.queryClient.ensureQueryData(leadersQ(date)),
+      context.queryClient.ensureQueryData(actualsQ(date)),
+      context.queryClient.ensureQueryData(statusQ(date)),
+    ]);
+    return { date };
+  },
   component: ModelResultsPage,
   errorComponent: ({ error }) => (
     <div className="p-8 text-sm text-muted-foreground">
@@ -61,9 +104,13 @@ export const Route = createFileRoute("/_authenticated/calibration-lab")({
 });
 
 function ModelResultsPage() {
+  const { date } = Route.useLoaderData();
+  const navigate = useNavigate({ from: Route.fullPath });
+
   const { data: calibration } = useSuspenseQuery(calibrationQ);
-  const { data: leaders } = useSuspenseQuery(leadersQ(undefined));
-  const { data: actuals } = useSuspenseQuery(actualsQ(undefined));
+  const { data: leaders } = useSuspenseQuery(leadersQ(date));
+  const { data: actuals } = useSuspenseQuery(actualsQ(date));
+  const { data: status } = useSuspenseQuery(statusQ(date));
 
   const [scope, setScope] = useState<MRScope>("all");
 
@@ -73,9 +120,34 @@ function ModelResultsPage() {
   );
   const hero = useMemo(() => buildHero(summaries), [summaries]);
 
+  const goToDate = (d: string | null) => {
+    if (!d) return;
+    navigate({ search: { date: d } });
+  };
+  const goLatest = () => navigate({ search: { date: undefined } });
+
+  const { info, prevDate, nextDate, latestFinalizedDate } = status;
+  const banner = (() => {
+    if (info.scheduled === 0)
+      return { tone: "muted" as const, text: "No games scheduled for this date." };
+    if (info.final === 0)
+      return { tone: "warn" as const, text: `Results pending — ${info.pending} games still live or incomplete.` };
+    if (info.final < info.scheduled)
+      return {
+        tone: "warn" as const,
+        text: `Partial slate — ${info.final} of ${info.scheduled} games final, ${info.pending} still in progress.`,
+      };
+    if (!info.hasActuals)
+      return {
+        tone: "warn" as const,
+        text: "Final box scores have not been imported yet. Try refresh after the postgame pipeline runs.",
+      };
+    return null;
+  })();
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 space-y-10">
-      <header className="space-y-1">
+    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 space-y-8">
+      <header className="space-y-3">
         <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">
           Diamond model validation
         </div>
@@ -83,12 +155,67 @@ function ModelResultsPage() {
           Model Results
         </h1>
         <p className="text-sm text-muted-foreground">
-          How Diamond's finalized simulation projections performed against actual box scores.
+          Historical review of finalized simulation projections vs. actual box scores.
         </p>
-        <p className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Slate: {leaders.date} · {actuals.finalGames.length} final ·{" "}
-          {actuals.pendingGames.length} pending
-        </p>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/40 p-2">
+          <button
+            type="button"
+            onClick={() => goToDate(prevDate)}
+            disabled={!prevDate}
+            className="mono rounded-md border border-border/60 bg-card px-3 py-1.5 text-[11px] uppercase tracking-widest text-foreground transition hover:bg-card/80 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ← Previous day
+          </button>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => goToDate(e.target.value || null)}
+            className="mono rounded-md border border-border/60 bg-card px-3 py-1.5 text-xs text-foreground"
+          />
+          <button
+            type="button"
+            onClick={() => goToDate(nextDate)}
+            disabled={!nextDate}
+            className="mono rounded-md border border-border/60 bg-card px-3 py-1.5 text-[11px] uppercase tracking-widest text-foreground transition hover:bg-card/80 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Next day →
+          </button>
+          <button
+            type="button"
+            onClick={goLatest}
+            className="mono rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[11px] uppercase tracking-widest text-primary transition hover:bg-primary/20"
+          >
+            Latest Finalized
+            {latestFinalizedDate ? (
+              <span className="ml-1 text-muted-foreground">· {latestFinalizedDate}</span>
+            ) : null}
+          </button>
+        </div>
+
+        <div className="text-sm">
+          <span className="mono text-[10px] uppercase tracking-widest text-edge">
+            Reviewing results
+          </span>
+          <span className="ml-2 font-display text-lg font-semibold tracking-tight">
+            {formatLongDate(date)}
+          </span>
+          <span className="mono ml-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+            {info.final} finalized · {info.pending} pending · {info.scheduled} scheduled
+          </span>
+        </div>
+
+        {banner ? (
+          <div
+            className={`rounded-md border px-3 py-2 text-xs ${
+              banner.tone === "warn"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+                : "border-border/60 bg-card/40 text-muted-foreground"
+            }`}
+          >
+            {banner.text}
+          </div>
+        ) : null}
       </header>
 
       <MeanProjectionAccuracy
@@ -102,6 +229,7 @@ function ModelResultsPage() {
     </div>
   );
 }
+
 
 /* ============================================================
  * Section A — Mean Projection Accuracy
