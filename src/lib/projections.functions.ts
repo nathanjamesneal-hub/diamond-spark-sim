@@ -270,9 +270,10 @@ export type PlayerProjectionSnapshot = {
 };
 
 export const getPlayerProjection = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { playerId: string }) => data)
-  .handler(async ({ data }): Promise<PlayerProjectionSnapshot> => {
-    const sb = publicClient();
+  .handler(async ({ data, context }): Promise<PlayerProjectionSnapshot> => {
+    const sb = context.supabase;
     const { data: player } = await sb
       .from("players").select("id, name, position, team_id").eq("id", data.playerId).maybeSingle();
     if (!player) return { player: null, dna: null, todays: null, history: [], recent_results: [] };
@@ -465,9 +466,10 @@ function pitcherComponentsFromInputs(inputs: unknown): {
 }
 
 export const getDiamondScores = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<DiamondScoresPayload> => {
-    const sb = publicClient();
+  .handler(async ({ data, context }): Promise<DiamondScoresPayload> => {
+    const sb = context.supabase;
     const date = data.date ?? todayIso();
 
     const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
