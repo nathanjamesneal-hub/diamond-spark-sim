@@ -452,6 +452,17 @@ function CategorySection({
       const stat = cat.getStat?.(r);
       return stat?.mean != null;
     });
+    // Defensive dedupe: one row per game + player + role per category. The
+    // server is authoritative; this is a safety net against stale duplicates.
+    const seen = new Set<string>();
+    const deduped: typeof withMean = [];
+    for (const r of withMean) {
+      const id = r.mlb_id ?? `name:${r.player_name}`;
+      const key = `${r.game_id}:${id}:${cat.group}:${cat.key}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(r);
+    }
     withMean.sort((a, b) => {
       const ma = cat.getStat?.(a)?.mean ?? -Infinity;
       const mb = cat.getStat?.(b)?.mean ?? -Infinity;
