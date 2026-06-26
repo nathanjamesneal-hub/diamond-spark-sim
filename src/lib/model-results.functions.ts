@@ -9,6 +9,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
 
+export type SnapshotCoverage = {
+  eligible: number; // active projection rows whose game went terminal
+  locked: number;   // active projection rows with a non-null sim_snapshot
+};
+
 export type ModelResultsDateInfo = {
   date: string;
   scheduled: number;
@@ -16,6 +21,7 @@ export type ModelResultsDateInfo = {
   pending: number;
   terminal: boolean; // every game is Final/Postponed/Cancelled/Suspended
   hasActuals: boolean;
+  snapshotCoverage: SnapshotCoverage;
 };
 
 const TERMINAL_STATUSES = new Set([
@@ -47,6 +53,7 @@ async function fetchDateInfo(
   }
 
   let hasActuals = false;
+  const coverage: SnapshotCoverage = { eligible: 0, locked: 0 };
   if (scheduled > 0) {
     const ids = (games ?? []).map((g: any) => g.id);
     const { count } = await supabase
@@ -54,6 +61,21 @@ async function fetchDateInfo(
       .select("id", { count: "exact", head: true })
       .in("game_id", ids);
     hasActuals = (count ?? 0) > 0;
+
+    const { count: eligibleCount } = await supabase
+      .from("projections")
+      .select("id", { count: "exact", head: true })
+      .in("game_id", ids)
+      .eq("projection_status", "active");
+    coverage.eligible = eligibleCount ?? 0;
+
+    const { count: lockedCount } = await supabase
+      .from("projections")
+      .select("id", { count: "exact", head: true })
+      .in("game_id", ids)
+      .eq("projection_status", "active")
+      .not("sim_snapshot", "is", null);
+    coverage.locked = lockedCount ?? 0;
   }
 
   return {
@@ -63,16 +85,18 @@ async function fetchDateInfo(
     pending: Math.max(0, scheduled - final),
     terminal: scheduled > 0 && terminalCount === scheduled,
     hasActuals,
+    snapshotCoverage: coverage,
   };
 }
 
 /**
  * Most recent game date suitable for Model Results review.
- * Preference order:
- *   1. Latest date whose games are all terminal AND has stored actuals.
- *   2. Latest date with any final game.
- *   3. Latest date with scheduled games (so the user still sees status).
- *   4. Chicago today as a last resort.
+ * Preference order (snapshot-aware):
+ *   1. Latest date that is terminal AND has actuals AND has >=1 locked snapshot.
+ *   2. Latest date that is terminal AND has actuals (snapshot-unavailable banner).
+ *   3. Latest date with any final game.
+ *   4. Latest date with scheduled games.
+ *   5. Chicago today as a last resort.
  */
 export const getDefaultModelResultsDate = createServerFn({ method: "GET" })
   .middleware([requireAppMember])
@@ -97,6 +121,7 @@ export const getDefaultModelResultsDate = createServerFn({ method: "GET" })
       }
     }
 
+    let firstTerminalWithActuals: { date: string; info: ModelResultsDateInfo } | null = null;
     let firstWithFinal: ModelResultsDateInfo | null = null;
     let firstWithGames: ModelResultsDateInfo | null = null;
 
@@ -105,10 +130,14 @@ export const getDefaultModelResultsDate = createServerFn({ method: "GET" })
       if (!firstWithGames && info.scheduled > 0) firstWithGames = info;
       if (!firstWithFinal && info.final > 0) firstWithFinal = info;
       if (info.terminal && info.hasActuals) {
-        return { date: d, info };
+        if (info.snapshotCoverage.locked > 0) {
+          return { date: d, info };
+        }
+        if (!firstTerminalWithActuals) firstTerminalWithActuals = { date: d, info };
       }
     }
 
+    if (firstTerminalWithActuals) return firstTerminalWithActuals;
     if (firstWithFinal) return { date: firstWithFinal.date, info: firstWithFinal };
     if (firstWithGames) return { date: firstWithGames.date, info: firstWithGames };
     return { date: today, info: null };

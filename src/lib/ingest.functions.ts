@@ -308,7 +308,7 @@ export async function runDiamondEngineForGames(
 
   let gamesQuery = supabaseAdmin
     .from("games")
-    .select("id, mlb_game_id, home_team_id, away_team_id")
+    .select("id, mlb_game_id, home_team_id, away_team_id, game_status")
     .eq("date", date);
   if (gameIds && gameIds.length) gamesQuery = gamesQuery.in("id", gameIds);
   const { data: games } = await gamesQuery;
@@ -318,12 +318,12 @@ export async function runDiamondEngineForGames(
 
   const { data: lineups } = await supabaseAdmin
     .from("lineups")
-    .select("game_id, player_id, team_id, batting_order, lineup_status, lineup_source")
+    .select("game_id, player_id, team_id, batting_order, lineup_status, lineup_source, confirmed, locked_at")
     .in("game_id", targetGameIds);
 
   const { data: sps } = await supabaseAdmin
     .from("starting_pitchers")
-    .select("game_id, team_id, player_id")
+    .select("game_id, team_id, player_id, confirmed")
     .in("game_id", targetGameIds);
 
   // Read game_lineup_status so new projection rows inherit status/source/confidence.
@@ -350,22 +350,64 @@ export async function runDiamondEngineForGames(
     : { data: [] };
   const dnaByPlayer = new Map((dnaRows ?? []).map((d: any) => [d.player_id, d]));
 
+  // Look up MLB IDs so we can join player UUIDs to engine-distribution maps
+  // (which key by MLB ID).
+  const { data: playerRows } = playerIds.length
+    ? await supabaseAdmin.from("players").select("id, mlb_id").in("id", playerIds)
+    : { data: [] };
+  const mlbIdByPlayer = new Map(
+    (playerRows ?? []).map((p: any) => [p.id, (p as any).mlb_id ?? null]),
+  );
+
+  // Carry-forward existing locked snapshots — locked pregame snapshots are
+  // immutable, so a rerun must reuse them rather than write fresh.
+  const { data: priorSnapshotRows } = await supabaseAdmin
+    .from("projections")
+    .select("game_id, player_id, sim_snapshot, created_at")
+    .in("game_id", targetGameIds)
+    .not("sim_snapshot", "is", null)
+    .order("created_at", { ascending: false });
+  const priorSnapshotByKey = new Map<string, any>();
+  for (const row of priorSnapshotRows ?? []) {
+    const k = `${row.game_id}:${row.player_id}`;
+    if (!priorSnapshotByKey.has(k)) priorSnapshotByKey.set(k, row.sim_snapshot);
+  }
+
   // Monte Carlo environment is needed for pitcher projections regardless of
-  // the active hitter model version (pitcher Diamond Score uses it).
+  // the active hitter model version (pitcher Diamond Score uses it). We also
+  // keep the full sim.result so we can lock pregame snapshots.
   const environmentByGame = new Map<string, MonteCarloGameEnvironment>();
+  const simResultByGame = new Map<string, import("./sim/engine").SimResult>();
   let environmentFailures = 0;
   const needsEnvironment = isAlpha03(version) || (sps?.length ?? 0) > 0;
   if (needsEnvironment) {
     const { buildMonteCarloGameEnvironment } = await import("@/lib/sim.functions");
     await Promise.all((games ?? []).map(async (game: any) => {
       try {
-        const { gameEnvironment } = await buildMonteCarloGameEnvironment(game.mlb_game_id);
+        const { gameEnvironment, result } = await buildMonteCarloGameEnvironment(game.mlb_game_id);
         environmentByGame.set(game.id, gameEnvironment);
+        simResultByGame.set(game.id, result);
       } catch {
         environmentFailures++;
       }
     }));
   }
+
+  const {
+    buildHitterSnapshot,
+    buildPitcherSnapshot,
+    isPregameStatus,
+    isLineupConfirmed,
+    snapshotResultToDistributions,
+  } = await import("@/lib/sim-snapshot");
+  const distsByGame = new Map<
+    string,
+    ReturnType<typeof snapshotResultToDistributions>
+  >();
+  for (const [gid, result] of simResultByGame) {
+    distsByGame.set(gid, snapshotResultToDistributions(result));
+  }
+  const SNAPSHOT_ITERATIONS = 2000;
 
   const sideForTeam = (game: any, teamId: string | null): TeamSide =>
     teamId === game.home_team_id ? "home" : "away";
@@ -395,6 +437,36 @@ export async function runDiamondEngineForGames(
     });
 
     const gls = glsByGame.get(l.game_id);
+
+    // Snapshot resolution — locked snapshots are immutable.
+    const snapKey = `${l.game_id}:${l.player_id}`;
+    let sim_snapshot: any = priorSnapshotByKey.get(snapKey) ?? null;
+    if (!sim_snapshot) {
+      const eligible =
+        isPregameStatus(game.game_status) &&
+        isLineupConfirmed({
+          lineup_status: l.lineup_status,
+          gls_status: gls?.status,
+          lineup_confirmed_flag: l.confirmed === true || l.locked_at != null,
+        });
+      if (eligible) {
+        const mlbId = mlbIdByPlayer.get(l.player_id) ?? null;
+        const dist =
+          mlbId != null ? distsByGame.get(l.game_id)?.hittersByMlbId.get(mlbId) : undefined;
+        if (dist) {
+          sim_snapshot = buildHitterSnapshot({
+            dist,
+            game_id: l.game_id,
+            game_pk: game.mlb_game_id ?? null,
+            player_id: l.player_id,
+            mlb_id: mlbId,
+            model_version: version,
+            iterations: SNAPSHOT_ITERATIONS,
+          }) as any;
+        }
+      }
+    }
+
     projections.push({
       player_id: l.player_id, game_id: l.game_id, model_version: version,
       projection_role: out.role,
@@ -415,6 +487,7 @@ export async function runDiamondEngineForGames(
       lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      sim_snapshot,
     });
   }
 
@@ -440,6 +513,35 @@ export async function runDiamondEngineForGames(
       pitcherQuality: 100 - (Number(dna.contact) || 50),
     });
     const gls = glsByGame.get(sp.game_id);
+
+    // Snapshot resolution — immutable once locked.
+    const snapKey = `${sp.game_id}:${sp.player_id}`;
+    let sim_snapshot: any = priorSnapshotByKey.get(snapKey) ?? null;
+    if (!sim_snapshot) {
+      const eligible =
+        isPregameStatus(game.game_status) &&
+        isLineupConfirmed({
+          gls_status: gls?.status,
+          lineup_confirmed_flag: sp.confirmed === true,
+        });
+      if (eligible) {
+        const mlbId = mlbIdByPlayer.get(sp.player_id) ?? null;
+        const dist =
+          mlbId != null ? distsByGame.get(sp.game_id)?.pitcherByMlbId.get(mlbId) : undefined;
+        if (dist) {
+          sim_snapshot = buildPitcherSnapshot({
+            dist,
+            game_id: sp.game_id,
+            game_pk: game.mlb_game_id ?? null,
+            player_id: sp.player_id,
+            mlb_id: mlbId,
+            model_version: version,
+            iterations: SNAPSHOT_ITERATIONS,
+          }) as any;
+        }
+      }
+    }
+
     projections.push({
       // Tag pitcher rows with the active hitter version so the slate filter
       // (which keys off the active model_version) keeps them visible.
@@ -462,6 +564,7 @@ export async function runDiamondEngineForGames(
       lineup_source: gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      sim_snapshot,
     });
   }
 

@@ -18,7 +18,7 @@ import {
   type MRCategorySummary,
   type MRScope,
 } from "@/lib/model-results";
-import { APP_LOCALE, APP_TIMEZONE } from "@/lib/timezone";
+import { APP_LOCALE, APP_TIMEZONE, todayInAppTz } from "@/lib/timezone";
 
 const calibrationQ = queryOptions({
   queryKey: ["calibration"],
@@ -203,6 +203,13 @@ function ModelResultsPage() {
           <span className="mono ml-3 text-[11px] uppercase tracking-widest text-muted-foreground">
             {info.final} finalized · {info.pending} pending · {info.scheduled} scheduled
           </span>
+          <div className="mono mt-1 text-[11px] uppercase tracking-widest text-muted-foreground">
+            Snapshot coverage:{" "}
+            <span className={info.snapshotCoverage.locked > 0 ? "text-emerald-300" : "text-amber-300"}>
+              {info.snapshotCoverage.locked} / {info.snapshotCoverage.eligible}
+            </span>{" "}
+            eligible projections locked
+          </div>
         </div>
 
         {banner ? (
@@ -223,9 +230,15 @@ function ModelResultsPage() {
         hero={hero}
         scope={scope}
         setScope={setScope}
+        snapshotsLocked={info.snapshotCoverage.locked}
+        isHistorical={date < todayInAppTz()}
       />
 
-      <HomeRunEventReview leaders={leaders} actuals={actuals} />
+      <HomeRunEventReview
+        leaders={leaders}
+        actuals={actuals}
+        snapshotsLocked={info.snapshotCoverage.locked}
+      />
 
       <ProbabilityCalibration data={calibration} />
     </div>
@@ -242,12 +255,32 @@ function MeanProjectionAccuracy({
   hero,
   scope,
   setScope,
+  snapshotsLocked,
+  isHistorical,
 }: {
   summaries: MRCategorySummary[];
   hero: ReturnType<typeof buildHero>;
   scope: MRScope;
   setScope: (s: MRScope) => void;
+  snapshotsLocked: number;
+  isHistorical: boolean;
 }) {
+  if (isHistorical && snapshotsLocked === 0) {
+    return (
+      <section className="space-y-3">
+        <div className="border-b border-border/40 pb-3">
+          <div className="mono text-[10px] uppercase tracking-widest text-edge">Section 1</div>
+          <h2 className="font-display text-2xl font-bold tracking-wide">
+            Mean Projection Accuracy
+          </h2>
+        </div>
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Pregame mean snapshot unavailable for this date. Historical Mean Accuracy begins with the
+          first locked snapshot date.
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/40 pb-3">
@@ -826,9 +859,11 @@ type HrScope = "top25" | "all";
 function HomeRunEventReview({
   leaders,
   actuals,
+  snapshotsLocked,
 }: {
   leaders: import("@/lib/sim.functions").SimulationLeadersPayload;
   actuals: import("@/lib/actuals.functions").ActualsPayload;
+  snapshotsLocked: number;
 }) {
   const [scope, setScope] = useState<HrScope>("top25");
 
