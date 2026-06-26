@@ -27,6 +27,9 @@ function AuthPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      // Revalidate the session before navigating so AppGate doesn't race
+      // against an un-hydrated session on the destination route (mobile Safari).
+      await supabase.auth.getUser();
       navigate({ to: "/bets" });
     } catch (err: any) {
       setError(err.message ?? "Sign in failed");

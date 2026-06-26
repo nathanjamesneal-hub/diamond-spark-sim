@@ -1,89 +1,58 @@
-# Pre-Publish Lockdown — Final Remediation Plan
+## Root-cause hypotheses (ranked)
 
-Three security gaps will be closed before publish, with verification run end-to-end. No URLs change. No simulation, scoring, or UI logic changes.
+Investigation of `src/components/app-gate.tsx`, `src/routes/auth.tsx`, and `src/routes/__root.tsx` plus the published-only nature of the failure points to two compounding issues. I'll confirm with live tests against `https://diamond-spark-sim.lovable.app` before changing code, but the likely causes are:
 
-## 1. New shared middleware: `requireAppMember`
+1. **Supabase Auth redirect allowlist missing the production domain.** OAuth/email links currently work in the editor preview because that origin is allowlisted; mobile Safari on the published URL is a different origin. If `https://diamond-spark-sim.lovable.app` and `/**` aren't on the Site URL / Additional Redirect URLs list, Google returns to the published origin but Supabase rejects the redirect and never sets the session cookie.
 
-New file `src/integrations/supabase/member-middleware.ts`. Layered on top of `requireSupabaseAuth`:
+2. **AppGate races + auto sign-out on transient errors.**
+   - `evaluate()` runs `supabase.auth.getUser()` immediately on mount. On mobile Safari after a full-page Google redirect, the Lovable wrapper sets the session asynchronously, so the first `getUser()` returns `null` → AppGate `router.navigate({ to: "/auth" })`. `onAuthStateChange("SIGNED_IN")` fires moments later, but the user is already parked on `/auth` and sees the sign-in form again (looks like "login failed").
+   - When `supabase.rpc("is_app_member")` errors for ANY reason (network hiccup, cold start, mobile data flake), AppGate calls `supabase.auth.signOut()`. On flaky mobile networks this turns a transient blip into a hard sign-out loop.
+   - Email/password path calls `navigate({ to: "/bets" })` BEFORE AppGate's next `evaluate()` has confirmed membership, so the same `getUser()` race can bounce the user back to `/auth`.
 
-1. Run `requireSupabaseAuth` first → throws `Response('Unauthorized', { status: 401 })` when no valid session.
-2. Call `context.supabase.rpc('is_app_member')` (zero-arg, already exists).
-3. If RPC errors or returns `false` → throw `Response('Forbidden', { status: 403 })`.
-4. Pass `{ supabase, userId, claims, isMember: true }` to handler.
+## Diagnostic pass (no code changes)
 
-`assertAdmin(context)` helper (existing inline pattern in `ingest.functions.ts`) stays and is layered on top of `requireAppMember` for operational/admin functions — no behavior change there.
+Before editing, I'll run these against the published URL and report the test matrix:
 
-### Apply `requireAppMember` to every private read
+- Use Playwright with a mobile Safari user-agent + viewport against `https://diamond-spark-sim.lovable.app/auth`, attempt email/password sign-in with the owner account, capture network + console, screenshot each step.
+- Inspect Supabase Auth config (`supabase--project_info` / `configure_auth`) to read Site URL and Additional Redirect URLs.
+- Verify `user_roles` still has the owner's `admin` row and `is_app_member()` returns true for that uid via `supabase--read_query`.
+- Confirm the published bundle is the latest commit (no stale AppGate).
 
-Add `.middleware([requireAppMember])` to:
-- `src/lib/projections.functions.ts`: `getTodaysSlate`, `getCalibration`, `getPlayerProjection`, `getDiamondScores`
-- `src/lib/mlb.functions.ts`: `getSchedule`, `getStandings`, `getTeam`, `getPlayer`, `getLeaderboards`
-- `src/lib/sim.functions.ts`: `simulateGame`, `getSimulationLeaders`
-- `src/lib/odds.functions.ts`: `getOdds`
-- `src/lib/actuals.functions.ts`: `getActualsForDate`
-- `src/lib/lineups/refresh.functions.ts`: `getCronStatus`
-- `src/lib/lineup-status.functions.ts`: `getLineupStatus` (currently unguarded read)
+Report per step: expected, observed, route/redirect URL, error, whether a Supabase session exists.
 
-Replace the `publicClient()` (anon publishable key) in `projections.functions.ts` with `context.supabase` so reads run as the signed-in member; delete the helper.
+## Narrow fix (only after diagnostics confirm)
 
-All existing mutations keep `requireSupabaseAuth` + `assertAdmin` — re-audited, no change needed.
+### A. Supabase Auth redirect configuration
+Ensure exactly:
+- Site URL: `https://diamond-spark-sim.lovable.app`
+- Additional Redirect URLs (preserve existing dev entries, add if missing):
+  - `https://diamond-spark-sim.lovable.app/**`
+  - existing `id-preview--0bdb12d7-...lovable.app/**`
+  - existing `http://localhost:*/**`
 
-## 2. SSR-safe route gating (no reliance on client-side `AppGate`)
+No change to providers, signup-disabled, or HIBP settings.
 
-Every route that loads Diamond data must sit under the integration-managed `_authenticated/` layout so SSR / prerender hits the gate before the loader runs.
+### B. `src/components/app-gate.tsx` — tighten the gate, stop the sign-out loop
+- Subscribe to `onAuthStateChange` FIRST, then call `getUser()` (recommended Supabase pattern). This eliminates the post-OAuth race where the first `getUser()` returns null on mobile.
+- Treat `INITIAL_SESSION` and `TOKEN_REFRESHED` events as identity signals too, but only re-evaluate when a session actually exists.
+- If `supabase.rpc("is_app_member")` returns an **error** (network/transport), keep status `loading` and retry once with backoff — DO NOT sign out. Only sign out when the RPC succeeds and returns `false` (true non-member).
+- While `status === "loading"`, never call `router.navigate({ to: "/auth" })`. Only navigate after we have a definitive `getUser()` + RPC result.
+- Keep behavior for: 401 logged-out → redirect to `/auth`; 403 non-member → sign out + redirect.
 
-Audit + move (route file renames, identical URL via re-exported route path):
-- `/diamond-scores`, `/top-props`, `/odds`, `/lineup-status`, `/calibration-lab`, `/players/$id`, `/games/$id` and any other route whose loader calls a `requireAppMember` function must live under `src/routes/_authenticated/...`.
-- Index `/` keeps its public landing shell; any Diamond-data loader on it is moved into a child component that calls via `useServerFn` after the gate passes, or the route itself is moved under `_authenticated/`.
+### C. `src/routes/auth.tsx` — wait for confirmed session before navigating
+- After `signInWithPassword` succeeds, await `supabase.auth.getUser()` (revalidates) before `navigate({ to: "/bets" })`. Prevents the AppGate race on the destination route.
+- Leave Google flow as-is (`redirect_uri: window.location.origin`), since the fix in (B) covers the post-redirect race.
 
-`AppGate` stays as a defense-in-depth client check; it is no longer the only line of defense.
+No other files touched. No changes to RLS, `is_app_member()`, signup-disabled config, engines, or data.
 
-## 3. Replace DB signup-block with Supabase Before-User-Created Auth Hook
+## Verification
 
-Drop the proposed `BEFORE INSERT ON auth.users` trigger plan.
+After applying:
+- Playwright against the published URL with a mobile Safari UA: email/password sign-in → lands on `/bets` with projections visible; reload `/diamond-scores` directly stays signed in.
+- Confirm logged-out hitting `/diamond-scores` still redirects to `/auth` (401 preserved).
+- Confirm a non-member google account would still be signed out + redirected (simulated by temporarily flipping the RPC return in a read-only test query; no policy change).
+- Ask you to retest on iPhone Safari at `https://diamond-spark-sim.lovable.app`.
 
-Implementation:
-- New server route `src/routes/api/public/hooks/before-user-created.ts` that verifies the Supabase Auth Hook HMAC header (`webhook-signature`, standard-webhooks format) and returns the documented rejection payload:
-  ```json
-  { "error": { "http_code": 403, "message": "Sign-ups are disabled for this app." } }
-  ```
-  for every request. No allowlist — even the existing admin owner is unaffected because they already exist in `auth.users` and the hook only fires on user creation.
-- Configure the hook in Supabase Auth (`auth.hook_before_user_created`) to call this URL, with the hook's signing secret stored in Vault and read at runtime as `BEFORE_USER_CREATED_HOOK_SECRET`.
-- Keep public signup UI removed in `src/routes/auth.tsx`. Keep email signup disabled at the Auth provider level; keep Google enabled for sign-in only (Google still triggers the hook on first-time identities, which the hook will reject — admin owner is already provisioned).
-- Existing `public.block_new_signups()` function and any orphan references are dropped in the same migration to remove dead code.
-
-## 4. Webhook secret rotation (Vault-stored)
-
-- Generate `CRON_WEBHOOK_SECRET` (64 chars) as a server-only secret via `generate_secret`. Also mirror it into Supabase Vault (`vault.secrets`) so the cron SQL can read it without the literal value appearing in the SQL text or `cron.job` listing.
-- Update `pg_cron` job (via `supabase--insert`, not migration) to fetch the secret from Vault and send `Authorization: Bearer <secret>` — no `apikey` header, no literal in SQL.
-- Rewrite `src/routes/api/public/hooks/refresh-lineups.ts`:
-  - Read the bearer from `Authorization`.
-  - Read `process.env.CRON_WEBHOOK_SECRET` inside the handler.
-  - Compare lengths first; if they differ, return a generic `new Response('Unauthorized', { status: 401 })`. Otherwise `timingSafeEqual`. Same generic response on mismatch.
-  - Remove the `SUPABASE_PUBLISHABLE_KEY` branch entirely.
-- Verify the secret is absent from: source files (`rg`), browser network responses (network panel), runtime logs (`server-function-logs`), and `select jobname, command from cron.job` output.
-
-## 5. Verification matrix (returned before publish)
-
-Run with Playwright + curl + SQL probes; report observed result per row.
-
-| Case | Surface | Expected |
-| --- | --- | --- |
-| Logged out | GET `/diamond-scores`, `/top-props`, `/odds`, `/admin` | Redirect to `/auth` (SSR), no Diamond data in HTML |
-| Logged out | Direct POST to `getDiamondScores` / `getSchedule` / `getSimulationLeaders` server fn | 401 |
-| Signed-in non-member (fresh Google) | Protected routes | Redirect / access-denied; `is_app_member()` = false |
-| Signed-in non-member | Direct private read server fn | 403 |
-| Signed-in non-member | RLS probe via `context.supabase` | 0 rows on `players`, `projections` |
-| Admin owner (`nathanjamesneal`) | All reads, `/admin`, `runDailyPipeline`, `lockGame`, `unlockGame` | Success |
-| Webhook | POST with old publishable key in `apikey` | 401 |
-| Webhook | POST with no/short/wrong `Authorization` | Generic 401, no leak |
-| Webhook | POST with valid `Bearer $CRON_WEBHOOK_SECRET` | 200, refresh runs |
-| Signup | Email signup via UI | Blocked at UI; if forced via GoTrue REST, hook returns 403; observed message reported verbatim |
-| Signup | Google first-time sign-in for a new identity | Hook rejects; observed message reported verbatim |
-| Signup | `select count(*) from auth.users` before/after each signup attempt | Unchanged |
-| Secret leak | `rg CRON_WEBHOOK_SECRET src/`, browser Network, `server-function-logs`, `select command from cron.job` | No matches |
-
-Publish only proceeds if every row passes.
-
-## Out of scope (unchanged)
-Simulation math, scoring, calibration, Diamond Engine internals, table schemas other than the migration to drop `block_new_signups()`, UI/visual design, public landing copy.
+## Technical notes
+- `lovable.auth.signInWithOAuth` handles the iframe-safe and full-page flows; we do not change it. The race is downstream in AppGate, not in the OAuth helper.
+- The "Lovable preview fetch proxy" Stack-Overflow note doesn't apply here — the failure is on the published origin, not the preview.
