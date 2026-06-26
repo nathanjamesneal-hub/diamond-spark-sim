@@ -16,7 +16,6 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,18 +25,9 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        navigate({ to: "/bets" });
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        navigate({ to: "/bets" });
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      navigate({ to: "/bets" });
     } catch (err: any) {
       setError(err.message ?? "Sign in failed");
     } finally {
@@ -64,10 +54,10 @@ function AuthPage() {
         ← Diamond
       </Link>
       <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">
-        {mode === "signin" ? "Sign in" : "Create account"}
+        Sign in
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Track bets with ROI, CLV, and your own pitcher props.
+        Diamond is in private testing. Owner access only.
       </p>
 
       <button
@@ -99,18 +89,12 @@ function AuthPage() {
           type="submit" disabled={loading}
           className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
-          {loading ? "…" : mode === "signin" ? "Sign in" : "Create account"}
+          {loading ? "…" : "Sign in"}
         </button>
       </form>
 
       <div className="mt-4 text-center text-xs text-muted-foreground">
-        {mode === "signin" ? "No account?" : "Already have one?"}{" "}
-        <button
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="text-primary hover:underline"
-        >
-          {mode === "signin" ? "Create one" : "Sign in"}
-        </button>
+        Account creation is disabled during private testing.
       </div>
     </div>
   );

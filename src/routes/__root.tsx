@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
+import { AppGate } from "@/components/app-gate";
 
 function NotFoundComponent() {
   return (
@@ -135,15 +136,17 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="relative z-10 flex min-h-screen flex-col">
-        <SiteHeader />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <footer className="border-t border-border/60 px-4 py-6 text-center text-xs text-muted-foreground">
-          Data from MLB Stats API · Not affiliated with MLB · For entertainment only
-        </footer>
-      </div>
+      <AppGate>
+        <div className="relative z-10 flex min-h-screen flex-col">
+          <SiteHeader />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <footer className="border-t border-border/60 px-4 py-6 text-center text-xs text-muted-foreground">
+            Data from MLB Stats API · Not affiliated with MLB · For entertainment only
+          </footer>
+        </div>
+      </AppGate>
     </QueryClientProvider>
   );
 }
