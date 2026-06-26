@@ -8,7 +8,7 @@ const standingsQuery = queryOptions({
   staleTime: 5 * 60 * 1000,
 });
 
-export const Route = createFileRoute("/standings")({
+export const Route = createFileRoute("/_authenticated/standings")({
   head: () => ({
     meta: [
       { title: "MLB Standings — Diamond" },

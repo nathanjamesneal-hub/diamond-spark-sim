@@ -22,7 +22,7 @@ function scheduleQueryFor(date: string | undefined) {
   });
 }
 
-export const Route = createFileRoute("/scores")({
+export const Route = createFileRoute("/_authenticated/scores")({
   head: () => ({
     meta: [
       { title: "MLB Scoreboard — Diamond" },

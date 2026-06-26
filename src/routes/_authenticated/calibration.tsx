@@ -8,7 +8,7 @@ const q = queryOptions({
   staleTime: 5 * 60 * 1000,
 });
 
-export const Route = createFileRoute("/calibration")({
+export const Route = createFileRoute("/_authenticated/calibration")({
   ssr: false,
   head: () => ({
     meta: [

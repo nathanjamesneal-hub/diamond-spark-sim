@@ -81,7 +81,7 @@ function diamondQuery(date: string | undefined) {
   });
 }
 
-export const Route = createFileRoute("/top-props")({
+export const Route = createFileRoute("/_authenticated/top-props")({
   ssr: false,
   head: () => ({
     meta: [

@@ -33,7 +33,7 @@ const actualsQ = (date?: string) =>
     staleTime: 60_000,
   });
 
-export const Route = createFileRoute("/calibration-lab")({
+export const Route = createFileRoute("/_authenticated/calibration-lab")({
   ssr: false,
   head: () => ({
     meta: [

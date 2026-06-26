@@ -16,7 +16,7 @@ function playerQuery(playerId: number) {
   });
 }
 
-export const Route = createFileRoute("/players/$playerId")({
+export const Route = createFileRoute("/_authenticated/players/$playerId")({
   head: () => ({
     meta: [
       { title: "Player — Diamond" },
