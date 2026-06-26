@@ -5,6 +5,7 @@
  * per gamePk for ~10 minutes.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { simulate, type SimResult, type BatterProfile, type PitcherProfile, type TeamSim } from "./sim/engine";
 import { toMonteCarloGameEnvironment } from "./sim/environment";
 import type { MonteCarloGameEnvironment } from "./game-environment";
@@ -274,6 +275,7 @@ export async function buildMonteCarloGameEnvironment(
 }
 
 export const simulateGame = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { gamePk: number; iterations?: number }) => data)
   .handler(async ({ data }): Promise<{
     meta: SimMeta;
@@ -376,6 +378,7 @@ function reshapeStat(d: PlayerStatDist | undefined | null): SimStat | null {
 }
 
 export const getSimulationLeaders = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string } | undefined) => data ?? {})
   .handler(async ({ data }): Promise<SimulationLeadersPayload> => {
     const warnings: string[] = [];
