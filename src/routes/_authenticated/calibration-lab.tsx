@@ -460,7 +460,12 @@ function CategoryRow({
         <td className="px-2 py-2 text-right mono tabular-nums text-amber-300">{s.close}</td>
         <td className="px-2 py-2 text-right mono tabular-nums text-rose-300">{s.missed}</td>
         <td className="px-2 py-2 text-right mono tabular-nums">
-          {s.hitRate == null ? "—" : `${(s.hitRate * 100).toFixed(0)}%`}
+          {s.hitRate == null ? "—" : `${s.metOrBeat} / ${s.qualified} · ${(s.hitRate * 100).toFixed(0)}%`}
+          {s.qualified > 0 && s.qualified < 10 ? (
+            <div className="text-[10px] font-normal italic text-amber-300/80">
+              Early sample — not yet stable
+            </div>
+          ) : null}
         </td>
         <td className="px-2 py-2 text-right mono tabular-nums text-edge">
           {s.avgMean == null ? "—" : s.avgMean.toFixed(s.cat.meanDigits)}
