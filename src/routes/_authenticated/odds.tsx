@@ -186,9 +186,10 @@ type Grade = {
     | "No Event"
     | "Beat Low Projection"
     | "Hit Event"
+    | "Live"
     | "Pending"
     | "—";
-  tone: "strong" | "good" | "warn" | "bad" | "muted";
+  tone: "strong" | "good" | "warn" | "bad" | "muted" | "live";
   excludeFromAccuracy?: boolean;
 };
 const GRADE_CLASS: Record<Grade["tone"], string> = {
@@ -197,7 +198,9 @@ const GRADE_CLASS: Record<Grade["tone"], string> = {
   warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   bad: "bg-rose-500/15 text-rose-300 border-rose-500/30",
   muted: "bg-zinc-500/10 text-muted-foreground border-border/40",
+  live: "bg-sky-500/15 text-sky-300 border-sky-500/40 animate-pulse",
 };
+
 
 const LOW_MEAN_TOOLTIP =
   "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes. An actual result of zero is never counted as a successful prediction.";
