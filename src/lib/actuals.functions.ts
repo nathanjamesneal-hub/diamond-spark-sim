@@ -45,8 +45,10 @@ export type PitcherActual = {
 
 export type ActualsPayload = {
   date: string;
+  fetchedAt: string;
   finalGames: number[]; // gamePks that are Final
-  pendingGames: number[]; // gamePks that are not yet Final
+  liveGames: number[]; // gamePks that are in-progress (Live)
+  pendingGames: number[]; // gamePks scheduled but not started
   hitters: Record<string, HitterActual>;
   pitchers: Record<string, PitcherActual>;
 };
@@ -84,48 +86,65 @@ export const getActualsForDate = createServerFn({ method: "GET" })
     const hitters: Record<string, HitterActual> = {};
     const pitchers: Record<string, PitcherActual> = {};
     const finalGames: number[] = [];
+    const liveGames: number[] = [];
     const pendingGames: number[] = [];
 
     let sched: any;
     try {
       sched = await mlbFetch<any>(`/schedule?sportId=1&date=${date}`);
     } catch (e) {
-      console.error("getActualsForDate: schedule fetch failed", e);
-      return { date, finalGames, pendingGames, hitters, pitchers };
+      console.error("[actuals] schedule fetch failed", date, e);
+      return { date, fetchedAt: new Date().toISOString(), finalGames, liveGames, pendingGames, hitters, pitchers };
     }
 
-    const games: { gamePk: number; isFinal: boolean }[] = [];
+    type GameInfo = { gamePk: number; abstract: string; detailed: string; startTime: string };
+    const games: GameInfo[] = [];
     for (const d of sched.dates ?? []) {
       for (const g of d.games ?? []) {
         games.push({
           gamePk: g.gamePk,
-          isFinal: g.status?.abstractGameState === "Final",
+          abstract: g.status?.abstractGameState ?? "",
+          detailed: g.status?.detailedState ?? "",
+          startTime: g.gameDate ?? "",
         });
       }
     }
 
+    console.log(
+      `[actuals] ${date}: ${games.length} games`,
+      games.map((g) => `${g.gamePk}=${g.abstract}/${g.detailed}`).join(" "),
+    );
+
     await Promise.all(
       games.map(async (g) => {
-        if (!g.isFinal) {
+        const isFinal = g.abstract === "Final";
+        const isLive = g.abstract === "Live" || g.detailed === "In Progress" || g.detailed === "Manager challenge";
+        if (isFinal) finalGames.push(g.gamePk);
+        else if (isLive) liveGames.push(g.gamePk);
+        else {
           pendingGames.push(g.gamePk);
           return;
         }
-        finalGames.push(g.gamePk);
+
         let box: any;
         let feed: any;
         try {
-          // feed/live gives decisions (winner) + boxscore
           feed = await mlbFetch<any>(`/game/${g.gamePk}/feed/live`, BASE_V11);
           box = feed?.liveData?.boxscore;
         } catch (e) {
-          console.error(`getActualsForDate: feed failed for ${g.gamePk}`, e);
+          console.error(`[actuals] feed failed gamePk=${g.gamePk} (${g.abstract})`, e);
           return;
         }
-        if (!box) return;
+        if (!box) {
+          console.warn(`[actuals] no boxscore gamePk=${g.gamePk}`);
+          return;
+        }
 
         const winningPitcherId: number | null =
-          feed?.liveData?.decisions?.winner?.id ?? null;
+          isFinal ? feed?.liveData?.decisions?.winner?.id ?? null : null;
 
+        let hCount = 0;
+        let pCount = 0;
         for (const side of ["home", "away"] as const) {
           const players = box.teams?.[side]?.players ?? {};
           for (const key of Object.keys(players)) {
@@ -151,6 +170,7 @@ export const getActualsForDate = createServerFn({ method: "GET" })
                 SB: num(bat.stolenBases),
                 K: num(bat.strikeOuts),
               };
+              hCount += 1;
             }
 
             const pit = p?.stats?.pitching;
@@ -165,13 +185,22 @@ export const getActualsForDate = createServerFn({ method: "GET" })
                 ER: er,
                 H: num(pit.hits),
                 win: winningPitcherId === mlbId,
-                qualityStart: outs >= 18 && er <= 3,
+                qualityStart: isFinal && outs >= 18 && er <= 3,
               };
+              pCount += 1;
             }
           }
         }
+        console.log(
+          `[actuals] gamePk=${g.gamePk} ${g.abstract}/${g.detailed} hitters=${hCount} pitchers=${pCount}`,
+        );
       }),
     );
 
-    return { date, finalGames, pendingGames, hitters, pitchers };
+    console.log(
+      `[actuals] ${date} summary: final=${finalGames.length} live=${liveGames.length} pending=${pendingGames.length} hitters=${Object.keys(hitters).length} pitchers=${Object.keys(pitchers).length}`,
+    );
+
+    return { date, fetchedAt: new Date().toISOString(), finalGames, liveGames, pendingGames, hitters, pitchers };
   });
+
