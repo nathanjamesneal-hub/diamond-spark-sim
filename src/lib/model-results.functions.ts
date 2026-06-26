@@ -29,7 +29,7 @@ const TERMINAL_STATUSES = new Set([
 ]);
 
 async function fetchDateInfo(
-  supabase: ReturnType<typeof requireAppMember> extends never ? never : any,
+  supabase: any,
   date: string,
 ): Promise<ModelResultsDateInfo> {
   const { data: games } = await supabase
