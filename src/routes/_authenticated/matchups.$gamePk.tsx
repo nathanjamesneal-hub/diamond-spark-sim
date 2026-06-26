@@ -14,7 +14,7 @@ const simQuery = (gamePk: number) =>
     staleTime: 10 * 60 * 1000,
   });
 
-export const Route = createFileRoute("/matchups/$gamePk")({
+export const Route = createFileRoute("/_authenticated/matchups/$gamePk")({
   head: ({ params }) => ({
     meta: [
       { title: `Matchup ${params.gamePk} — Diamond` },

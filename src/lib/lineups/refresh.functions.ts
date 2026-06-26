@@ -17,6 +17,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { aggregateLineups } from "./aggregate";
 import { todayInAppTz } from "@/lib/timezone";
 
@@ -263,22 +264,17 @@ export const refreshLineupsAndProject = createServerFn({ method: "POST" })
     return runRefresh(data.date ?? todayInAppTz());
   });
 
-// Public read for the admin Cron Status panel
-export const getCronStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { createClient } = await import("@supabase/supabase-js");
-  const sb = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
+// Member-gated read for the admin Cron Status panel.
+export const getCronStatus = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .handler(async ({ context }) => {
+    const { data: runs } = await context.supabase
+      .from("cron_runs")
+      .select(
+        "id, started_at, finished_at, duration_ms, providers, games_changed, players_changed, projections_regenerated, engine_ran, error, notes, date",
+      )
+      .order("started_at", { ascending: false })
+      .limit(20);
 
-  const { data: runs } = await sb
-    .from("cron_runs")
-    .select(
-      "id, started_at, finished_at, duration_ms, providers, games_changed, players_changed, projections_regenerated, engine_ran, error, notes, date",
-    )
-    .order("started_at", { ascending: false })
-    .limit(20);
-
-  return { runs: runs ?? [] };
-});
+    return { runs: runs ?? [] };
+  });

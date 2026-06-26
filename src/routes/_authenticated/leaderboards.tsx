@@ -8,7 +8,7 @@ const leadersQuery = queryOptions({
   staleTime: 10 * 60 * 1000,
 });
 
-export const Route = createFileRoute("/leaderboards")({
+export const Route = createFileRoute("/_authenticated/leaderboards")({
   ssr: false,
   head: () => ({
     meta: [

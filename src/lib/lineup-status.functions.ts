@@ -7,17 +7,8 @@
  * existing `runDiamondEngineForGames(date, [gameId])`.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
-
-function publicClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
-}
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 
 function todayIso(): string {
   const d = new Date();
@@ -99,9 +90,10 @@ export type LineupStatusPayload = {
 // ---------- Read ----------
 
 export const getLineupStatus = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<LineupStatusPayload> => {
-    const sb = publicClient();
+  .handler(async ({ data, context }): Promise<LineupStatusPayload> => {
+    const sb = context.supabase;
     const date = data.date ?? todayIso();
 
     const empty: LineupStatusPayload = {

@@ -272,7 +272,7 @@ const actualsQuery = (date: string | undefined) =>
     retry: 1,
   });
 
-export const Route = createFileRoute("/odds")({
+export const Route = createFileRoute("/_authenticated/odds")({
   ssr: false,
   head: () => ({
     meta: [

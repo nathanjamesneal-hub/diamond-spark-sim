@@ -10,6 +10,7 @@
  * to read from there instead of hitting the MLB API for each request.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 
 const BASE = "https://statsapi.mlb.com/api/v1";
 const BASE_V11 = "https://statsapi.mlb.com/api/v1.1";
@@ -76,6 +77,7 @@ function chicagoToday(): string {
 }
 
 export const getActualsForDate = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string } | undefined) => data ?? {})
   .handler(async ({ data }): Promise<ActualsPayload> => {
     const date = data.date ?? chicagoToday();

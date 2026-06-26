@@ -3,17 +3,8 @@
  * No bearer required — these power the public dashboards.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
-
-function publicClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
-}
 
 function todayIso(): string {
   // App is pinned to America/Chicago — "today" must match what the user sees.
@@ -64,15 +55,16 @@ export type SlateRow = {
 };
 
 export const getTodaysSlate = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<{
+  .handler(async ({ data, context }): Promise<{
     date: string;
     modelVersion: string | null;
     rows: SlateRow[];
     games: SlateGame[];
     diagnostics: SlateDiagnostics;
   }> => {
-    const sb = publicClient();
+    const sb = context.supabase;
     const date = data.date ?? todayIso();
 
     // ---- 1. Pull the raw MLB schedule for today (CT). Always trust this as truth. ----
@@ -247,19 +239,21 @@ export type CalibrationRow = {
   sample_size: number;
 };
 
-export const getCalibration = createServerFn({ method: "GET" }).handler(async (): Promise<{
-  rows: CalibrationRow[]; versions: { version: string; active: boolean; release_date: string; notes: string | null }[];
-}> => {
-  const sb = publicClient();
-  const { data: rows } = await sb
-    .from("calibration_summary")
-    .select("model_version, stat, confidence_bucket, predicted_mean, observed_mean, brier_score, sample_size")
-    .order("model_version", { ascending: false });
-  const { data: versions } = await sb
-    .from("model_versions").select("version, active, release_date, notes")
-    .order("release_date", { ascending: false });
-  return { rows: (rows ?? []) as CalibrationRow[], versions: (versions ?? []) as any };
-});
+export const getCalibration = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .handler(async ({ context }): Promise<{
+    rows: CalibrationRow[]; versions: { version: string; active: boolean; release_date: string; notes: string | null }[];
+  }> => {
+    const sb = context.supabase;
+    const { data: rows } = await sb
+      .from("calibration_summary")
+      .select("model_version, stat, confidence_bucket, predicted_mean, observed_mean, brier_score, sample_size")
+      .order("model_version", { ascending: false });
+    const { data: versions } = await sb
+      .from("model_versions").select("version, active, release_date, notes")
+      .order("release_date", { ascending: false });
+    return { rows: (rows ?? []) as CalibrationRow[], versions: (versions ?? []) as any };
+  });
 
 export type PlayerProjectionSnapshot = {
   player: { id: string; name: string; position: string | null; team_abbrev: string | null } | null;
@@ -276,9 +270,10 @@ export type PlayerProjectionSnapshot = {
 };
 
 export const getPlayerProjection = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { playerId: string }) => data)
-  .handler(async ({ data }): Promise<PlayerProjectionSnapshot> => {
-    const sb = publicClient();
+  .handler(async ({ data, context }): Promise<PlayerProjectionSnapshot> => {
+    const sb = context.supabase;
     const { data: player } = await sb
       .from("players").select("id, name, position, team_id").eq("id", data.playerId).maybeSingle();
     if (!player) return { player: null, dna: null, todays: null, history: [], recent_results: [] };
@@ -471,9 +466,10 @@ function pitcherComponentsFromInputs(inputs: unknown): {
 }
 
 export const getDiamondScores = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<DiamondScoresPayload> => {
-    const sb = publicClient();
+  .handler(async ({ data, context }): Promise<DiamondScoresPayload> => {
+    const sb = context.supabase;
     const date = data.date ?? todayIso();
 
     const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();

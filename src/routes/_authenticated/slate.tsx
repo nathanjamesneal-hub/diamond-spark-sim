@@ -8,7 +8,7 @@ const slateQuery = queryOptions({
   staleTime: 60 * 1000,
 });
 
-export const Route = createFileRoute("/slate")({
+export const Route = createFileRoute("/_authenticated/slate")({
   ssr: false,
   head: () => ({
     meta: [

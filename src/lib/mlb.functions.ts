@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "./timezone";
 
 /**
@@ -228,6 +229,7 @@ async function getLiveGameState(gamePk: number): Promise<LiveGameState> {
 }
 
 export const getSchedule = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { date?: string }) => data ?? {})
   .handler(async ({ data }): Promise<{ date: string; games: GameSummary[] }> => {
     const date = data.date ?? todayIsoDate();
@@ -335,6 +337,7 @@ export type DivisionStandings = {
 };
 
 export const getStandings = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { season?: number }) => data ?? {})
   .handler(async ({ data }): Promise<{ season: number; divisions: DivisionStandings[] }> => {
     const season = data.season ?? currentSeason();
@@ -401,6 +404,7 @@ export type TeamDetail = {
 };
 
 export const getTeam = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { teamId: number }) => data)
   .handler(async ({ data }): Promise<TeamDetail> => {
     const [teamJson, rosterJson] = await Promise.all([
@@ -484,6 +488,7 @@ function pickPitchingLine(s: any, season: string, team: string): PlayerStatLine 
 }
 
 export const getPlayer = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { playerId: number }) => data)
   .handler(async ({ data }): Promise<PlayerDetail> => {
     const json = await mlbFetch<any>(
@@ -567,6 +572,7 @@ const LEADER_CATEGORIES: Array<{ key: string; label: string; statGroup: "hitting
 ];
 
 export const getLeaderboards = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .inputValidator((data: { season?: number }) => data ?? {})
   .handler(async ({ data }): Promise<{ season: number; categories: LeaderboardCategory[] }> => {
     const season = data.season ?? currentSeason();

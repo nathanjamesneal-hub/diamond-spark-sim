@@ -4,6 +4,7 @@
  * under the free-tier 500 req/month cap.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requireAppMember } from "@/integrations/supabase/member-middleware";
 
 const BOOKS = ["draftkings", "fanduel", "fanatics", "betmgm", "bet365", "williamhill_us"];
 const SPORT = "baseball_mlb";
@@ -48,6 +49,7 @@ function americanToImplied(odds: number): number {
 }
 
 export const getOdds = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
   .handler(async (): Promise<{ rows: OddsRow[]; fetchedAt: string; configured: boolean }> => {
     const key = process.env.THE_ODDS_API_KEY;
     if (!key) return { rows: [], fetchedAt: new Date().toISOString(), configured: false };

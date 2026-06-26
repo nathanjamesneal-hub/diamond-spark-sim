@@ -10,7 +10,7 @@ function teamQuery(teamId: number) {
   });
 }
 
-export const Route = createFileRoute("/teams/$teamId")({
+export const Route = createFileRoute("/_authenticated/teams/$teamId")({
   head: () => ({
     meta: [
       { title: "Team — Diamond" },

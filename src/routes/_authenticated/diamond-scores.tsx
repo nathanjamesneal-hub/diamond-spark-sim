@@ -40,7 +40,7 @@ function diamondQuery(date: string | undefined) {
   });
 }
 
-export const Route = createFileRoute("/diamond-scores")({
+export const Route = createFileRoute("/_authenticated/diamond-scores")({
   ssr: false,
   head: () => ({
     meta: [

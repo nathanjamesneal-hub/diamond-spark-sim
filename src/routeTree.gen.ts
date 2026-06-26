@@ -9,77 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TopPropsRouteImport } from './routes/top-props'
-import { Route as StandingsRouteImport } from './routes/standings'
-import { Route as SlateRouteImport } from './routes/slate'
-import { Route as ScoresRouteImport } from './routes/scores'
-import { Route as OddsRouteImport } from './routes/odds'
-import { Route as LineupStatusRouteImport } from './routes/lineup-status'
-import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
-import { Route as DiamondScoresRouteImport } from './routes/diamond-scores'
-import { Route as CalibrationLabRouteImport } from './routes/calibration-lab'
-import { Route as CalibrationRouteImport } from './routes/calibration'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
-import { Route as PlayersPlayerIdRouteImport } from './routes/players.$playerId'
-import { Route as MatchupsGamePkRouteImport } from './routes/matchups.$gamePk'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedTopPropsRouteImport } from './routes/_authenticated/top-props'
+import { Route as AuthenticatedStandingsRouteImport } from './routes/_authenticated/standings'
+import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/slate'
+import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
+import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
+import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
+import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
+import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
+import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
+import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenticated/calibration'
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
+import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams.$teamId'
+import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
+import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
+import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 
-const TopPropsRoute = TopPropsRouteImport.update({
-  id: '/top-props',
-  path: '/top-props',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StandingsRoute = StandingsRouteImport.update({
-  id: '/standings',
-  path: '/standings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SlateRoute = SlateRouteImport.update({
-  id: '/slate',
-  path: '/slate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScoresRoute = ScoresRouteImport.update({
-  id: '/scores',
-  path: '/scores',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OddsRoute = OddsRouteImport.update({
-  id: '/odds',
-  path: '/odds',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LineupStatusRoute = LineupStatusRouteImport.update({
-  id: '/lineup-status',
-  path: '/lineup-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeaderboardsRoute = LeaderboardsRouteImport.update({
-  id: '/leaderboards',
-  path: '/leaderboards',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DiamondScoresRoute = DiamondScoresRouteImport.update({
-  id: '/diamond-scores',
-  path: '/diamond-scores',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CalibrationLabRoute = CalibrationLabRouteImport.update({
-  id: '/calibration-lab',
-  path: '/calibration-lab',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CalibrationRoute = CalibrationRouteImport.update({
-  id: '/calibration',
-  path: '/calibration',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -89,26 +40,66 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
-  id: '/teams/$teamId',
-  path: '/teams/$teamId',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedTopPropsRoute = AuthenticatedTopPropsRouteImport.update({
+  id: '/top-props',
+  path: '/top-props',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const PlayersPlayerIdRoute = PlayersPlayerIdRouteImport.update({
-  id: '/players/$playerId',
-  path: '/players/$playerId',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedStandingsRoute = AuthenticatedStandingsRouteImport.update({
+  id: '/standings',
+  path: '/standings',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const MatchupsGamePkRoute = MatchupsGamePkRouteImport.update({
-  id: '/matchups/$gamePk',
-  path: '/matchups/$gamePk',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedSlateRoute = AuthenticatedSlateRouteImport.update({
+  id: '/slate',
+  path: '/slate',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedScoresRoute = AuthenticatedScoresRouteImport.update({
+  id: '/scores',
+  path: '/scores',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
+  id: '/odds',
+  path: '/odds',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLineupStatusRoute =
+  AuthenticatedLineupStatusRouteImport.update({
+    id: '/lineup-status',
+    path: '/lineup-status',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedLeaderboardsRoute =
+  AuthenticatedLeaderboardsRouteImport.update({
+    id: '/leaderboards',
+    path: '/leaderboards',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDiamondScoresRoute =
+  AuthenticatedDiamondScoresRouteImport.update({
+    id: '/diamond-scores',
+    path: '/diamond-scores',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCalibrationLabRoute =
+  AuthenticatedCalibrationLabRouteImport.update({
+    id: '/calibration-lab',
+    path: '/calibration-lab',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCalibrationRoute =
+  AuthenticatedCalibrationRouteImport.update({
+    id: '/calibration',
+    path: '/calibration',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedBetsRoute = AuthenticatedBetsRouteImport.update({
   id: '/bets',
   path: '/bets',
@@ -118,6 +109,24 @@ const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
   id: '/_admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTeamsTeamIdRoute =
+  AuthenticatedTeamsTeamIdRouteImport.update({
+    id: '/teams/$teamId',
+    path: '/teams/$teamId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPlayersPlayerIdRoute =
+  AuthenticatedPlayersPlayerIdRouteImport.update({
+    id: '/players/$playerId',
+    path: '/players/$playerId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMatchupsGamePkRoute =
+  AuthenticatedMatchupsGamePkRouteImport.update({
+    id: '/matchups/$gamePk',
+    path: '/matchups/$gamePk',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -129,68 +138,77 @@ const ApiPublicHooksRefreshLineupsRoute =
     path: '/api/public/hooks/refresh-lineups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksBeforeUserCreatedRoute =
+  ApiPublicHooksBeforeUserCreatedRouteImport.update({
+    id: '/api/public/hooks/before-user-created',
+    path: '/api/public/hooks/before-user-created',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
-  '/calibration': typeof CalibrationRoute
-  '/calibration-lab': typeof CalibrationLabRoute
-  '/diamond-scores': typeof DiamondScoresRoute
-  '/leaderboards': typeof LeaderboardsRoute
-  '/lineup-status': typeof LineupStatusRoute
-  '/odds': typeof OddsRoute
-  '/scores': typeof ScoresRoute
-  '/slate': typeof SlateRoute
-  '/standings': typeof StandingsRoute
-  '/top-props': typeof TopPropsRoute
   '/bets': typeof AuthenticatedBetsRoute
-  '/matchups/$gamePk': typeof MatchupsGamePkRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/calibration': typeof AuthenticatedCalibrationRoute
+  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/odds': typeof AuthenticatedOddsRoute
+  '/scores': typeof AuthenticatedScoresRoute
+  '/slate': typeof AuthenticatedSlateRoute
+  '/standings': typeof AuthenticatedStandingsRoute
+  '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/calibration': typeof CalibrationRoute
-  '/calibration-lab': typeof CalibrationLabRoute
-  '/diamond-scores': typeof DiamondScoresRoute
-  '/leaderboards': typeof LeaderboardsRoute
-  '/lineup-status': typeof LineupStatusRoute
-  '/odds': typeof OddsRoute
-  '/scores': typeof ScoresRoute
-  '/slate': typeof SlateRoute
-  '/standings': typeof StandingsRoute
-  '/top-props': typeof TopPropsRoute
+  '/': typeof AuthenticatedIndexRoute
   '/bets': typeof AuthenticatedBetsRoute
-  '/matchups/$gamePk': typeof MatchupsGamePkRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/calibration': typeof AuthenticatedCalibrationRoute
+  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/odds': typeof AuthenticatedOddsRoute
+  '/scores': typeof AuthenticatedScoresRoute
+  '/slate': typeof AuthenticatedSlateRoute
+  '/standings': typeof AuthenticatedStandingsRoute
+  '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/calibration': typeof CalibrationRoute
-  '/calibration-lab': typeof CalibrationLabRoute
-  '/diamond-scores': typeof DiamondScoresRoute
-  '/leaderboards': typeof LeaderboardsRoute
-  '/lineup-status': typeof LineupStatusRoute
-  '/odds': typeof OddsRoute
-  '/scores': typeof ScoresRoute
-  '/slate': typeof SlateRoute
-  '/standings': typeof StandingsRoute
-  '/top-props': typeof TopPropsRoute
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/bets': typeof AuthenticatedBetsRoute
-  '/matchups/$gamePk': typeof MatchupsGamePkRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/_authenticated/calibration': typeof AuthenticatedCalibrationRoute
+  '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
+  '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/_authenticated/odds': typeof AuthenticatedOddsRoute
+  '/_authenticated/scores': typeof AuthenticatedScoresRoute
+  '/_authenticated/slate': typeof AuthenticatedSlateRoute
+  '/_authenticated/standings': typeof AuthenticatedStandingsRoute
+  '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
+  '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
 export interface FileRouteTypes {
@@ -198,6 +216,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/bets'
     | '/calibration'
     | '/calibration-lab'
     | '/diamond-scores'
@@ -208,16 +227,17 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
-    | '/bets'
+    | '/admin'
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
-    | '/admin'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/auth'
+    | '/'
+    | '/bets'
     | '/calibration'
     | '/calibration-lab'
     | '/diamond-scores'
@@ -228,128 +248,46 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
-    | '/bets'
+    | '/admin'
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
-    | '/admin'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   id:
     | '__root__'
-    | '/'
     | '/_authenticated'
     | '/auth'
-    | '/calibration'
-    | '/calibration-lab'
-    | '/diamond-scores'
-    | '/leaderboards'
-    | '/lineup-status'
-    | '/odds'
-    | '/scores'
-    | '/slate'
-    | '/standings'
-    | '/top-props'
     | '/_authenticated/_admin'
     | '/_authenticated/bets'
-    | '/matchups/$gamePk'
-    | '/players/$playerId'
-    | '/teams/$teamId'
+    | '/_authenticated/calibration'
+    | '/_authenticated/calibration-lab'
+    | '/_authenticated/diamond-scores'
+    | '/_authenticated/leaderboards'
+    | '/_authenticated/lineup-status'
+    | '/_authenticated/odds'
+    | '/_authenticated/scores'
+    | '/_authenticated/slate'
+    | '/_authenticated/standings'
+    | '/_authenticated/top-props'
+    | '/_authenticated/'
     | '/_authenticated/_admin/admin'
+    | '/_authenticated/matchups/$gamePk'
+    | '/_authenticated/players/$playerId'
+    | '/_authenticated/teams/$teamId'
+    | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  CalibrationRoute: typeof CalibrationRoute
-  CalibrationLabRoute: typeof CalibrationLabRoute
-  DiamondScoresRoute: typeof DiamondScoresRoute
-  LeaderboardsRoute: typeof LeaderboardsRoute
-  LineupStatusRoute: typeof LineupStatusRoute
-  OddsRoute: typeof OddsRoute
-  ScoresRoute: typeof ScoresRoute
-  SlateRoute: typeof SlateRoute
-  StandingsRoute: typeof StandingsRoute
-  TopPropsRoute: typeof TopPropsRoute
-  MatchupsGamePkRoute: typeof MatchupsGamePkRoute
-  PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
-  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
+  ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/top-props': {
-      id: '/top-props'
-      path: '/top-props'
-      fullPath: '/top-props'
-      preLoaderRoute: typeof TopPropsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/standings': {
-      id: '/standings'
-      path: '/standings'
-      fullPath: '/standings'
-      preLoaderRoute: typeof StandingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/slate': {
-      id: '/slate'
-      path: '/slate'
-      fullPath: '/slate'
-      preLoaderRoute: typeof SlateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scores': {
-      id: '/scores'
-      path: '/scores'
-      fullPath: '/scores'
-      preLoaderRoute: typeof ScoresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/odds': {
-      id: '/odds'
-      path: '/odds'
-      fullPath: '/odds'
-      preLoaderRoute: typeof OddsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lineup-status': {
-      id: '/lineup-status'
-      path: '/lineup-status'
-      fullPath: '/lineup-status'
-      preLoaderRoute: typeof LineupStatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leaderboards': {
-      id: '/leaderboards'
-      path: '/leaderboards'
-      fullPath: '/leaderboards'
-      preLoaderRoute: typeof LeaderboardsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/diamond-scores': {
-      id: '/diamond-scores'
-      path: '/diamond-scores'
-      fullPath: '/diamond-scores'
-      preLoaderRoute: typeof DiamondScoresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calibration-lab': {
-      id: '/calibration-lab'
-      path: '/calibration-lab'
-      fullPath: '/calibration-lab'
-      preLoaderRoute: typeof CalibrationLabRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calibration': {
-      id: '/calibration'
-      path: '/calibration'
-      fullPath: '/calibration'
-      preLoaderRoute: typeof CalibrationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -364,33 +302,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/teams/$teamId': {
-      id: '/teams/$teamId'
-      path: '/teams/$teamId'
-      fullPath: '/teams/$teamId'
-      preLoaderRoute: typeof TeamsTeamIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/top-props': {
+      id: '/_authenticated/top-props'
+      path: '/top-props'
+      fullPath: '/top-props'
+      preLoaderRoute: typeof AuthenticatedTopPropsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/players/$playerId': {
-      id: '/players/$playerId'
-      path: '/players/$playerId'
-      fullPath: '/players/$playerId'
-      preLoaderRoute: typeof PlayersPlayerIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/standings': {
+      id: '/_authenticated/standings'
+      path: '/standings'
+      fullPath: '/standings'
+      preLoaderRoute: typeof AuthenticatedStandingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/matchups/$gamePk': {
-      id: '/matchups/$gamePk'
-      path: '/matchups/$gamePk'
-      fullPath: '/matchups/$gamePk'
-      preLoaderRoute: typeof MatchupsGamePkRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/slate': {
+      id: '/_authenticated/slate'
+      path: '/slate'
+      fullPath: '/slate'
+      preLoaderRoute: typeof AuthenticatedSlateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/scores': {
+      id: '/_authenticated/scores'
+      path: '/scores'
+      fullPath: '/scores'
+      preLoaderRoute: typeof AuthenticatedScoresRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/odds': {
+      id: '/_authenticated/odds'
+      path: '/odds'
+      fullPath: '/odds'
+      preLoaderRoute: typeof AuthenticatedOddsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/lineup-status': {
+      id: '/_authenticated/lineup-status'
+      path: '/lineup-status'
+      fullPath: '/lineup-status'
+      preLoaderRoute: typeof AuthenticatedLineupStatusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/leaderboards': {
+      id: '/_authenticated/leaderboards'
+      path: '/leaderboards'
+      fullPath: '/leaderboards'
+      preLoaderRoute: typeof AuthenticatedLeaderboardsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/diamond-scores': {
+      id: '/_authenticated/diamond-scores'
+      path: '/diamond-scores'
+      fullPath: '/diamond-scores'
+      preLoaderRoute: typeof AuthenticatedDiamondScoresRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calibration-lab': {
+      id: '/_authenticated/calibration-lab'
+      path: '/calibration-lab'
+      fullPath: '/calibration-lab'
+      preLoaderRoute: typeof AuthenticatedCalibrationLabRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calibration': {
+      id: '/_authenticated/calibration'
+      path: '/calibration'
+      fullPath: '/calibration'
+      preLoaderRoute: typeof AuthenticatedCalibrationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/bets': {
       id: '/_authenticated/bets'
@@ -406,6 +393,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/teams/$teamId': {
+      id: '/_authenticated/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/players/$playerId': {
+      id: '/_authenticated/players/$playerId'
+      path: '/players/$playerId'
+      fullPath: '/players/$playerId'
+      preLoaderRoute: typeof AuthenticatedPlayersPlayerIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/matchups/$gamePk': {
+      id: '/_authenticated/matchups/$gamePk'
+      path: '/matchups/$gamePk'
+      fullPath: '/matchups/$gamePk'
+      preLoaderRoute: typeof AuthenticatedMatchupsGamePkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
       path: '/admin'
@@ -418,6 +426,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/refresh-lineups'
       fullPath: '/api/public/hooks/refresh-lineups'
       preLoaderRoute: typeof ApiPublicHooksRefreshLineupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/before-user-created': {
+      id: '/api/public/hooks/before-user-created'
+      path: '/api/public/hooks/before-user-created'
+      fullPath: '/api/public/hooks/before-user-created'
+      preLoaderRoute: typeof ApiPublicHooksBeforeUserCreatedRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -440,33 +455,48 @@ const AuthenticatedAdminRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
+  AuthenticatedCalibrationRoute: typeof AuthenticatedCalibrationRoute
+  AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
+  AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
+  AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
+  AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
+  AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
+  AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
+  AuthenticatedSlateRoute: typeof AuthenticatedSlateRoute
+  AuthenticatedStandingsRoute: typeof AuthenticatedStandingsRoute
+  AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
+  AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
+  AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedBetsRoute: AuthenticatedBetsRoute,
+  AuthenticatedCalibrationRoute: AuthenticatedCalibrationRoute,
+  AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
+  AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
+  AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
+  AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
+  AuthenticatedOddsRoute: AuthenticatedOddsRoute,
+  AuthenticatedScoresRoute: AuthenticatedScoresRoute,
+  AuthenticatedSlateRoute: AuthenticatedSlateRoute,
+  AuthenticatedStandingsRoute: AuthenticatedStandingsRoute,
+  AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
+  AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,
+  AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  CalibrationRoute: CalibrationRoute,
-  CalibrationLabRoute: CalibrationLabRoute,
-  DiamondScoresRoute: DiamondScoresRoute,
-  LeaderboardsRoute: LeaderboardsRoute,
-  LineupStatusRoute: LineupStatusRoute,
-  OddsRoute: OddsRoute,
-  ScoresRoute: ScoresRoute,
-  SlateRoute: SlateRoute,
-  StandingsRoute: StandingsRoute,
-  TopPropsRoute: TopPropsRoute,
-  MatchupsGamePkRoute: MatchupsGamePkRoute,
-  PlayersPlayerIdRoute: PlayersPlayerIdRoute,
-  TeamsTeamIdRoute: TeamsTeamIdRoute,
+  ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
 }
 export const routeTree = rootRouteImport

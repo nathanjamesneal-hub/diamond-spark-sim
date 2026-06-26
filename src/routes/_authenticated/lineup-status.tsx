@@ -26,7 +26,7 @@ function statusQuery(date: string | undefined) {
   });
 }
 
-export const Route = createFileRoute("/lineup-status")({
+export const Route = createFileRoute("/_authenticated/lineup-status")({
   ssr: false,
   head: () => ({
     meta: [
