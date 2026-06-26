@@ -268,9 +268,12 @@ const actualsQuery = (date: string | undefined) =>
   queryOptions({
     queryKey: ["sim-actuals", date ?? "today"],
     queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
+
 
 export const Route = createFileRoute("/_authenticated/odds")({
   ssr: false,
