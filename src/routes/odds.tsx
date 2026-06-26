@@ -5,7 +5,7 @@
  */
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import {
@@ -253,6 +253,7 @@ const searchSchema = z.object({
   ).default("all"),
   team: z.string().optional(),
   lineup: fallback(z.enum(["all", "locked", "verified", "waiting"]), "all").default("all"),
+  scope: fallback(z.enum(["top25", "all"]), "top25").default("top25"),
 });
 
 const leadersQuery = (date: string | undefined) =>
