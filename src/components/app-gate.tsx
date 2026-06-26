@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -10,47 +10,73 @@ export function AppGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [status, setStatus] = useState<Status>("loading");
+  const evalSeq = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const isPublic = PUBLIC_PATHS.has(pathname);
+
+    async function checkMembership(retry = true): Promise<boolean | null> {
+      const { data, error } = await supabase.rpc("is_app_member");
+      if (error) {
+        // Transient/network error — retry once, then keep loading rather than sign out.
+        if (retry) {
+          await new Promise((r) => setTimeout(r, 600));
+          return checkMembership(false);
+        }
+        return null; // unknown — do NOT sign out
+      }
+      return !!data;
+    }
 
     async function evaluate() {
-      const isPublic = PUBLIC_PATHS.has(pathname);
+      const seq = ++evalSeq.current;
       const { data: userData } = await supabase.auth.getUser();
+      if (cancelled || seq !== evalSeq.current) return;
       const user = userData?.user ?? null;
 
       if (!user) {
         if (isPublic) {
-          if (!cancelled) setStatus("allowed");
+          setStatus("allowed");
         } else {
-          if (!cancelled) setStatus("blocked");
-          router.navigate({ to: "/auth" });
-        }
-        return;
-      }
-
-      // Signed in — check membership
-      const { data: isMember, error } = await supabase.rpc("is_app_member");
-      if (cancelled) return;
-      if (error || !isMember) {
-        await supabase.auth.signOut();
-        if (!cancelled) {
           setStatus("blocked");
           router.navigate({ to: "/auth" });
         }
         return;
       }
-      if (!cancelled) setStatus("allowed");
+
+      const member = await checkMembership();
+      if (cancelled || seq !== evalSeq.current) return;
+
+      if (member === null) {
+        // Don't flip to blocked or sign out on transport errors; stay loading.
+        return;
+      }
+      if (!member) {
+        await supabase.auth.signOut();
+        if (cancelled || seq !== evalSeq.current) return;
+        setStatus("blocked");
+        router.navigate({ to: "/auth" });
+        return;
+      }
+      setStatus("allowed");
     }
 
-    setStatus("loading");
-    evaluate();
-
+    // Subscribe FIRST so we don't miss a SIGNED_IN that fires while getUser() is in flight.
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+      if (
+        event === "SIGNED_IN" ||
+        event === "SIGNED_OUT" ||
+        event === "USER_UPDATED" ||
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED"
+      ) {
         evaluate();
       }
     });
+
+    setStatus("loading");
+    evaluate();
 
     return () => {
       cancelled = true;
@@ -58,16 +84,14 @@ export function AppGate({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
-  if (status === "loading" || status === "blocked") {
-    if (PUBLIC_PATHS.has(pathname) && status !== "loading") return <>{children}</>;
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
-          {status === "blocked" ? "Redirecting…" : "Loading…"}
-        </div>
-      </div>
-    );
-  }
+  if (status === "allowed") return <>{children}</>;
+  if (status === "blocked" && PUBLIC_PATHS.has(pathname)) return <>{children}</>;
 
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+        {status === "blocked" ? "Redirecting…" : "Loading…"}
+      </div>
+    </div>
+  );
 }
