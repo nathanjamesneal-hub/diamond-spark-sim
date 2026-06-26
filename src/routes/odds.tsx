@@ -527,7 +527,7 @@ function CategorySection({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => {
+              {visibleRows.map((r, i) => {
                 const stat = cat.getStat?.(r) ?? null;
                 const prob = cat.getProb?.(r) ?? null;
                 const lineupStatus =
@@ -611,6 +611,17 @@ function CategorySection({
               })}
             </tbody>
           </table>
+          {scope === "all" && visibleRows.length < rows.length ? (
+            <div className="flex items-center justify-center border-t border-border/40 bg-card/40 p-3">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((n) => n + 50)}
+                className="mono rounded-md border border-border/60 px-3 py-1.5 text-[11px] uppercase tracking-widest text-foreground hover:bg-card"
+              >
+                Load 50 more · {visibleRows.length} / {rows.length}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </section>
