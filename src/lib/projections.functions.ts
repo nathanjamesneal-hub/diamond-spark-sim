@@ -821,16 +821,23 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       if (!g) continue;
       const gls = glsByGame.get(sp.game_id);
       const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
-      const versionsForPlayer = (projections ?? [])
-        .filter((p) => p.player_id === sp.player_id && p.game_id === sp.game_id);
-      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
-      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       const gs = gameStateOf(g.game_status);
+      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
+      const versionSet = new Set<string>();
+      for (const p of projections) {
+        if (p.player_id === sp.player_id && p.game_id === sp.game_id && normRole(p.projection_role) === "pitcher") {
+          versionSet.add(p.model_version);
+        }
+      }
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const proj = latest.get(`${sp.player_id}:${sp.game_id}:${v}`);
-        if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
-        const run = runByKey.get(`${sp.game_id}:${v}`);
+        const { proj, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, gs, gameStarted);
+        if (!proj) continue;
+        if (chosenClass === "preview") previewRowsReturned += 1;
+        else officialRowsReturned += 1;
+        const run = chosenClass === "official" ? runByKey.get(`${sp.game_id}:${v}`) : undefined;
         const snap = proj?.sim_snapshot ?? null;
+        const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         pitcherCards.push({
           player_id: sp.player_id,
           mlb_id: playerMlbId.get(sp.player_id) ?? null,
@@ -844,7 +851,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           first_pitch_at: g.first_pitch_at ?? null,
           model_version: v,
           forecast_run_id: run?.id ?? null,
-          forecast_status: forecastStatusOf(run, gs),
+          forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
           forecast_published_at: run?.generated_at ?? null,
           diamond_score: proj?.diamond_score ?? null,
@@ -854,7 +861,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           bb_mean: snapMean(snap, "BB"),
           er_mean: snapMean(snap, "ER"),
           h_mean: snapMean(snap, "H"),
-          projected_bf: null,
+          projected_bf: (() => {
+            const bf = snap?.distributions?.BF?.mean ?? snap?.projected_bf ?? null;
+            return typeof bf === "number" && isFinite(bf) ? bf : null;
+          })(),
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
@@ -872,6 +882,11 @@ export const getDiamondScores = createServerFn({ method: "GET" })
 
     hitters.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
     pitcherCards.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+
+    console.info(
+      `[getDiamondScores] date=${date} version=${activeVersion} official=${officialRowsReturned} preview=${previewRowsReturned} total=${hitters.length + pitcherCards.length}`,
+    );
+
 
     const slateConfirmed = gameOptions.filter((g) => (g.confidence ?? 0) >= 95).length;
     const slateTotal = gameOptions.length;
