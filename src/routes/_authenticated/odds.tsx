@@ -1,4 +1,3 @@
-import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 /**
  * Top 25 Simulation Leaders.
  * Display-only. All values come from existing Monte Carlo outputs surfaced by

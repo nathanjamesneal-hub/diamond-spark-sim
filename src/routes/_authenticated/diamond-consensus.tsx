@@ -1,4 +1,3 @@
-import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 /**
  * Diamond Consensus — display-only board.
  *
