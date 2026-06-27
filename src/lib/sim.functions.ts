@@ -172,11 +172,13 @@ async function getBullpenAggregate(teamId: number, season: number, starterIds: S
 export async function buildMonteCarloGameEnvironment(
   gamePk: number,
   iterations?: number,
-): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment }> {
+  seed?: number,
+): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null }> {
   const cached = CACHE.get(gamePk);
-  if (cached && Date.now() - cached.at < TTL_MS && !iterations) {
-    return { meta: cached.meta, result: cached.data, gameEnvironment: cached.gameEnvironment };
+  if (cached && Date.now() - cached.at < TTL_MS && !iterations && seed === undefined) {
+    return { meta: cached.meta, result: cached.data, gameEnvironment: cached.gameEnvironment, venueId: cached.meta.venueId };
   }
+
 
     const season = currentSeason();
     const warnings: string[] = [];
