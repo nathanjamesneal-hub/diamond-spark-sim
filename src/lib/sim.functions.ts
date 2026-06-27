@@ -310,7 +310,6 @@ export const simulateGame = createServerFn({ method: "GET" })
 // ============================================================
 
 import { getDiamondScores } from "./projections.functions";
-import type { PlayerStatDist, BatterDist, PitcherDist } from "./sim/engine";
 import { getMarketSimulationMetrics, metricsToSimStat, type MarketKey } from "./forecast/sim-metrics";
 
 export type SimStat = {
@@ -382,20 +381,6 @@ export type SimulationLeadersPayload = {
   pitchers: SimLeaderPitcherRow[];
   warnings: string[];
 };
-
-function reshapeStat(d: PlayerStatDist | undefined | null): SimStat | null {
-  if (!d) return null;
-  return {
-    mean: typeof d.mean === "number" && isFinite(d.mean) ? d.mean : null,
-    p50: typeof d.p50 === "number" && isFinite(d.p50) ? d.p50 : null,
-    p90: typeof d.p90 === "number" && isFinite(d.p90) ? d.p90 : null,
-    stdev: null,
-    probAtLeast1:
-      typeof d.probAtLeast1 === "number" && isFinite(d.probAtLeast1) ? d.probAtLeast1 : null,
-    probAtLeast2:
-      typeof d.probAtLeast2 === "number" && isFinite(d.probAtLeast2) ? d.probAtLeast2 : null,
-  };
-}
 
 export const getSimulationLeaders = createServerFn({ method: "GET" })
   .middleware([requireAppMember])
