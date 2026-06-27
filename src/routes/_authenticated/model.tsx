@@ -227,25 +227,87 @@ function ModelResultsPage() {
         ) : null}
       </header>
 
-      <MeanProjectionAccuracy
-        summaries={summaries}
-        hero={hero}
-        scope={scope}
-        setScope={setScope}
-        snapshotsLocked={info.snapshotCoverage.locked}
-        isHistorical={date < todayInAppTz()}
-      />
+      <DiagnosticGroup label="Event Probability Accuracy"
+        sub="Does a stated probability hit at its stated rate?">
+        <HomeRunEventReview
+          leaders={leaders}
+          actuals={actuals}
+          snapshotsLocked={info.snapshotCoverage.locked}
+        />
+        <ProbabilityCalibration data={calibration} />
+      </DiagnosticGroup>
 
-      <HomeRunEventReview
-        leaders={leaders}
-        actuals={actuals}
-        snapshotsLocked={info.snapshotCoverage.locked}
-      />
+      <DiagnosticGroup label="Mean Projection Accuracy"
+        sub="How close are Monte Carlo mean projections to actual box-score outcomes?">
+        <MeanProjectionAccuracy
+          summaries={summaries}
+          hero={hero}
+          scope={scope}
+          setScope={setScope}
+          snapshotsLocked={info.snapshotCoverage.locked}
+          isHistorical={date < todayInAppTz()}
+        />
+      </DiagnosticGroup>
 
-      <ProbabilityCalibration data={calibration} />
+      <DiagnosticGroup label="Ranking Performance"
+        sub="Did the model's top-ranked players actually outperform on a per-category basis?">
+        <RankingPerformance summaries={summaries} />
+      </DiagnosticGroup>
     </div>
   );
 }
+
+function DiagnosticGroup({ label, sub, children }: { label: string; sub: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-5 rounded-2xl border border-border/40 bg-card/20 p-5">
+      <div className="border-b border-border/40 pb-2">
+        <div className="mono text-[10px] uppercase tracking-[0.22em] text-primary">{label}</div>
+        <div className="mono text-[11px] text-muted-foreground">{sub}</div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function RankingPerformance({ summaries }: { summaries: import("@/lib/model-results").MRCategorySummary[] }) {
+  // Top-5 mean hit-rate per category — how often the top-5 ranked forecasts
+  // met-or-beat their projected line.
+  const rows = summaries.map((s) => {
+    const top5 = s.rows.slice(0, 5);
+    const wins = top5.filter((r) => r.grade === "Met Projection" || r.grade === "Beat Projection").length;
+    return { cat: s.cat, n: top5.length, wins, rate: top5.length > 0 ? wins / top5.length : null, all: s.qualified, allRate: s.hitRate };
+  });
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
+      <table className="table-modern w-full text-left text-xs">
+        <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <tr className="border-b border-border/40">
+            <th className="px-2 py-2">Category</th>
+            <th className="px-2 py-2 text-right">Top 5 Hit Rate</th>
+            <th className="px-2 py-2 text-right">All Qualified Hit Rate</th>
+            <th className="px-2 py-2 text-right">Lift</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const lift = r.rate != null && r.allRate != null ? r.rate - r.allRate : null;
+            return (
+              <tr key={r.cat.key} className="border-t border-border/30">
+                <td className="px-2 py-2 font-semibold">{r.cat.label}<span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">{r.cat.group}</span></td>
+                <td className="px-2 py-2 text-right mono tabular-nums">{r.rate == null ? "—" : `${(r.rate * 100).toFixed(0)}%`} <span className="text-muted-foreground">({r.wins}/{r.n})</span></td>
+                <td className="px-2 py-2 text-right mono tabular-nums text-muted-foreground">{r.allRate == null ? "—" : `${(r.allRate * 100).toFixed(0)}%`} <span className="text-muted-foreground">({r.all})</span></td>
+                <td className={`px-2 py-2 text-right mono tabular-nums ${lift == null ? "" : lift >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                  {lift == null ? "—" : `${lift >= 0 ? "+" : ""}${(lift * 100).toFixed(0)} pp`}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 
 
 /* ============================================================
