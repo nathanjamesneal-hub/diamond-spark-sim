@@ -242,6 +242,11 @@ function buildRows(payload: SimulationLeadersPayload): ConsensusRow[] {
         contributions: score.contributions,
         probAvailable: score.probAvailable,
         alignment: alignmentLabel({ dsPct, meanPct, probPct, lineupStatus }),
+        projection_class: r.projection_class,
+        forecast_status: r.forecast_status,
+        game_display_state: r.game_display_state,
+        forecast_run_id: r.forecast_run_id,
+        forecast_locked_at: r.forecast_locked_at,
       });
     }
   }
