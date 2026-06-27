@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getSchedule, type GameSummary } from "@/lib/mlb.functions";
+import { getDiamondScores } from "@/lib/projections.functions";
 import { ScoreCard } from "@/components/score-card";
+import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
 
 const scheduleQuery = queryOptions({
   queryKey: ["schedule", "today"],
@@ -68,6 +70,8 @@ function TodayPage() {
 
       {featured ? <FeaturedMatchup game={featured} /> : null}
 
+      <TopForecasts />
+
       <div className="mt-8">
         <h2 className="display mb-3 text-lg uppercase tracking-wider text-muted-foreground">
           All games
@@ -85,6 +89,34 @@ function TodayPage() {
     </div>
   );
 }
+
+function TopForecasts() {
+  const q = useQuery({
+    queryKey: ["diamond-scores", "today"],
+    queryFn: () => getDiamondScores({ data: {} }),
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const data = q.data;
+  if (!data) return null;
+  const hasOfficial = [...data.hitters, ...data.pitchers].some((r) =>
+    ["published", "locked", "live", "final"].includes(r.forecast_status)
+  );
+  if (!hasOfficial) return null;
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex items-end justify-between">
+        <h2 className="display text-lg uppercase tracking-wider text-muted-foreground">Top forecasts</h2>
+        <Link to="/diamond-scores" className="mono text-[10px] uppercase tracking-widest text-primary hover:underline">
+          Open full board →
+        </Link>
+      </div>
+      <ForecastBoard payload={data} compact topN={8} />
+    </section>
+  );
+}
+
 
 const DASHBOARD_CARDS = [
   {

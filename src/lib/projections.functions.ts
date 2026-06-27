@@ -326,6 +326,39 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
 
 export type LineupBadgeStatus = "official" | "aggregated" | "low_confidence" | "locked";
 
+/**
+ * Game display state derived from `games.game_status` (MLB enum).
+ *   upcoming — scheduled, warmup, delayed start (pregame)
+ *   live     — in progress / manager challenge / suspended after start
+ *   final    — final, game over, completed
+ *   other    — postponed, cancelled, off (treated as not-on-slate)
+ */
+export type GameDisplayState = "upcoming" | "live" | "final" | "other";
+
+/**
+ * Public Forecast Board status. Derived from forecast_runs.status
+ * (published|locked|superseded) + GameDisplayState. NEVER includes preview.
+ *   no_official — no published/locked official forecast exists yet
+ *   published   — official forecast published, game still pregame
+ *   locked      — official forecast locked at first pitch, game pregame edge case
+ *   live        — official forecast locked, game in progress
+ *   final       — official forecast locked, game ended
+ */
+export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final";
+
+export type ForecastActuals = {
+  hits: number | null;
+  ab: number | null;
+  total_bases: number | null;
+  home_runs: number | null;
+  rbis: number | null;
+  stolen_bases: number | null;
+  walks: number | null;
+  strikeouts: number | null;
+  plate_appearances: number | null;
+  runs: number | null;
+};
+
 export type DiamondHitterCard = {
   player_id: string;
   mlb_id: number | null;
@@ -335,6 +368,7 @@ export type DiamondHitterCard = {
   game_id: string;
   mlb_game_id: number | null;
   game_status: string | null;
+  game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   batting_order: number | null;
   lineup_status: "locked" | "verified" | "waiting";
@@ -344,6 +378,10 @@ export type DiamondHitterCard = {
   last_refresh_at: string | null;
   source_count: number | null;
   model_version: string;
+  forecast_run_id: string | null;
+  forecast_status: ForecastBoardStatus;
+  forecast_locked_at: string | null;
+  forecast_published_at: string | null;
   diamond_score: number | null;
   contact_score: number | null;
   power_score: number | null;
@@ -357,7 +395,15 @@ export type DiamondHitterCard = {
   rbi_probability: number | null;
   run_probability: number | null;
   sb_probability: number | null;
+  /** Means pulled from sim_snapshot.distributions (no live sim). */
+  hit_mean: number | null;
+  hr_mean: number | null;
+  tb_mean: number | null;
+  rbi_mean: number | null;
+  /** PA isn't directly persisted yet; null when unavailable. */
+  projected_pa: number | null;
   inputs_narrative: string | null;
+  actual: ForecastActuals | null;
 };
 
 export type PitcherComponentSnapshot = {
@@ -378,11 +424,23 @@ export type DiamondPitcherCard = {
   game_id: string;
   mlb_game_id: number | null;
   game_status: string | null;
+  game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   model_version: string;
+  forecast_run_id: string | null;
+  forecast_status: ForecastBoardStatus;
+  forecast_locked_at: string | null;
+  forecast_published_at: string | null;
   diamond_score: number | null;
   confidence: number | null;
   projected_outs: number | null;
+  /** Means from sim_snapshot.distributions. */
+  k_mean: number | null;
+  bb_mean: number | null;
+  er_mean: number | null;
+  h_mean: number | null;
+  /** Batters Faced isn't directly persisted yet; null when unavailable. */
+  projected_bf: number | null;
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
@@ -391,6 +449,7 @@ export type DiamondPitcherCard = {
   lineup_confidence: number | null;
   lineup_source: string | null;
   badge: LineupBadgeStatus;
+  actual: ForecastActuals | null;
 };
 
 
@@ -407,6 +466,7 @@ export type DiamondScoresPayload = {
   slateConfirmed: number;
   slateTotal: number;
 };
+
 
 
 const MISSING_HITTER_FIELDS = [
@@ -502,7 +562,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     const { data: teamsRows } = await sb.from("teams").select("id, abbreviation");
     const teamAbbrev = new Map((teamsRows ?? []).map((t) => [t.id, t.abbreviation]));
 
-    const [{ data: lineups }, { data: pitchers }, { data: projectionsAll }, { data: glsRows }] = await Promise.all([
+    const [{ data: lineups }, { data: pitchers }, { data: projectionsAll }, { data: glsRows }, { data: forecastRunRows }, { data: actualRows }] = await Promise.all([
       sb.from("lineups")
         .select("game_id, player_id, team_id, batting_order, locked_at, confirmed, lineup_status, lineup_source")
         .in("game_id", gameIds),
@@ -510,7 +570,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("game_id, player_id, team_id, confirmed")
         .in("game_id", gameIds),
       sb.from("projections")
-        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, created_at, projection_status")
+        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, sim_snapshot, created_at, projection_status")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
         // Today/Slate board — OFFICIAL forecasts only. Games without
@@ -522,9 +582,31 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       sb.from("game_lineup_status")
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),
+
+      // Forecast lifecycle status per (game, model_version). Filter to the
+      // public-visible runs: published or locked, non-superseded, official.
+      sb.from("forecast_runs")
+        .select("id, game_id, model_version, status, locked_at, generated_at, projection_class, superseded_by")
+        .in("game_id", gameIds)
+        .eq("projection_class", "official")
+        .is("superseded_by", null)
+        .in("status", ["published", "locked"]),
+
+      // Final / in-progress box-score actuals for the actual column.
+      sb.from("projection_results")
+        .select("game_id, player_id, hits, total_bases, home_runs, rbis, stolen_bases, walks, strikeouts, plate_appearances, runs")
+        .in("game_id", gameIds),
     ]);
 
     const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
+    const runByKey = new Map<string, any>();
+    for (const r of forecastRunRows ?? []) {
+      runByKey.set(`${r.game_id}:${r.model_version}`, r);
+    }
+    const actualByKey = new Map<string, any>();
+    for (const a of actualRows ?? []) {
+      actualByKey.set(`${a.player_id}:${a.game_id}`, a);
+    }
 
     // Track every model version we observed (for UI version pickers / debug).
     const versions = new Set<string>();
@@ -586,6 +668,44 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       return "low_confidence";
     };
 
+    const gameStateOf = (status: string | null | undefined): GameDisplayState => {
+      const s = (status ?? "").toLowerCase();
+      if (!s || s.includes("scheduled") || s.includes("warmup") || s.includes("pre-game") || s.includes("pregame") || s.includes("delayed start")) return "upcoming";
+      if (s.includes("final") || s.includes("game over") || s.includes("completed")) return "final";
+      if (s.includes("postponed") || s.includes("cancelled") || s.includes("canceled") || s.includes("suspended ")) return "other";
+      if (s.includes("in progress") || s.includes("live") || s.includes("manager challenge") || s.includes("delayed") || s.includes("suspended") || s.includes("review")) return "live";
+      return "upcoming";
+    };
+
+    const forecastStatusOf = (run: any | undefined, gs: GameDisplayState): ForecastBoardStatus => {
+      if (!run) return "no_official";
+      // Once the game has started, the forecast is functionally locked even
+      // if the row hasn't flipped yet (the lock-live cron runs once a minute).
+      if (gs === "final") return "final";
+      if (gs === "live") return "live";
+      if (run.status === "locked") return "locked";
+      return "published";
+    };
+
+    const snapMean = (snap: any, key: string): number | null => {
+      const d = snap?.distributions?.[key];
+      const v = d?.mean;
+      return typeof v === "number" && isFinite(v) ? v : null;
+    };
+
+    const buildHitterActuals = (a: any | undefined): ForecastActuals | null => {
+      if (!a) return null;
+      const hits = a.hits ?? null;
+      const pa = a.plate_appearances ?? null;
+      const bb = a.walks ?? null;
+      const ab = pa != null && bb != null ? Math.max(0, pa - bb) : null;
+      return {
+        hits, ab, total_bases: a.total_bases ?? null, home_runs: a.home_runs ?? null,
+        rbis: a.rbis ?? null, stolen_bases: a.stolen_bases ?? null, walks: bb,
+        strikeouts: a.strikeouts ?? null, plate_appearances: pa, runs: a.runs ?? null,
+      };
+    };
+
     const hitters: DiamondHitterCard[] = [];
     for (const l of lineups ?? []) {
       const g = gameById.get(l.game_id);
@@ -596,9 +716,12 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .filter((p) => p.player_id === l.player_id && p.game_id === l.game_id);
       const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      const gs = gameStateOf(g.game_status);
       for (const v of versionList) {
         const proj = latest.get(`${l.player_id}:${l.game_id}:${v}`);
         if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
+        const run = runByKey.get(`${l.game_id}:${v}`);
+        const snap = proj?.sim_snapshot ?? null;
         hitters.push({
           player_id: l.player_id,
           mlb_id: playerMlbId.get(l.player_id) ?? null,
@@ -608,6 +731,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           game_id: l.game_id,
           mlb_game_id: g.mlb_game_id ?? null,
           game_status: g.game_status ?? null,
+          game_display_state: gs,
           first_pitch_at: g.first_pitch_at ?? null,
           batting_order: l.batting_order ?? null,
           lineup_status: l.locked_at ? "locked" : l.confirmed ? "verified" : "waiting",
@@ -617,6 +741,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           last_refresh_at: gls?.last_refresh_at ?? null,
           source_count: gls?.source_count ?? null,
           model_version: v,
+          forecast_run_id: run?.id ?? null,
+          forecast_status: forecastStatusOf(run, gs),
+          forecast_locked_at: run?.locked_at ?? null,
+          forecast_published_at: run?.generated_at ?? null,
           diamond_score: proj?.diamond_score ?? null,
           contact_score: proj?.contact_score ?? null,
           power_score: proj?.power_score ?? null,
@@ -630,7 +758,13 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           rbi_probability: proj?.rbi_probability ?? null,
           run_probability: proj?.run_probability ?? null,
           sb_probability: proj?.sb_probability ?? null,
+          hit_mean: snapMean(snap, "H"),
+          hr_mean: snapMean(snap, "HR"),
+          tb_mean: snapMean(snap, "TB"),
+          rbi_mean: snapMean(snap, "RBI"),
+          projected_pa: null, // PA isn't persisted in sim_snapshot yet.
           inputs_narrative: narrativeFromInputs(proj?.inputs),
+          actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
         });
       }
     }
@@ -645,9 +779,12 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .filter((p) => p.player_id === sp.player_id && p.game_id === sp.game_id);
       const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      const gs = gameStateOf(g.game_status);
       for (const v of versionList) {
         const proj = latest.get(`${sp.player_id}:${sp.game_id}:${v}`);
         if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
+        const run = runByKey.get(`${sp.game_id}:${v}`);
+        const snap = proj?.sim_snapshot ?? null;
         pitcherCards.push({
           player_id: sp.player_id,
           mlb_id: playerMlbId.get(sp.player_id) ?? null,
@@ -657,11 +794,21 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           game_id: sp.game_id,
           mlb_game_id: g.mlb_game_id ?? null,
           game_status: g.game_status ?? null,
+          game_display_state: gs,
           first_pitch_at: g.first_pitch_at ?? null,
           model_version: v,
+          forecast_run_id: run?.id ?? null,
+          forecast_status: forecastStatusOf(run, gs),
+          forecast_locked_at: run?.locked_at ?? null,
+          forecast_published_at: run?.generated_at ?? null,
           diamond_score: proj?.diamond_score ?? null,
           confidence: proj?.confidence ?? null,
           projected_outs: proj?.projected_outs ?? null,
+          k_mean: snapMean(snap, "K"),
+          bb_mean: snapMean(snap, "BB"),
+          er_mean: snapMean(snap, "ER"),
+          h_mean: snapMean(snap, "H"),
+          projected_bf: null,
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
@@ -672,6 +819,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           lineup_confidence: gls?.confidence ?? null,
           lineup_source: gls?.primary_source ?? null,
           badge: badgeFor(gls?.confidence ?? null, gls?.status === "locked"),
+          actual: buildHitterActuals(actualByKey.get(`${sp.player_id}:${sp.game_id}`)),
         });
       }
     }
@@ -696,4 +844,192 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       slateTotal,
     };
   });
+
+// =================== Forecast Board: lazy detail loader ===================
+//
+// Reads only persisted snapshot data for a single (player, game, model).
+// NEVER triggers simulation, lifecycle publishing, or lineup refresh.
+
+export type ForecastDetailDistribution = {
+  mean: number | null;
+  p50: number | null;
+  p90: number | null;
+  probAtLeast1: number | null;
+  probAtLeast2: number | null;
+};
+
+export type ForecastBoardDetail = {
+  player: { id: string; mlb_id: number | null; name: string; team_abbrev: string; opp_abbrev: string };
+  game: { id: string; mlb_game_id: number | null; first_pitch_at: string | null; venue: string | null; game_status: string | null };
+  forecast: {
+    run_id: string | null;
+    status: ForecastBoardStatus;
+    model_version: string;
+    locked_at: string | null;
+    published_at: string | null;
+    projection_role: "hitter" | "pitcher";
+  };
+  /** Alpha raw + calibrated probability — only present when persisted in this snapshot. */
+  calibration: {
+    alpha_raw_probability: number | null;
+    calibrated_probability: number | null;
+    calibration_version: string | null;
+  };
+  /** Reshaped sim_snapshot.distributions. Unavailable keys are undefined. */
+  distributions: Record<string, ForecastDetailDistribution>;
+  diamond: {
+    score: number | null;
+    confidence: number | null;
+    contact: number | null;
+    power: number | null;
+    speed: number | null;
+    pitcher_grade: number | null;
+    matchup_grade: number | null;
+    pitcher_components: PitcherComponentSnapshot[];
+    pitcher_fallbacks: string[];
+  };
+  narrative: string | null;
+  context: {
+    batting_order: number | null;
+    opponent_starter_name: string | null;
+    park_factor: number | null;
+    weather: string | null;
+  };
+  actual: ForecastActuals | null;
+};
+
+export const getForecastBoardDetail = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .inputValidator((data: { playerId: string; gameId: string; modelVersion?: string }) => {
+    if (!data?.playerId || !data?.gameId) throw new Error("playerId and gameId are required");
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<ForecastBoardDetail | null> => {
+    const sb = context.supabase;
+    const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
+    const modelVersion = data.modelVersion ?? active?.version ?? null;
+
+    let projQ = sb.from("projections")
+      .select("player_id, game_id, model_version, projection_role, diamond_score, confidence, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, sim_snapshot, inputs, created_at")
+      .eq("player_id", data.playerId).eq("game_id", data.gameId)
+      .eq("projection_status", "active").eq("projection_class", "official");
+    if (modelVersion) projQ = projQ.eq("model_version", modelVersion);
+    const { data: projRows } = await projQ.order("created_at", { ascending: false }).limit(1);
+    const proj: any = projRows?.[0];
+    if (!proj) return null;
+
+    const [{ data: gRow }, { data: pRow }, { data: runRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
+      sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle(),
+      sb.from("players").select("id, name, mlb_id, team_id").eq("id", data.playerId).maybeSingle(),
+      sb.from("forecast_runs").select("id, status, locked_at, generated_at, model_version").eq("game_id", data.gameId).eq("model_version", proj.model_version).eq("projection_class", "official").is("superseded_by", null).order("generated_at", { ascending: false }).limit(1).maybeSingle(),
+      sb.from("projection_results").select("hits, total_bases, home_runs, rbis, stolen_bases, walks, strikeouts, plate_appearances, runs").eq("player_id", data.playerId).eq("game_id", data.gameId).maybeSingle(),
+      sb.from("lineups").select("batting_order, team_id").eq("game_id", data.gameId).eq("player_id", data.playerId).maybeSingle(),
+      sb.from("starting_pitchers").select("game_id, player_id, team_id").eq("game_id", data.gameId),
+    ]);
+
+    const { data: teamRows } = await sb.from("teams").select("id, abbreviation");
+    const teamAbbrev = new Map((teamRows ?? []).map((t) => [t.id, t.abbreviation]));
+    const myTeamId = lineupRow?.team_id ?? (pRow as any)?.team_id ?? null;
+    const oppTeamId = myTeamId && gRow ? (myTeamId === gRow.home_team_id ? gRow.away_team_id : gRow.home_team_id) : null;
+
+    // Opposing SP (lookup the SP from the other team for hitter context).
+    let opposingStarterName: string | null = null;
+    const oppSp = (spRows ?? []).find((s: any) => s.team_id === oppTeamId);
+    if (oppSp) {
+      const { data: spPlayer } = await sb.from("players").select("name").eq("id", oppSp.player_id).maybeSingle();
+      opposingStarterName = (spPlayer as any)?.name ?? null;
+    }
+
+    const dist: Record<string, ForecastDetailDistribution> = {};
+    const distRaw = proj.sim_snapshot?.distributions ?? {};
+    for (const k of Object.keys(distRaw)) {
+      const d = distRaw[k] ?? {};
+      dist[k] = {
+        mean: typeof d.mean === "number" ? d.mean : null,
+        p50: typeof d.p50 === "number" ? d.p50 : null,
+        p90: typeof d.p90 === "number" ? d.p90 : null,
+        probAtLeast1: typeof d.probAtLeast1 === "number" ? d.probAtLeast1 : null,
+        probAtLeast2: typeof d.probAtLeast2 === "number" ? d.probAtLeast2 : null,
+      };
+    }
+
+    const inputs = (proj.inputs ?? {}) as Record<string, any>;
+    const pc = pitcherComponentsFromInputs(inputs);
+    const role: "hitter" | "pitcher" = proj.projection_role === "pitcher" ? "pitcher" : "hitter";
+
+    const gameStateOf = (status: string | null | undefined): GameDisplayState => {
+      const s = (status ?? "").toLowerCase();
+      if (s.includes("final") || s.includes("game over") || s.includes("completed")) return "final";
+      if (s.includes("in progress") || s.includes("live") || s.includes("manager challenge")) return "live";
+      return "upcoming";
+    };
+    const gs = gameStateOf(gRow?.game_status);
+    const status: ForecastBoardStatus =
+      !runRow ? "no_official"
+      : gs === "final" ? "final"
+      : gs === "live" ? "live"
+      : runRow.status === "locked" ? "locked"
+      : "published";
+
+    const a = actualRow as any;
+    const hits = a?.hits ?? null;
+    const pa = a?.plate_appearances ?? null;
+    const bb = a?.walks ?? null;
+    const ab = pa != null && bb != null ? Math.max(0, pa - bb) : null;
+
+    return {
+      player: {
+        id: data.playerId,
+        mlb_id: (pRow as any)?.mlb_id ?? null,
+        name: (pRow as any)?.name ?? "Unknown",
+        team_abbrev: myTeamId ? teamAbbrev.get(myTeamId) ?? "" : "",
+        opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+      },
+      game: {
+        id: data.gameId,
+        mlb_game_id: (gRow as any)?.mlb_game_id ?? null,
+        first_pitch_at: (gRow as any)?.first_pitch_at ?? null,
+        venue: (gRow as any)?.ballpark ?? null,
+        game_status: (gRow as any)?.game_status ?? null,
+      },
+      forecast: {
+        run_id: (runRow as any)?.id ?? null,
+        status,
+        model_version: proj.model_version,
+        locked_at: (runRow as any)?.locked_at ?? null,
+        published_at: (runRow as any)?.generated_at ?? null,
+        projection_role: role,
+      },
+      calibration: {
+        alpha_raw_probability: typeof inputs.alpha_raw_probability === "number" ? inputs.alpha_raw_probability : null,
+        calibrated_probability: typeof inputs.calibrated_probability === "number" ? inputs.calibrated_probability : null,
+        calibration_version: typeof inputs.calibration_version === "string" ? inputs.calibration_version : null,
+      },
+      distributions: dist,
+      diamond: {
+        score: proj.diamond_score ?? null,
+        confidence: proj.confidence ?? null,
+        contact: proj.contact_score ?? null,
+        power: proj.power_score ?? null,
+        speed: proj.speed_score ?? null,
+        pitcher_grade: proj.pitcher_grade ?? null,
+        matchup_grade: proj.matchup_grade ?? null,
+        pitcher_components: pc.components,
+        pitcher_fallbacks: pc.fallbacks,
+      },
+      narrative: narrativeFromInputs(inputs),
+      context: {
+        batting_order: lineupRow?.batting_order ?? null,
+        opponent_starter_name: opposingStarterName,
+        park_factor: typeof inputs.park_factor === "number" ? inputs.park_factor : null,
+        weather: typeof inputs.weather === "string" ? inputs.weather : null,
+      },
+      actual: a ? {
+        hits, ab, total_bases: a.total_bases ?? null, home_runs: a.home_runs ?? null,
+        rbis: a.rbis ?? null, stolen_bases: a.stolen_bases ?? null, walks: bb,
+        strikeouts: a.strikeouts ?? null, plate_appearances: pa, runs: a.runs ?? null,
+      } : null,
+    };
+  });
+
 
