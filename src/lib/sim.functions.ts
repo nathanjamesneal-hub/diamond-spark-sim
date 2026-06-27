@@ -473,12 +473,8 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     const { reshapeStoredToSimStat } = await import("./sim-snapshot");
 
     const hitters: SimLeaderHitterRow[] = scores.hitters.map((h) => {
-      const liveDist = !isHistorical && h.mlb_id != null
-        ? batterDistByMlbId.get(h.mlb_id)
-        : undefined;
-      const snap = isHistorical ? hitterSnapByPlayer.get(h.player_id) : undefined;
-      const pick = (k: keyof BatterDist & string): SimStat | null => {
-        if (liveDist) return reshapeStat(liveDist[k] as PlayerStatDist);
+      const snap = hitterSnapByPlayer.get(h.player_id);
+      const pick = (k: string): SimStat | null => {
         if (snap) return reshapeStoredToSimStat(snap[k]);
         return null;
       };
@@ -513,12 +509,8 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     });
 
     const pitchers: SimLeaderPitcherRow[] = scores.pitchers.map((p) => {
-      const liveDist = !isHistorical && p.mlb_id != null
-        ? pitcherDistByMlbId.get(p.mlb_id)
-        : undefined;
-      const snap = isHistorical ? pitcherSnapByPlayer.get(p.player_id) : undefined;
-      const pick = (k: keyof PitcherDist & string): SimStat | null => {
-        if (liveDist) return reshapeStat(liveDist[k] as PlayerStatDist);
+      const snap = pitcherSnapByPlayer.get(p.player_id);
+      const pick = (k: string): SimStat | null => {
         if (snap) return reshapeStoredToSimStat(snap[k]);
         return null;
       };
