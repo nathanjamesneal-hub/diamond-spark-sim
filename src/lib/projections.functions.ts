@@ -853,7 +853,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       for (const v of versionList) {
         const { proj, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, gs, gameStarted);
         // Skip rendering rows with no resolvable forecast (post-cutoff with no official).
-        if (!proj) continue;
+        if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
         const run = runByKey.get(`${l.game_id}:${v}:${chosenClass}`);
@@ -937,11 +937,19 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
         const { proj, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, gs, gameStarted);
-        if (!proj) continue;
+        if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = chosenClass === "official" ? runByKey.get(`${sp.game_id}:${v}`) : undefined;
+        const run = runByKey.get(`${sp.game_id}:${v}:${chosenClass}`);
         const snap = proj?.sim_snapshot ?? null;
+        const selected = selectedSnapshot(sp.player_id, "pitcher", chosenClass, run, snap);
+        const distSource = sourceDistributions(selected);
+        const mK = metric(selected, "pitcher", "K");
+        const mBB = metric(selected, "pitcher", "BB");
+        const mER = metric(selected, "pitcher", "ER");
+        const mH = metric(selected, "pitcher", "H");
+        const mBF = metric(selected, "pitcher", "BF");
+        const mOUTS = metric(selected, "pitcher", "OUTS");
         const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         pitcherCards.push({
           player_id: sp.player_id,
@@ -955,6 +963,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           game_display_state: gs,
           first_pitch_at: g.first_pitch_at ?? null,
           model_version: v,
+          projection_class: chosenClass,
           forecast_run_id: run?.id ?? null,
           forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
@@ -962,16 +971,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           diamond_score: proj?.diamond_score ?? null,
           confidence: proj?.confidence ?? null,
           projected_outs: proj?.projected_outs ?? null,
-          k_mean: snapMean(snap, "K"),
-          bb_mean: snapMean(snap, "BB"),
-          er_mean: snapMean(snap, "ER"),
-          h_mean: snapMean(snap, "H"),
-          projected_bf: (() => {
-            const bf = (snap as any)?.distributions?.BF?.mean ?? (snap as any)?.projected_bf ?? null;
-            return typeof bf === "number" && isFinite(bf) ? bf : null;
-          })(),
-          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
-          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+          k_mean: mK.mean,
+          bb_mean: mBB.mean,
+          er_mean: mER.mean,
+          h_mean: mH.mean,
+          projected_bf: mBF.mean,
+          distributions: distSource.distributions,
+          distributions_source: distSource.source,
+          selected_forecast: selected,
+          sim_metrics: { K: mK, BB: mBB, ER: mER, H: mH, BF: mBF, OUTS: mOUTS },
 
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
