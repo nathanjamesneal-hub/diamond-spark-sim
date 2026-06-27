@@ -517,6 +517,7 @@ function DiamondConsensusPage() {
         For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
     </section>
+    </>
   );
 }
 

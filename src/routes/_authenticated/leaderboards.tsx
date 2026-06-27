@@ -80,5 +80,6 @@ function LeadersPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }

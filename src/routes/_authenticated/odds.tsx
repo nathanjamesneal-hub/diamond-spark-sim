@@ -450,6 +450,7 @@ function SimLeadersPage() {
         />
       ))}
     </div>
+    </>
   );
 }
 

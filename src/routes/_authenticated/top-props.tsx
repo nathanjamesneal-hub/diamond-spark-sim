@@ -513,6 +513,7 @@ function TopPropsPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }
 

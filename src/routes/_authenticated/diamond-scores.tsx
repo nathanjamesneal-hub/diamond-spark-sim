@@ -198,6 +198,7 @@ function DiamondScoresPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
 
