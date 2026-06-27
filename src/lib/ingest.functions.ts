@@ -543,9 +543,11 @@ export async function runDiamondEngineForGames(
       lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      projection_class: intendedClass,
       sim_snapshot,
     });
   }
+
 
   // Pitcher projections always run (independent of active hitter version).
   // We use the Alpha 0.3 pitcher engine directly so v0.1.0 hitter math is
