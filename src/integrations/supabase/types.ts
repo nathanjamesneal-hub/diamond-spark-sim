@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_log: {
+        Row: {
+          created_at: string
+          decision: string | null
+          details: Json
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          game_pk: number | null
+          id: string
+          job: string
+          slate_date: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          decision?: string | null
+          details?: Json
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          game_pk?: number | null
+          id?: string
+          job: string
+          slate_date?: string | null
+          started_at?: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          decision?: string | null
+          details?: Json
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          game_pk?: number | null
+          id?: string
+          job?: string
+          slate_date?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       bets: {
         Row: {
           book: string | null

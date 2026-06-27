@@ -41,7 +41,9 @@ import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authent
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
+import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
+import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
 import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
@@ -220,10 +222,22 @@ const AuthenticatedForecastsLabIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedForecastsLabRoute,
   } as any)
+const ApiPublicHooksRefreshLiveActualsRoute =
+  ApiPublicHooksRefreshLiveActualsRouteImport.update({
+    id: '/api/public/hooks/refresh-live-actuals',
+    path: '/api/public/hooks/refresh-live-actuals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRefreshLineupsRoute =
   ApiPublicHooksRefreshLineupsRouteImport.update({
     id: '/api/public/hooks/refresh-lineups',
     path: '/api/public/hooks/refresh-lineups',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksOrchestrateSlateRoute =
+  ApiPublicHooksOrchestrateSlateRouteImport.update({
+    id: '/api/public/hooks/orchestrate-slate',
+    path: '/api/public/hooks/orchestrate-slate',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksLockLiveForecastsRoute =
@@ -285,7 +299,9 @@ export interface FileRoutesByFullPath {
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
+  '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
+  '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesByTo {
@@ -320,7 +336,9 @@ export interface FileRoutesByTo {
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
+  '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
+  '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesById {
@@ -360,7 +378,9 @@ export interface FileRoutesById {
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
+  '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
+  '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRouteTypes {
@@ -399,7 +419,9 @@ export interface FileRouteTypes {
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
+    | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
+    | '/api/public/hooks/refresh-live-actuals'
     | '/forecasts/lab/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -434,7 +456,9 @@ export interface FileRouteTypes {
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
+    | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
+    | '/api/public/hooks/refresh-live-actuals'
     | '/forecasts/lab'
   id:
     | '__root__'
@@ -473,7 +497,9 @@ export interface FileRouteTypes {
     | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
+    | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
+    | '/api/public/hooks/refresh-live-actuals'
     | '/_authenticated/forecasts/lab/'
   fileRoutesById: FileRoutesById
 }
@@ -482,7 +508,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
   ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
+  ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
+  ApiPublicHooksRefreshLiveActualsRoute: typeof ApiPublicHooksRefreshLiveActualsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -711,11 +739,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsLabIndexRouteImport
       parentRoute: typeof AuthenticatedForecastsLabRoute
     }
+    '/api/public/hooks/refresh-live-actuals': {
+      id: '/api/public/hooks/refresh-live-actuals'
+      path: '/api/public/hooks/refresh-live-actuals'
+      fullPath: '/api/public/hooks/refresh-live-actuals'
+      preLoaderRoute: typeof ApiPublicHooksRefreshLiveActualsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/refresh-lineups': {
       id: '/api/public/hooks/refresh-lineups'
       path: '/api/public/hooks/refresh-lineups'
       fullPath: '/api/public/hooks/refresh-lineups'
       preLoaderRoute: typeof ApiPublicHooksRefreshLineupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/orchestrate-slate': {
+      id: '/api/public/hooks/orchestrate-slate'
+      path: '/api/public/hooks/orchestrate-slate'
+      fullPath: '/api/public/hooks/orchestrate-slate'
+      preLoaderRoute: typeof ApiPublicHooksOrchestrateSlateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/lock-live-forecasts': {
@@ -863,7 +905,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
   ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
+  ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
+  ApiPublicHooksRefreshLiveActualsRoute: ApiPublicHooksRefreshLiveActualsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
