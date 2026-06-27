@@ -66,7 +66,9 @@ async function fetchDateInfo(
       .from("projections")
       .select("id", { count: "exact", head: true })
       .in("game_id", ids)
-      .eq("projection_status", "active");
+      .eq("projection_status", "active")
+      // Model Results counters reflect OFFICIAL forecasts only.
+      .eq("projection_class", "official");
     coverage.eligible = eligibleCount ?? 0;
 
     const { count: lockedCount } = await supabase
@@ -74,8 +76,10 @@ async function fetchDateInfo(
       .select("id", { count: "exact", head: true })
       .in("game_id", ids)
       .eq("projection_status", "active")
+      .eq("projection_class", "official")
       .not("sim_snapshot", "is", null);
     coverage.locked = lockedCount ?? 0;
+
   }
 
   return {
