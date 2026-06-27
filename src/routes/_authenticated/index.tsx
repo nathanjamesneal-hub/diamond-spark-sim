@@ -70,6 +70,8 @@ function TodayPage() {
 
       {featured ? <FeaturedMatchup game={featured} /> : null}
 
+      <TopForecasts />
+
       <div className="mt-8">
         <h2 className="display mb-3 text-lg uppercase tracking-wider text-muted-foreground">
           All games
