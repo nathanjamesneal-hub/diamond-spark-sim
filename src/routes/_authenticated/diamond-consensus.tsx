@@ -419,9 +419,31 @@ function statusTone(s: LiveStatus): "strong" | "good" | "warn" | "muted" {
 
 
 function DiamondConsensusPage() {
-  const { data: payload } = useSuspenseQuery(leadersQuery(undefined));
+  // Date selector — defaults to today (slate the leaders function picks).
+  const [date, setDate] = useState<string | undefined>(undefined);
+  const [view, setView] = useState<ViewMode>("pregame");
+
+  const { data: payload } = useSuspenseQuery(leadersQuery(date));
+  const { data: actuals } = useSuspenseQuery(actualsQuery(date ?? payload.date));
 
   const rows = useMemo(() => buildRows(payload), [payload]);
+
+  // FROZEN pregame overall + per-category ranks. Computed once from the full
+  // row set sorted by Consensus desc. Never updated by live actuals.
+  const frozenRank = useMemo(() => {
+    const overall = new Map<string, number>();
+    const perCat = new Map<string, number>();
+    const sortedAll = [...rows].sort((a, b) => b.consensus - a.consensus);
+    sortedAll.forEach((r, i) => overall.set(r.key, i + 1));
+    const byCat = new Map<CatKey, ConsensusRow[]>();
+    for (const r of sortedAll) {
+      const arr = byCat.get(r.catKey) ?? [];
+      arr.push(r);
+      byCat.set(r.catKey, arr);
+    }
+    for (const [, arr] of byCat) arr.forEach((r, i) => perCat.set(r.key, i + 1));
+    return { overall, perCat };
+  }, [rows]);
 
   // Filter UI state
   const [category, setCategory] = useState<CatKey | "all">("all");
@@ -431,6 +453,9 @@ function DiamondConsensusPage() {
   const [minProbOn, setMinProbOn] = useState<boolean>(false);
   const [minProbPct, setMinProbPct] = useState<number>(20);
   const [expanded, setExpanded] = useState<string | null>(null);
+  type LiveSort = "rank" | "status" | "actual" | "delta";
+  const [liveSort, setLiveSort] = useState<LiveSort>("rank");
+
 
   const teams = useMemo(() => {
     const set = new Set<string>();
