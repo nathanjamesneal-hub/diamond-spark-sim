@@ -6,6 +6,8 @@ import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+import { getMarketSimulationMetrics, NO_PERSISTED_MEAN_TOOLTIP, type MarketKey, type MarketRole } from "@/lib/forecast/sim-metrics";
+
 
 
 type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
