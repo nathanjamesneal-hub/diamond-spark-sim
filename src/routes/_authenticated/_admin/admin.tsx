@@ -6,9 +6,10 @@ import {
   importSchedule, importLineups, importStartingPitchers,
   runDiamondEngine, lockProjections, importResults, runCalibration,
   createModelVersion, recomputePlayerDNA, runDailyPipeline,
-  forceRunDiamondEngine,
+  forceRunDiamondEngine, publishOfficialForecast,
   type DailyPipelineSummary, type ForceEngineSummary,
 } from "@/lib/ingest.functions";
+
 import { refreshLineupsAndProject, getCronStatus } from "@/lib/lineups/refresh.functions";
 import { formatDateTimeInAppTz, todayInAppTz } from "@/lib/timezone";
 
@@ -28,9 +29,21 @@ function AdminPanel() {
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const runPipeline = useServerFn(runDailyPipeline);
   const forceEngine = useServerFn(forceRunDiamondEngine);
+  const publishOfficial = useServerFn(publishOfficialForecast);
   const [forceRunning, setForceRunning] = useState(false);
   const [forceResult, setForceResult] = useState<ForceEngineSummary | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
+  const [officialRunning, setOfficialRunning] = useState(false);
+  const [officialResult, setOfficialResult] = useState<{
+    ok: boolean;
+    details?: string;
+    error?: string;
+    count?: number;
+    eligible?: number;
+    skippedNotEligible?: number;
+    forecastsPublished?: number;
+  } | null>(null);
+
 
   const [state, setState] = useState<Record<string, RunState>>({});
   const [newVersion, setNewVersion] = useState("");
@@ -146,14 +159,61 @@ function AdminPanel() {
 
 
 
+      <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mono text-[11px] uppercase tracking-widest text-emerald-400">Official forecast</div>
+            <div className="font-display text-lg font-semibold">Publish / Reissue Official Forecast</div>
+            <p className="text-xs text-muted-foreground">
+              Writes the eligible games on today's slate as <strong>projection_class = official</strong>.
+              Server-side validation enforces: confirmed starting pitchers + a confirmed 9-deep lineup
+              for both teams. Games that do not pass are skipped and surfaced as
+              "Awaiting confirmed lineups" on public boards.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setOfficialRunning(true); setOfficialResult(null);
+              try {
+                const r = await publishOfficial({ data: { date } });
+                setOfficialResult(r as any);
+                qc.invalidateQueries({ queryKey: ["diamond-scores"] });
+                qc.invalidateQueries({ queryKey: ["lineup-status"] });
+                qc.invalidateQueries({ queryKey: ["slate"] });
+                qc.invalidateQueries({ queryKey: ["cron-status"] });
+              } catch (e: any) {
+                setOfficialResult({ ok: false, error: e?.message ?? String(e) });
+              } finally { setOfficialRunning(false); }
+            }}
+            disabled={officialRunning}
+            className="mono rounded-md bg-emerald-500 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-black disabled:opacity-50"
+          >
+            {officialRunning ? "Publishing…" : "Publish Official Forecast"}
+          </button>
+        </div>
+        {officialResult && (
+          <div className="mt-3 rounded-md border border-border/60 bg-background/40 p-3 text-[12px]">
+            {officialResult.ok ? (
+              <div className="mono text-emerald-300">{officialResult.details}</div>
+            ) : (
+              <div className="mono text-destructive">Publish failed: {officialResult.error}</div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="mono text-[11px] uppercase tracking-widest text-amber-400">Manual fallback</div>
-            <div className="font-display text-lg font-semibold">Force Run Diamond Engine</div>
+            <div className="mono text-[11px] uppercase tracking-widest text-amber-400">
+              Admin sandbox · Preview only
+            </div>
+            <div className="font-display text-lg font-semibold">Generate Preview Simulations</div>
             <p className="text-xs text-muted-foreground">
-              Runs predictions for every game on today's slate, even with partial lineups. Use when the
-              automatic post-lineup trigger fails to populate player cards.
+              Runs predictions for every game on today's slate even with partial lineups, written as
+              <strong> projection_class = preview</strong>. Preview output is admin-only — it does
+              <strong> NOT</strong> appear in Top Props, Sim Leaders, Consensus, Diamond Scores,
+              Calibration, or Model Results. Preview cannot overwrite an active official forecast.
             </p>
           </div>
           <button
@@ -162,9 +222,7 @@ function AdminPanel() {
               try {
                 const r = await forceEngine({ data: { date } });
                 setForceResult(r);
-                qc.invalidateQueries({ queryKey: ["diamond-scores"] });
                 qc.invalidateQueries({ queryKey: ["lineup-status"] });
-                qc.invalidateQueries({ queryKey: ["slate"] });
                 qc.invalidateQueries({ queryKey: ["cron-status"] });
               } catch (e: any) {
                 setForceError(e?.message ?? String(e));
@@ -173,27 +231,31 @@ function AdminPanel() {
             disabled={forceRunning}
             className="mono rounded-md bg-amber-500 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-black disabled:opacity-50"
           >
-            {forceRunning ? "Running engine…" : "Force Run Engine"}
+            {forceRunning ? "Running preview…" : "Generate Preview Simulations"}
           </button>
         </div>
 
         {(forceResult || forceError) && (
-          <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+          <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+            <div className="mono mb-2 text-[10px] uppercase tracking-widest text-amber-400">
+              Preview — not an official Diamond forecast
+            </div>
             {forceError ? (
-              <div className="mono text-[12px] text-destructive">Force run crashed: {forceError}</div>
+              <div className="mono text-[12px] text-destructive">Preview run crashed: {forceError}</div>
             ) : forceResult ? (
               <div className="grid gap-2 text-[12px]">
                 <div className="mono text-[11px] uppercase tracking-widest text-edge">
-                  Force run · {forceResult.date} {forceResult.version ? `· v${forceResult.version}` : ""}
+                  Preview run · {forceResult.date} {forceResult.version ? `· v${forceResult.version}` : ""}
                 </div>
                 <div className="mono text-[11px] text-muted-foreground">
                   {forceResult.games_found} games found · {forceResult.games_processed} processed · {forceResult.games_skipped} skipped
                 </div>
                 <div className="mono text-[11px] text-muted-foreground">
-                  {forceResult.hitter_predictions} hitter + {forceResult.pitcher_predictions} pitcher = {forceResult.hitter_predictions + forceResult.pitcher_predictions} predictions generated
+                  {forceResult.hitter_predictions} hitter + {forceResult.pitcher_predictions} pitcher = {forceResult.hitter_predictions + forceResult.pitcher_predictions} preview predictions
                   {forceResult.environment_failures ? ` · ${forceResult.environment_failures} env failures` : ""}
                   {` · ${forceResult.duration_ms} ms`}
                 </div>
+
                 {forceResult.per_game.length > 0 && (
                   <details className="mt-1">
                     <summary className="mono cursor-pointer text-[11px] uppercase tracking-widest text-muted-foreground">

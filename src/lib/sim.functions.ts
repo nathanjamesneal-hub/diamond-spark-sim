@@ -429,9 +429,14 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
             .from("projections")
             .select("player_id, game_id, projection_role, sim_snapshot, projection_status, created_at")
             .in("game_id", gameIds)
+            // Sim Leaders/calibration are public — historical reads must
+            // only consider OFFICIAL snapshots. Never expose preview or
+            // legacy_unverified pregame snapshots as model history.
+            .eq("projection_class", "official")
             .not("sim_snapshot", "is", null)
             .order("created_at", { ascending: false })
         : { data: [] as any[] };
+
 
       const seen = new Set<string>();
       for (const r of snapRows ?? []) {

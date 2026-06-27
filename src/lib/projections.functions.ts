@@ -113,8 +113,13 @@ export const getTodaysSlate = createServerFn({ method: "GET" })
           .select("player_id, game_id, diamond_score, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, confidence, created_at")
           .in("game_id", gameIds).eq("model_version", version)
           .eq("projection_status", "active")
+          // Public read paths must only surface OFFICIAL forecasts.
+          // Preview rows (admin-only) and legacy_unverified rows
+          // (pre-lifecycle) are filtered out.
+          .eq("projection_class", "official")
           .order("created_at", { ascending: false })
       : { data: [] as any[] };
+
 
     // Keep latest projection per (player, game)
     const latestProj = new Map<string, any>();
@@ -289,7 +294,11 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
       .from("projections")
       .select("created_at, model_version, diamond_score, hit_probability, hr_probability")
       .eq("player_id", data.playerId)
+      // Player detail card is a public read — never surface preview
+      // or legacy_unverified projection history.
+      .eq("projection_class", "official")
       .order("created_at", { ascending: false }).limit(30);
+
 
     const { data: results } = await sb
       .from("projection_results")
@@ -504,7 +513,12 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, created_at, projection_status")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
+        // Today/Slate board — OFFICIAL forecasts only. Games without
+        // an active official row will render with the awaiting-lineups
+        // placeholder downstream rather than display preview values.
+        .eq("projection_class", "official")
         .order("created_at", { ascending: false }),
+
       sb.from("game_lineup_status")
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),

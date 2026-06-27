@@ -66,6 +66,11 @@ export type LineupStatusRow = {
   last_refresh_at: string | null;
   latest_projection_at: string | null;
   active_projection_count: number;
+  /** Honest per-class breakdown of active projection rows for this game. */
+  active_official_count: number;
+  active_preview_count: number;
+  active_legacy_unverified_count: number;
+
   projection_model_version: string | null;
   badges: PipelineBadge[];
 };
@@ -75,11 +80,15 @@ export type LineupStatusSummary = {
   games_with_lineups: number;
   games_with_confirmed_lineups: number;
   games_with_starting_pitchers: number;
+  /** @deprecated Use `games_with_official_published` for honest counters. */
   games_with_projections: number;
+  games_with_official_published: number;
+  games_with_preview_only: number;
   games_locked: number;
   last_refresh_at: string | null;
   last_engine_run_at: string | null;
 };
+
 
 export type LineupStatusPayload = {
   date: string;
@@ -104,6 +113,9 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         games_with_confirmed_lineups: 0,
         games_with_starting_pitchers: 0,
         games_with_projections: 0,
+        games_with_official_published: 0,
+        games_with_preview_only: 0,
+
         games_locked: 0,
         last_refresh_at: null,
         last_engine_run_at: null,
@@ -150,10 +162,11 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),
       sb.from("projections")
-        .select("game_id, model_version, created_at")
+        .select("game_id, model_version, created_at, projection_class")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
         .order("created_at", { ascending: false }),
+
       sb.from("cron_runs")
         .select("started_at, finished_at, engine_ran")
         .order("started_at", { ascending: false })
@@ -194,15 +207,35 @@ export const getLineupStatus = createServerFn({ method: "GET" })
     const spByGameTeam = new Map<string, any>();
     for (const sp of sps ?? []) spByGameTeam.set(`${sp.game_id}:${sp.team_id}`, sp);
 
-    const latestProjByGame = new Map<string, { created_at: string; model_version: string; count: number }>();
+    // Bucket projections per game by class so dashboard counters can
+    // report honest separate totals for OFFICIAL vs PREVIEW. Public
+    // pages must never conflate the two.
+    type ProjBucket = {
+      created_at: string;
+      model_version: string;
+      official: number;
+      preview: number;
+      legacy_unverified: number;
+    };
+    const latestProjByGame = new Map<string, ProjBucket>();
     for (const p of projections ?? []) {
+      const cls = (p as any).projection_class ?? "legacy_unverified";
       const cur = latestProjByGame.get(p.game_id);
       if (!cur) {
-        latestProjByGame.set(p.game_id, { created_at: p.created_at, model_version: p.model_version, count: 1 });
+        latestProjByGame.set(p.game_id, {
+          created_at: p.created_at,
+          model_version: p.model_version,
+          official: cls === "official" ? 1 : 0,
+          preview: cls === "preview" ? 1 : 0,
+          legacy_unverified: cls === "legacy_unverified" ? 1 : 0,
+        });
       } else {
-        cur.count += 1;
+        if (cls === "official") cur.official += 1;
+        else if (cls === "preview") cur.preview += 1;
+        else cur.legacy_unverified += 1;
       }
     }
+
 
     const rows: LineupStatusRow[] = games.map((g) => {
       const homeLineup = lineupsByGameTeam.get(`${g.id}:${g.home_team_id ?? ""}`) ?? [];
@@ -254,7 +287,11 @@ export const getLineupStatus = createServerFn({ method: "GET" })
       if (isLocked) badges.push("locked");
       else if (isConfirmed) badges.push("confirmed");
       else if (hasLineups) badges.push("projected");
-      if (proj && proj.count > 0) badges.push("projections_available");
+      const totalProj = proj ? proj.official + proj.preview + proj.legacy_unverified : 0;
+      // "projections_available" is reserved for OFFICIAL forecasts. Preview
+      // and legacy_unverified rows must not be counted toward the public
+      // "ready" signal even though they exist in the table.
+      if (proj && proj.official > 0) badges.push("projections_available");
       else badges.push("no_projections");
 
       return {
@@ -274,11 +311,15 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         dna_hitters_total: allLineup.length,
         last_refresh_at: gl?.last_refresh_at ?? null,
         latest_projection_at: proj?.created_at ?? null,
-        active_projection_count: proj?.count ?? 0,
+        active_projection_count: totalProj,
+        active_official_count: proj?.official ?? 0,
+        active_preview_count: proj?.preview ?? 0,
+        active_legacy_unverified_count: proj?.legacy_unverified ?? 0,
         projection_model_version: proj?.model_version ?? null,
         badges,
       };
     });
+
 
     const summary: LineupStatusSummary = {
       games_scheduled: games.length,
@@ -287,7 +328,10 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         (r) => (r.lineup_confidence ?? 0) >= 95 || r.home.lineup_status === "confirmed" || r.away.lineup_status === "confirmed",
       ).length,
       games_with_starting_pitchers: rows.filter((r) => r.home.starting_pitcher_name && r.away.starting_pitcher_name).length,
-      games_with_projections: rows.filter((r) => r.active_projection_count > 0).length,
+      games_with_projections: rows.filter((r) => r.active_official_count > 0).length,
+      games_with_official_published: rows.filter((r) => r.active_official_count > 0).length,
+      games_with_preview_only: rows.filter((r) => r.active_official_count === 0 && r.active_preview_count > 0).length,
+
       games_locked: rows.filter((r) => r.locked_at != null).length,
       last_refresh_at: cronRuns?.[0]?.finished_at ?? null,
       last_engine_run_at: cronRuns?.find((r) => r.engine_ran)?.started_at ?? null,
@@ -372,13 +416,18 @@ export const runEngineForGame = createServerFn({ method: "POST" })
     const date = await dateForGame(data.gameId);
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      // Class-scoped supersede — only retire prior OFFICIAL rows for this
+      // game. Preview rows (admin sandbox) and legacy_unverified rows must
+      // be left alone; the lifecycle writer handles its own class scoping.
       await supabaseAdmin
         .from("projections")
         .update({ projection_status: "superseded" })
         .eq("game_id", data.gameId)
-        .eq("projection_status", "active");
+        .eq("projection_status", "active")
+        .eq("projection_class", "official");
       const { runDiamondEngineForGames } = await import("@/lib/ingest.functions");
-      const out = await runDiamondEngineForGames(date, [data.gameId]);
+      const out = await runDiamondEngineForGames(date, [data.gameId], undefined, "official");
+
       await logCronRun({
         date,
         notes: `Manual engine run · game ${data.gameId} · ${out.projectionsInserted} projections`,

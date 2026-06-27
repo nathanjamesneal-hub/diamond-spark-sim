@@ -83,15 +83,17 @@ function LineupStatusPage() {
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryBlock label="Games scheduled" value={s.games_scheduled} />
+        <SummaryBlock label="Scheduled" value={s.games_scheduled} />
         <SummaryBlock label="With lineups" value={`${s.games_with_lineups} / ${s.games_scheduled}`} />
         <SummaryBlock label="Confirmed lineups" value={`${s.games_with_confirmed_lineups} / ${s.games_scheduled}`} />
         <SummaryBlock label="Starting pitchers" value={`${s.games_with_starting_pitchers} / ${s.games_scheduled}`} />
-        <SummaryBlock label="With projections" value={`${s.games_with_projections} / ${s.games_scheduled}`} />
-        <SummaryBlock label="Locked" value={`${s.games_locked} / ${s.games_scheduled}`} />
+        <SummaryBlock label="Official published" value={`${s.games_with_official_published} / ${s.games_scheduled}`} />
+        <SummaryBlock label="Preview only (admin)" value={`${s.games_with_preview_only} / ${s.games_scheduled}`} />
+        <SummaryBlock label="Locked forecasts" value={`${s.games_locked} / ${s.games_scheduled}`} />
         <SummaryBlock label="Last cron refresh" value={s.last_refresh_at ? formatDateTimeInAppTz(s.last_refresh_at) : "—"} />
         <SummaryBlock label="Last engine run" value={s.last_engine_run_at ? formatDateTimeInAppTz(s.last_engine_run_at) : "—"} />
       </div>
+
 
       {data.rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/60 bg-card/40 p-10 text-center text-sm text-muted-foreground">
@@ -209,7 +211,12 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
           v={row.latest_projection_at ? formatDateTimeInAppTz(row.latest_projection_at) : "—"}
         />
         <KV k="Model version" v={row.projection_model_version ?? "—"} />
-        <KV k="Active projections" v={String(row.active_projection_count)} />
+        <KV k="Official rows" v={String(row.active_official_count)} />
+        <KV k="Preview rows (admin)" v={String(row.active_preview_count)} />
+        {row.active_legacy_unverified_count > 0 && (
+          <KV k="Legacy unverified" v={String(row.active_legacy_unverified_count)} />
+        )}
+
       </div>
     </div>
   );

@@ -299,7 +299,9 @@ export async function runDiamondEngineForGames(
   date: string,
   gameIds?: string[],
   explicitVersion?: string,
-): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number }> {
+  intendedClass: "official" | "preview" = "official",
+): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number; gamesEligible: number; gamesSkippedPreviewBlocked: number; gamesSkippedNotEligible: number; forecastsPublished: number; forecastClass: "official" | "preview" }> {
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const { data: activeVersion } = await supabaseAdmin
@@ -312,7 +314,7 @@ export async function runDiamondEngineForGames(
     .eq("date", date);
   if (gameIds && gameIds.length) gamesQuery = gamesQuery.in("id", gameIds);
   const { data: games } = await gamesQuery;
-  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0 };
+  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0, gamesEligible: 0, gamesSkippedPreviewBlocked: 0, gamesSkippedNotEligible: 0, forecastsPublished: 0, forecastClass: intendedClass };
 
   const targetGameIds = games.map((g: any) => g.id);
 
@@ -332,6 +334,58 @@ export async function runDiamondEngineForGames(
     .select("game_id, status, confidence, primary_source")
     .in("game_id", targetGameIds);
   const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
+
+  // ---------------- FORECAST CLASS GATE ----------------
+  // Determine which games this run is allowed to write projections for.
+  //   intendedClass='official' → require evaluateOfficialEligibility() ok.
+  //   intendedClass='preview'  → refuse to write if an active 'official'
+  //                              row already exists for the same (game,
+  //                              model_version) — preview must never shadow
+  //                              an official forecast.
+  const { evaluateOfficialEligibility } = await import("@/lib/forecast/eligibility");
+  let gamesSkippedNotEligible = 0;
+  let gamesSkippedPreviewBlocked = 0;
+  let gamesEligible = 0;
+
+  // If preview, check which target games already have active OFFICIAL rows.
+  let activeOfficialGames = new Set<string>();
+  if (intendedClass === "preview") {
+    const { data: existingOfficial } = await supabaseAdmin
+      .from("projections")
+      .select("game_id")
+      .in("game_id", targetGameIds)
+      .eq("model_version", version)
+      .eq("projection_status", "active")
+      .eq("projection_class", "official");
+    activeOfficialGames = new Set((existingOfficial ?? []).map((r: any) => r.game_id as string));
+  }
+
+  const eligibleGameIds = new Set<string>();
+  for (const g of games as any[]) {
+    if (intendedClass === "official") {
+      const r = evaluateOfficialEligibility({
+        game: g,
+        lineups: (lineups ?? []).filter((l: any) => l.game_id === g.id) as any[],
+        starters: (sps ?? []).filter((s: any) => s.game_id === g.id) as any[],
+        gls: glsByGame.get(g.id),
+      });
+      if (r.eligible) {
+        eligibleGameIds.add(g.id);
+        gamesEligible++;
+      } else {
+        gamesSkippedNotEligible++;
+      }
+    } else {
+      // preview
+      if (activeOfficialGames.has(g.id)) {
+        gamesSkippedPreviewBlocked++;
+        continue;
+      }
+      eligibleGameIds.add(g.id);
+      gamesEligible++;
+    }
+  }
+
 
   const oppSpByKey = new Map<string, string>();
   for (const sp of sps ?? []) {
@@ -365,8 +419,13 @@ export async function runDiamondEngineForGames(
     .from("projections")
     .select("game_id, player_id, sim_snapshot, created_at")
     .in("game_id", targetGameIds)
+    // Snapshots are class-scoped — a preview rerun must not inherit
+    // a prior official snapshot (and vice versa). Locked official
+    // snapshots stay immutable within their own class history.
+    .eq("projection_class", intendedClass)
     .not("sim_snapshot", "is", null)
     .order("created_at", { ascending: false });
+
   const priorSnapshotByKey = new Map<string, any>();
   for (const row of priorSnapshotRows ?? []) {
     const k = `${row.game_id}:${row.player_id}`;
@@ -414,11 +473,13 @@ export async function runDiamondEngineForGames(
 
   const projections: any[] = [];
   for (const l of lineups ?? []) {
+    if (!eligibleGameIds.has(l.game_id)) continue;
     const game = games.find((x: any) => x.id === l.game_id);
     if (!game) continue;
     const dna = dnaByPlayer.get(l.player_id) ?? {
       contact: 50, power: 50, speed: 50, discipline: 50, consistency: 50,
     };
+
     const oppSpId = oppSpByKey.get(`${l.game_id}:${l.team_id}`);
     const oppDna = oppSpId ? dnaByPlayer.get(oppSpId) : null;
     const pitcherQuality = oppDna ? 100 - (Number(oppDna.contact) || 50) : 50;
@@ -487,20 +548,24 @@ export async function runDiamondEngineForGames(
       lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      projection_class: intendedClass,
       sim_snapshot,
     });
   }
+
 
   // Pitcher projections always run (independent of active hitter version).
   // We use the Alpha 0.3 pitcher engine directly so v0.1.0 hitter math is
   // unchanged but pitchers still get a real Diamond Pitcher Score.
   const { project: projectPitcherAlpha } = await import("@/lib/engines/alpha_0_3/engine");
   for (const sp of sps ?? []) {
+    if (!eligibleGameIds.has(sp.game_id)) continue;
     const game = games.find((x: any) => x.id === sp.game_id);
     if (!game) continue;
     const dna = dnaByPlayer.get(sp.player_id) ?? {
       contact: 50, power: 50, speed: 35, discipline: 50, consistency: 50,
     };
+
     const out = projectPitcherAlpha({
       role: "pitcher",
       teamSide: sideForTeam(game, sp.team_id),
@@ -564,45 +629,53 @@ export async function runDiamondEngineForGames(
       lineup_source: gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      projection_class: intendedClass,
       sim_snapshot,
     });
   }
 
   if (projections.length) {
-    // Supersede prior active rows for the targeted games + model_version
-    // so a rerun replaces both hitter and pitcher cards cleanly.
+    // Class-scoped supersede: a preview run must NEVER mark an active
+    // 'official' row as superseded, and vice versa. The (game, version,
+    // class) tuple is what the public read paths key off of.
+    const eligibleGameIdList = Array.from(eligibleGameIds);
     await supabaseAdmin
       .from("projections")
       .update({ projection_status: "superseded" })
-      .in("game_id", targetGameIds)
+      .in("game_id", eligibleGameIdList)
       .eq("model_version", version)
-      .eq("projection_status", "active");
+      .eq("projection_status", "active")
+      .eq("projection_class", intendedClass);
     const { error } = await supabaseAdmin.from("projections").insert(projections);
     if (error) throw new Error(error.message);
   }
 
   // Forecast Snapshot Lifecycle: dual-write a persisted, immutable forecast run
-  // per game. The lifecycle hashes material inputs and skips already-published
-  // games unless inputs changed. Read paths (boards, /odds) consume these.
+  // per ELIGIBLE game. Lifecycle still validates eligibility itself, so an
+  // ineligible candidate returns 'ineligible-for-official' without writing.
   let forecastsPublished = 0;
   try {
     const { resolveAndPublishForecast } = await import("@/lib/forecast/resolve");
-    const { data: gameRowsForForecast } = await supabaseAdmin
-      .from("games")
-      .select("id, mlb_game_id, date, game_status, first_pitch_at, home_team_id, away_team_id")
-      .in("id", targetGameIds);
-    for (const g of gameRowsForForecast ?? []) {
-      try {
-        const res = await resolveAndPublishForecast({
-          admin: supabaseAdmin,
-          game: g as any,
-          modelVersion: version,
-          triggerReason: "engine_run",
-        });
-        if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
+    const eligibleGameIdList = Array.from(eligibleGameIds);
+    if (eligibleGameIdList.length) {
+      const { data: gameRowsForForecast } = await supabaseAdmin
+        .from("games")
+        .select("id, mlb_game_id, date, game_status, first_pitch_at, home_team_id, away_team_id")
+        .in("id", eligibleGameIdList);
+      for (const g of gameRowsForForecast ?? []) {
+        try {
+          const res = await resolveAndPublishForecast({
+            admin: supabaseAdmin,
+            game: g as any,
+            modelVersion: version,
+            triggerReason: "engine_run",
+            forecastClass: intendedClass,
+          });
+          if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
+        }
       }
     }
   } catch (e) {
@@ -614,28 +687,69 @@ export async function runDiamondEngineForGames(
     projectionsInserted: projections.length,
     version,
     environmentFailures,
-    gamesProcessed: games.length,
+    gamesProcessed: gamesEligible,
+    gamesEligible,
+    gamesSkippedPreviewBlocked,
+    gamesSkippedNotEligible,
     forecastsPublished,
-  } as any;
+    forecastClass: intendedClass,
+  };
 }
+
 
 export const runDiamondEngine = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { date?: string; modelVersion?: string; gameIds?: string[] }) => data ?? {})
+  .inputValidator((data: { date?: string; modelVersion?: string; gameIds?: string[]; intendedClass?: "official" | "preview" }) => data ?? {})
   .handler(async ({ data, context }): Promise<ImportResult> => {
     await assertAdmin(context);
     const date = data.date ?? todayIso();
+    const intendedClass = data.intendedClass ?? "official";
     try {
-      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion);
+      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion, intendedClass);
+      const skippedNote =
+        intendedClass === "official"
+          ? ` · ${r.gamesSkippedNotEligible} skipped (lineups not confirmed)`
+          : r.gamesSkippedPreviewBlocked > 0
+          ? ` · ${r.gamesSkippedPreviewBlocked} skipped (active official forecast)`
+          : "";
       return {
         ok: true,
         count: r.projectionsInserted,
-        details: `${r.projectionsInserted} projections (v${r.version}) across ${r.gamesProcessed} games${r.environmentFailures ? ` (${r.environmentFailures} env failures)` : ""}.`,
+        details: `[${intendedClass}] ${r.projectionsInserted} projections (v${r.version}) across ${r.gamesProcessed} games${r.environmentFailures ? ` (${r.environmentFailures} env failures)` : ""}${skippedNote}.`,
       };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? String(e) };
     }
   });
+
+/**
+ * Admin: publish/reissue OFFICIAL forecast for today's eligible games.
+ * Wraps runDiamondEngineForGames with intendedClass='official' so that only
+ * games with confirmed 9-deep lineups + both starters are written.
+ */
+export const publishOfficialForecast = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date?: string; gameIds?: string[]; modelVersion?: string }) => data ?? {})
+  .handler(async ({ data, context }): Promise<ImportResult & {
+    eligible?: number; skippedNotEligible?: number; forecastsPublished?: number;
+  }> => {
+    await assertAdmin(context);
+    const date = data.date ?? todayIso();
+    try {
+      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion, "official");
+      return {
+        ok: true,
+        count: r.projectionsInserted,
+        eligible: r.gamesEligible,
+        skippedNotEligible: r.gamesSkippedNotEligible,
+        forecastsPublished: r.forecastsPublished,
+        details: `[official] ${r.projectionsInserted} projections · ${r.gamesEligible} eligible · ${r.gamesSkippedNotEligible} ineligible (awaiting confirmed lineups) · ${r.forecastsPublished} forecast runs published.`,
+      };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
+    }
+  });
+
 
 // ---------- One-click daily pipeline ----------
 // One admin click runs: schedule → SP → confirmed lineups → aggregator
@@ -878,7 +992,10 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
         const { data: projs } = await supabaseAdmin.from("projections")
           .select("game_id, projection_role")
           .in("game_id", allGameIds)
-          .eq("projection_status", "active");
+          .eq("projection_status", "active")
+          // Daily pipeline summary reports OFFICIAL coverage only — preview
+          // rows must never count as "games with projections".
+          .eq("projection_class", "official");
         const gamesWith = new Set<string>();
         let h = 0, p = 0;
         for (const r of projs ?? []) {
@@ -889,6 +1006,7 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
         out.cards.pitchers = p;
         out.cards.games_with_projections = gamesWith.size;
         out.cards.games_pending = allGameIds.length - gamesWith.size;
+
       }
     } catch { /* non-fatal */ }
 
@@ -999,18 +1117,24 @@ export const forceRunDiamondEngine = createServerFn({ method: "POST" })
       summary.games_skipped = summary.games_found - runnable.length;
 
       if (runnable.length) {
-        const r = await runDiamondEngineForGames(date, runnable.map((g: any) => g.id));
+        // forceRunDiamondEngine is now the "Generate Preview Simulations"
+        // admin action — it runs every game with at least one player but
+        // writes them as projection_class='preview'. Public read paths
+        // ignore preview rows entirely; admins must read them explicitly.
+        const r = await runDiamondEngineForGames(date, runnable.map((g: any) => g.id), undefined, "preview");
         summary.version = r.version;
         summary.games_processed = r.gamesProcessed;
         summary.environment_failures = r.environmentFailures;
 
-        // Per-role counts via projections query (active rows only).
+        // Per-role counts via projections query (active preview rows only).
         const { data: proj } = await supabaseAdmin
           .from("projections")
           .select("game_id, projection_role")
           .in("game_id", runnable.map((g: any) => g.id))
           .eq("model_version", r.version)
-          .eq("projection_status", "active");
+          .eq("projection_status", "active")
+          .eq("projection_class", "preview");
+
         const hitterByGame = new Map<string, number>();
         const pitcherByGame = new Map<string, number>();
         for (const p of proj ?? []) {
@@ -1170,7 +1294,11 @@ export const runCalibration = createServerFn({ method: "POST" })
       const { data: rows } = await supabaseAdmin
         .from("projections")
         .select("player_id, game_id, confidence, hit_probability, hr_probability, total_base_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs")
+        // Calibration backfill is a public-grade signal — only OFFICIAL
+        // (verifiable, snapshot-locked) rows are eligible.
+        .eq("projection_class", "official")
         .eq("model_version", v.version);
+
       if (!rows?.length) continue;
 
       const keys = rows.map((r: any) => ({ p: r.player_id, g: r.game_id }));
