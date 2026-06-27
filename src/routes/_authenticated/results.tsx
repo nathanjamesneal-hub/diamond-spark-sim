@@ -16,6 +16,8 @@ import {
 } from "@/lib/model-results.functions";
 import {
   selectHRRows, summarizeHR, buildBinaryMarkets, buildBestAndMisses,
+  buildFullProjectionAudit, auditRowsToCsv,
+  type AuditRow, type AuditStatKey,
 } from "@/lib/results-helpers";
 import { MR_CATEGORIES, buildCategorySummary } from "@/lib/model-results";
 import { APP_LOCALE, APP_TIMEZONE } from "@/lib/timezone";
