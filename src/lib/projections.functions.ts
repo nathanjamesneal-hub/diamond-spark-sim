@@ -441,6 +441,10 @@ export type DiamondHitterCard = {
   sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
+  /** True when this player was added to the lineup after first pitch
+   * (pinch hitter, defensive sub) and therefore has no pregame snapshot.
+   * Projection fields will be null; render an explanatory badge. */
+  is_post_lock_addition: boolean;
 
 
 };
