@@ -505,6 +505,8 @@ export type DiamondPitcherCard = {
   lineup_source: string | null;
   badge: LineupBadgeStatus;
   actual: ForecastActuals | null;
+  /** True when this pitcher was added after first pitch (mid-game change). */
+  is_post_lock_addition: boolean;
 };
 
 
