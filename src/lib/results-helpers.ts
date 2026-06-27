@@ -131,11 +131,12 @@ export function summarizeHR(rows: HRRow[]): HRSummary {
 // Binary market scorecards (Hit≥1, HR≥1, RBI≥1, SB≥1)
 // ──────────────────────────────────────────────────────────────────────
 
-export type BinaryMarketKey = "hit" | "hr" | "rbi" | "sb";
+export type BinaryMarketKey = "hit" | "hr" | "rbi" | "sb" | "run" | "win" | "qs";
 
 export type BinaryMarketSummary = {
   key: BinaryMarketKey;
   label: string;
+  group: "hitter" | "pitcher";
   n: number;
   predicted_avg: number | null; // mean of stored probabilities
   observed_rate: number | null; // share with stat >= 1
@@ -155,7 +156,17 @@ const HITTER_BINARY: {
   { key: "hit", label: "Hit 1+",  getProb: (h) => h.card_probabilities.hit, getActual: (a) => a.H ?? 0 },
   { key: "hr",  label: "HR 1+",   getProb: (h) => h.card_probabilities.hr,  getActual: (a) => a.HR ?? 0 },
   { key: "rbi", label: "RBI 1+",  getProb: (h) => h.card_probabilities.rbi, getActual: (a) => a.RBI ?? 0 },
+  { key: "run", label: "Run 1+",  getProb: (h) => h.card_probabilities.run, getActual: (a) => a.R ?? 0 },
   { key: "sb",  label: "SB 1+",   getProb: (h) => h.card_probabilities.sb,  getActual: (a) => a.SB ?? 0 },
+];
+
+const PITCHER_BINARY: {
+  key: BinaryMarketKey; label: string;
+  getProb: (p: SimLeaderPitcherRow) => number | null;
+  getEvent: (a: PitcherActual) => boolean;
+}[] = [
+  { key: "win", label: "Pitcher Win", getProb: (p) => p.win_probability, getEvent: (a) => !!a.win },
+  { key: "qs",  label: "Quality Start", getProb: (p) => p.quality_start_probability, getEvent: (a) => !!a.qualityStart },
 ];
 
 export function buildBinaryMarkets(
