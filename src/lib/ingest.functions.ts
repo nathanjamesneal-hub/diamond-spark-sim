@@ -1294,7 +1294,11 @@ export const runCalibration = createServerFn({ method: "POST" })
       const { data: rows } = await supabaseAdmin
         .from("projections")
         .select("player_id, game_id, confidence, hit_probability, hr_probability, total_base_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs")
+        // Calibration backfill is a public-grade signal — only OFFICIAL
+        // (verifiable, snapshot-locked) rows are eligible.
+        .eq("projection_class", "official")
         .eq("model_version", v.version);
+
       if (!rows?.length) continue;
 
       const keys = rows.map((r: any) => ({ p: r.player_id, g: r.game_id }));
