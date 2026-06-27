@@ -154,7 +154,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
           {rank <= 10 ? <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">#{rank}</span> : null}
         </div>
         {/* Status */}
-        <div className={`mono text-right text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</div>
+        <div title={pill.title} className={`mono text-right text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</div>
         {/* Actual */}
         <div className="mono min-w-0 truncate text-right text-[11px] tabular-nums text-foreground/90">{actualStr || ""}</div>
       </div>
