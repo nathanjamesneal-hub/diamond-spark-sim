@@ -599,7 +599,7 @@ export async function runDiamondEngineForGames(
           modelVersion: version,
           triggerReason: "engine_run",
         });
-        if (res.decision === "published_new" || res.decision === "superseded_old") forecastsPublished += 1;
+        if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
