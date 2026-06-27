@@ -29,9 +29,21 @@ function AdminPanel() {
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const runPipeline = useServerFn(runDailyPipeline);
   const forceEngine = useServerFn(forceRunDiamondEngine);
+  const publishOfficial = useServerFn(publishOfficialForecast);
   const [forceRunning, setForceRunning] = useState(false);
   const [forceResult, setForceResult] = useState<ForceEngineSummary | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
+  const [officialRunning, setOfficialRunning] = useState(false);
+  const [officialResult, setOfficialResult] = useState<{
+    ok: boolean;
+    details?: string;
+    error?: string;
+    count?: number;
+    eligible?: number;
+    skippedNotEligible?: number;
+    forecastsPublished?: number;
+  } | null>(null);
+
 
   const [state, setState] = useState<Record<string, RunState>>({});
   const [newVersion, setNewVersion] = useState("");
