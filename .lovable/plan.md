@@ -1,202 +1,149 @@
-## Goal
 
-Make the public Forecast Board scannable: 10–20 official forecasts visible without long scroll, with the heavy "why" detail hidden behind a click. Public board never shows preview forecasts.
+# Consensus v2 — Shadow-Only, Publication-Time Immutable Score
 
-## Where this lands in the app
+A new score computed exactly once when an official forecast publishes, persisted in its own table, and never recomputed on read. v1 stays in place, relabeled honestly, and runs side-by-side in shadow mode until v2 proves out.
 
-- `/` Today page — "Top Forecasts" strip becomes a mini dense board (top 8 rows + "Open the Forecast Board →").
-- `/forecasts` (today: redirects to `/diamond-scores`) — repointed to a new `/forecasts/board` route that is the new default Forecast Board.
-- `/diamond-scores` — kept reachable but the public default view becomes the dense board. The current grid-of-cards moves behind a "Detail cards" view toggle (Board ↔ Cards) for power users / admins.
-- Mobile: same board renders as compact stacked rows.
+Non-goals: no changes to Alpha math, Monte Carlo math, Diamond Score, calibration, locked forecast snapshots, or any existing write path.
 
-## New components
+---
 
-```text
-src/components/diamond/forecast-board/
-  forecast-board.tsx        ← controls + table/list shell, URL-synced
-  forecast-row.tsx          ← one dense row (desktop grid / mobile stack)
-  forecast-detail-drawer.tsx← right-side drawer, reads locked snapshot
-  board-controls.tsx        ← sort / status filter / team / search / market toggle
-  market-toggle.tsx         ← Hit 1+ | HR 1+ | TB | RBI | Pitcher
-```
+## Phase 1 — Honest v1 (cosmetic)
 
-## Board row contract (default columns, in order)
+- Rename UI surfaces of v1 from "Diamond Consensus" → **Model Alignment v1**:
+  - `/forecasts/consensus` page title, header, nav label in `site-header.tsx` and `forecasts-tab-bar.tsx`.
+  - Card/badge copy in board components.
+- Add a persistent helper line under the title:
+  > "Alignment v1 ranks agreement among overlapping Alpha and Monte Carlo outputs. It is not an independent-model probability or a persisted pregame score."
+- Do NOT touch `src/lib/consensus.ts` math, weights, percentile windows, or any historical row.
+
+## Phase 2 — Persistence: `forecast_consensus` table
+
+New table written only by the lifecycle publisher. One row per (forecast_run_id, player_id, market, consensus_version).
 
 ```text
-Player · Team   |  Opp / Time or Live  | #BO | Market  | Prob  | Mean | PA  | Diamond | Status | Actual
+forecast_consensus
+  id                 uuid pk
+  forecast_run_id    uuid  fk → forecast_runs.id  (cascade)
+  player_id          uuid  fk → players.id
+  market             text  -- 'H1+', 'HR', 'TB', 'RBI', 'R', 'SB', 'K_pitcher', 'W', 'QS', ...
+  consensus_version  text  -- 'v2.0'
+  consensus_score    numeric(5,2)        -- 0..100, immutable
+  score_confidence   numeric(5,2)        -- 0..100 cap from completeness/uncertainty
+  computed_at        timestamptz default now()
+  input_hash         text                -- equals forecast_runs.input_hash at publish
+  components         jsonb               -- {baseline:{raw,norm,weight,contribution}, matchup:{...}, sim:{...}, form:{...}, quality:{...}}
+  weights            jsonb               -- effective weights actually applied
+  missing_components text[]              -- e.g. ['form']
+  completeness       jsonb               -- {hitters_confirmed, sp_confirmed, n_peer_rows, ref_population, ref_window}
+  uncertainty        jsonb               -- {tier:'A|B|C', stdev_band, n_basis}
+  lineup_state       jsonb               -- snapshot of lineup_status, batting_order, opp SP at publish
+  reference_meta     jsonb               -- {kind:'rolling_30d'|'same_slate', n, captured_at}
+  notes              text
+  unique (forecast_run_id, player_id, market, consensus_version)
 ```
 
-- Player + team abbrev (player links to `/players/$playerId`).
-- Opp + first-pitch time, or live inning if in progress, or "FINAL".
-- Batting order spot (— for pitchers).
-- Primary market label driven by the Market toggle (default Hit 1+).
-- Calibrated probability (single number, right-aligned, tabular-nums).
-- Projected mean (H for Hit 1+, HR for HR 1+, TB, RBI, Outs for pitcher).
-- Projected PA (or projected BF for pitchers).
-- Diamond Score with quiet "#rank" suffix for top 10.
-- Forecast status pill: Awaiting / Published / Locked / Live / Final (only Live and Final get color; everything else is muted).
-- Actual stat line when live/final ("1-for-3", "0/4, 1K", "5.2 IP, 2 ER"). Empty otherwise.
+Grants + RLS in the same migration: `GRANT SELECT` to `authenticated`; `GRANT ALL` to `service_role`; no `anon`. Policy: `SELECT` to authenticated when the parent `forecast_runs.projection_class='official'` AND `status IN ('published','locked')`.
 
-Color rules (sparing):
+Indexes: `(forecast_run_id)`, `(player_id, market, consensus_version)`, `(consensus_version, computed_at desc)`.
 
-- Live row: faint left rail in `--color-live`.
-- Final + result beat projection: faint green left rail; missed: faint red. No badge per number.
-- Rank 1: thin gold left rail. No tier badges in default view.
+No update path. After insert, rows are immutable. Cascade delete only with the parent run (orphan cleanup).
 
-## Controls bar
+## Phase 3 — Publication-time writer
 
-- Sort: Diamond Score (default) · Hit Probability · Projected Hits · Projected PA · Game Time.
-- Status filter chips (single-select): All · Live · Locked · Final. "All" still excludes preview/no-official.
-- Team multi-select.
-- Player search (client-side, by name).
-- Market toggle: Hit 1+ (default) · HR 1+ · TB · RBI · Pitcher props. Switching toggles the Prob/Mean columns and the eligible rows (Pitcher mode shows only `DiamondPitcherCard`).
-- All controls are URL-synced via existing Tanstack `validateSearch` (extend the schema in `diamond-scores.tsx` and re-use in the new route).
+New module `src/lib/consensus/v2.ts` exporting `computeConsensusV2(ctx, run, builtProjections)`.
 
-Default filter: `status ∈ {published, locked, live, final}` — preview/no-official always hidden on the public board.
+Hook it in **one** place: `publishForecastIfEligible` in `src/lib/forecast/lifecycle.ts`, after the `forecast_player_projections` upsert succeeds (around line 432, decision = `published` or `superseded`). On `noop`/`awaiting`/`locked-skip`/preview class → do not write.
 
-## Click-to-expand detail drawer
+The writer:
+1. Pulls components from the just-written snapshot (no MC re-run, no Alpha re-run).
+2. Computes per-market v2 rows.
+3. Inserts into `forecast_consensus` with `input_hash = run.input_hash`.
+4. Failure is non-fatal for the forecast publish (logged, never throws past the lifecycle).
 
-- Right-side `Sheet` (shadcn) at `md+`; full-screen modal on mobile.
-- Loads only persisted data from `getDiamondScores` payload + the card's `inputs_narrative`; does NOT call simulate. Re-uses existing `PrimaryMetricsRow`, `SimDetails`, `PredictionDrivers`, `WhyTheModelLikesThis`, score-components block.
-- Sections, top to bottom:
-  1. Player header + team/opp + first-pitch + forecast status + model version + locked-at timestamp.
-  2. Primary metric: calibrated probability, projected mean, projected PA.
-  3. Alpha raw vs calibrated probability (from snapshot fields, if present; otherwise show "—" with a tooltip — see Open question 2).
-  4. Monte Carlo means and percentiles (P50/P90) from `sim_snapshot` (already on the projection row).
-  5. Diamond Score breakdown (Contact/Power/Speed/PG/MG for hitters; pitcher_components for pitchers).
-  6. Why Diamond likes it (`WhyTheModelLikesThis`).
-  7. Game context (venue/weather if available, opp SP for hitters).
-  8. Live / final actuals when present.
-  9. Admin-only block (gated by existing admin check used in `/_admin`): raw inputs JSON dump + sim seed.
-- "View full player page →" deep link.
+Backfill: a one-shot admin-only server fn `backfillConsensusV2(date)` that reads already-published official runs and writes v2 rows. Not on a public surface.
 
-## Today-page mini board
+## Phase 4 — Component units (shadow scoring design)
 
-Replace the existing "Featured matchup" + "All games" grid header with:
+Five units, computed from stored snapshot fields only:
 
-- Featured matchup stays as-is (single hero).
-- New "Top Forecasts" panel below the dashboard cards: 8 rows from the same `ForecastBoard` component, fixed `market=hit`, sorted by Diamond Score, no controls bar, footer link "Open the full board →" → `/forecasts/board`.
+- **A. Baseline** — player season rate × expected PA/BF from `forecast_player_projections.inputs` (already persisted).
+- **B. Matchup** — opp SP grade, handedness split, park, environment from `inputs` (no recompute).
+- **C. Simulation (one channel per market)** — binary markets (HR, SB, W, QS, H1+) use `*_probability`; count markets (TB, K, RBI, R, Hits-mean) use `distributions[stat].mean`. Never both for the same market.
+- **D. Form residual** — capped residual of recent-form vs baseline from `inputs` if available, clamped to ±X. Computed but stored with weight 0 in v2.0 (shadow only).
+- **E. Data-quality / uncertainty** — derived from `game_lineup_status`, `confidence`, distribution dispersion. Applied as a **cap** on `score_confidence` and as an uncertainty penalty; never as a bullish vote.
 
-## Mobile layout
+Component value pipeline:
+1. Raw value from stored field.
+2. Normalize against the chosen reference population (Phase 6).
+3. Multiply by effective weight.
+4. Sum contributions → `consensus_score`.
 
-- Below `sm`, each row becomes a 2-line stack:
+## Phase 5 — Initial v2.0 weights
 
 ```text
-Aaron Judge · NYY @ BOS · #2                   Locked
-Hit 1+ 64%  |  1.24 H  |  Diamond 82           1-for-3
+0.50  Calibrated market probability (primary event model — Sim channel for the market)
+0.20  Baseline vs Matchup agreement (rank-correlation of A vs B normalized values)
+0.15  Simulation certainty (1 − normalized stdev / IQR of the distribution)
+0.15  Input completeness & uncertainty adjustment (from unit E)
 ```
 
-- Tap anywhere on the row opens the full-screen detail sheet.
-- Controls bar collapses to: sort dropdown + status chips + search; market toggle and team filter behind a "Filters" sheet.
+If a component is unavailable: do NOT redistribute its weight to correlated Alpha/MC fields. Instead drop it from the sum, cap `score_confidence` (e.g. −15 per missing component), and add the unit name to `missing_components`. The row is flagged `incomplete` in the drawer.
 
-## Data: what the payload needs
+## Phase 6 — Remove slate-dependent drift
 
-`getDiamondScores` already returns most of this. To populate Mean / PA / Actual cleanly:
+At publication, store one of:
+- `reference_meta.kind = 'rolling_30d'` — percentiles from a snapshot of the last 30 days of locked forecasts for the same market (preferred long-term).
+- `reference_meta.kind = 'same_slate'` — same-slate population captured at compute time; `n` and the frozen population hash are persisted so the score is reproducible.
 
-- Extend `DiamondHitterCard` and `DiamondPitcherCard` with `projected_mean`, `projected_pa` (or `projected_bf`), plus `forecast_status: "no_official"|"published"|"locked"|"live"|"final"` and optional `actual: { hits, ab, hr, tb, rbi, ip, er, k } | null`.
-- Read mean/PA from the existing `sim_snapshot` JSON on the projections row (no live sim). Read status from `forecast_runs` (`status` + game state) and actuals from the existing `actuals` table already used in `model-results.functions.ts`.
+For v2.0 launch we use `same_slate` (no historical backfill burden) but persist `n` and the population hash so live-slate changes never alter the stored score.
 
-This is a pure read-path change — no engine writes, no simulate calls, fully compatible with the first-pitch lock.
+Drawer/badge must surface `n` and an uncertainty tier (`A: n≥60`, `B: 20≤n<60`, `C: n<20`) so "Full Alignment" does not look identical at n=6 vs n=120.
 
-## Removed from default view (still in drawer)
+## Phase 7 — Consensus Recipe drawer
 
-Contact/Power/Speed mini-grid, all secondary market percentages, long narratives, raw distributions, multiple competing score badges, tier letter pills.
+Read-only drawer per v2 row (Forecast Board + dedicated v2 board):
+- Original forecast `generated_at`, `locked_at`, `version_number`.
+- `consensus_version`, `input_hash`, `computed_at`.
+- Table: component | raw | normalized | weight | contribution | missing?
+- Completeness + uncertainty fields.
+- Final `consensus_score` and `score_confidence`.
 
-## Acceptance check
+Pulls only from `forecast_consensus` + parent `forecast_runs`. No sim, no recompute, no percentile recalc.
 
-- Desktop 1280×800: ≥10 official rows visible above the fold on `/forecasts/board` with default filters.
-- Top Hit 1+ row, projected mean, and Diamond Rank readable in <5s (single eye-line, right-aligned tabular numerics).
-- Clicking a row opens the detail drawer with Alpha vs calibrated, MC means/percentiles, score breakdown, drivers — all from snapshot.
-- Live/final rows show actuals in the Actual column; the locked Prob / Mean / PA do not change.
-- `status='preview'` never appears on the board.
-- Mobile: rows stack to 2 lines; tap opens full-screen detail.
+## Phase 8 — Shadow UI
+
+- Existing `/forecasts/consensus` keeps v1 (relabeled "Model Alignment v1").
+- New `/forecasts/consensus-v2` route (authenticated, internal flag: visible to admin role only at first via `has_role`). Renders v2 rows directly from `forecast_consensus`. Shows version, n, tier, drawer.
+- Forecast Board row drawer gains a secondary tab "Consensus v2 (shadow)" when a v2 row exists.
+
+## Phase 9 — Evaluation harness
+
+`src/lib/consensus/v2-eval.functions.ts` (admin server fn) joins `forecast_consensus` to `projection_results` after games finalize and reports per market:
+- Top-5 / top-10 ranking lift vs v1 alignment.
+- Brier + log loss for binary markets.
+- MAE for mean markets.
+- Calibration deciles.
+- Component correlation matrix (detect double-counting).
+- Incremental value of Form residual after partialing out A/B/C.
+
+Surface results on a new `/model/consensus-v2-eval` admin page. Promotion checklist documented in `.lovable/plan.md`; v2 stays shadow until it beats or matches v1 on a meaningful trusted sample.
+
+## Phase 10 — Tests
+
+Vitest under `src/lib/consensus/__tests__/`:
+- `immutability.test.ts` — write v2 row, mutate live slate / poll actuals / lock the run → re-read identical bytes.
+- `peer-removal.test.ts` — remove a peer row from the live slate after publish → stored v2 unchanged.
+- `preview-blocked.test.ts` — publish with `projection_class='preview'` → no `forecast_consensus` row.
+- `no-double-count.test.ts` — for each market, exactly one Sim channel contributes (mean XOR prob).
+- `no-render-compute.test.ts` — render the v2 board and recipe drawer in jsdom, assert `computeConsensusV2` is never called and no MC import is reachable.
+- `reproducibility.test.ts` — given stored `components` + `weights`, recompute score → equals stored `consensus_score` to 2 dp.
+
+---
 
 ## Technical notes
 
-- New routes: `src/routes/_authenticated/forecasts.board.tsx` (the board); update `forecasts.index.tsx` to redirect to `/forecasts/board` instead of `/diamond-scores`.
-- `diamond-scores.tsx`: add a `view=board|cards` URL param, default `board`; existing card grid renders only when `view=cards`. Keeps existing deep links working.
-- Reuse `Sheet` (`src/components/ui/sheet.tsx`) for the drawer; no new dependency.
-- Sorting/filtering stays client-side over the existing `getDiamondScores` payload (already deduped by active version).
-- No DB migration. Snapshot fields used are already persisted; if `projected_mean` / `projected_pa` aren't yet extracted into the card type, do that read-only mapping inside `getDiamondScores` from `projections.sim_snapshot`.
-
-## Open questions
-
-1. On the Today page, should the mini "Top Forecasts" panel replace the current "All games" grid, or sit above it (and keep the games grid below)?
-2. Alpha raw vs calibrated probability — is the raw Alpha prob already persisted on the snapshot, or should the drawer omit that row until snapshot includes it?
-3. Pitcher market toggle label: "Pitcher props" or break into "Outs / K / QS / Win" sub-toggle inside Pitcher mode?
-  Approve the dense Forecast Board plan with these required implementation changes.
-  1. Keep projection class, forecast status, and game state separate.
-  Public board visibility:  
-  `projection_class = 'official'`  
-  and forecast run status in `('published', 'locked')`  
-  and latest non-superseded version only.
-  Do not use `preview` as a status value.
-  Board filter labels should be game-display states:
-  - All
-  - Upcoming
-  - Live
-  - Final
-  Derive Upcoming / Live / Final from the joined game state plus forecast run status:
-  - Upcoming = game pregame + forecast published
-  - Live = game live + forecast locked
-  - Final = game final + forecast locked
-  2. Use a lightweight board payload plus lazy detail loading.
-  The board loader must return only compact row fields needed for scanning.
-  On row click, call a new read-only detail function such as:  
-  `getForecastBoardDetail({ forecastRunId, playerId })`
-  It may return stored snapshot detail, Alpha fields, Monte Carlo distributions, Diamond Score components, narrative, game context, and live actuals.
-  Neither loader may call simulation, lifecycle publishing, lineup refresh, or write functions.
-  3. Rank scope.
-  Diamond Rank must be calculated within the current:
-  - selected date
-  - selected market
-  - selected role
-  - official active forecast set
-  Do not show an all-category rank that makes Hit, HR, TB, and pitcher rows look directly comparable.
-  4. Actual column must match the selected market.
-  Examples:
-  - Hit 1+: `1-for-3`
-  - HR 1+: `0 HR`
-  - Total Bases: `2 TB`
-  - RBI: `1 RBI`
-  - Pitcher Ks: `6 K`
-  - Pitcher Outs: `17 Outs`
-  - Pitcher Win: `Win` or `No decision`
-  - QS: `QS` or `No QS`
-  Keep the original locked probability, mean, PA/BF, and Diamond Score unchanged beside those live/final actuals.
-  5. Today page placement.
-  Keep the All Games grid.
-  Place the new Top Forecasts mini-board directly below the dashboard/hero area and above the All Games grid:
-  - top 8 official forecasts
-  - Hit 1+ default
-  - sorted by Diamond Score
-  - no controls
-  - footer link to `/forecasts/board`
-  If no official forecasts are available:  
-  `Awaiting confirmed lineups`  
-  `No official Diamond forecasts published yet.`
-  6. Alpha versus calibrated values.
-  Never retroactively derive calibrated probability for an older locked forecast.
-  - Show saved raw probability if present.
-  - Show saved calibrated probability and calibration version if present.
-  - If only raw exists: `Raw · uncalibrated`.
-  - If neither was persisted: `Not stored in this snapshot`.
-  For all new official forecasts, persist:
-  - alpha_raw_probability
-  - calibrated_probability
-  - calibration_version
-  7. Pitcher market behavior.
-  Main market toggle:  
-  Hit 1+ | HR 1+ | TB | RBI | Pitcher
-  When Pitcher is selected, reveal a nested sub-toggle:  
-  Ks | Outs | Walks | Win | QS
-  Default pitcher sub-market: Ks.
-  8. Data fidelity.
-  Projected PA, projected BF, batting-order spot, opponent starter, weather, and narrative must come from the saved forecast snapshot first.
-  Current lineup/game data may supply only live game state and actuals. Never reconstruct old locked projections from current roster or lineup data.
-  9. Performance and integrity checks.
-  - Board response must exclude preview rows at the server level.
-  - Detail drawer opens without triggering simulation.
-  - Opening board, sorting, filtering, searching, or opening drawers produces zero new forecast runs.
-  - Desktop default board shows at least 10 official forecast rows above the fold.
-  - Mobile rows remain two lines and open a full-screen detail sheet.
+- Files added: `supabase/migrations/<ts>_forecast_consensus.sql`, `src/lib/consensus/v2.ts`, `src/lib/consensus/v2-eval.functions.ts`, `src/routes/_authenticated/forecasts.consensus-v2.tsx`, `src/components/diamond/consensus-v2/*`, `src/lib/consensus/__tests__/*`.
+- Files edited: `src/lib/forecast/lifecycle.ts` (one hook after upsert), `src/routes/_authenticated/forecasts.consensus.tsx` (relabel + helper text only), `src/components/site-header.tsx`, `src/components/forecasts-tab-bar.tsx`, `src/components/diamond/forecast-board/detail-drawer.tsx` (shadow tab).
+- Files NOT touched: `src/lib/consensus.ts`, `src/lib/sim.functions.ts`, `src/lib/engines/**`, `src/lib/forecast/material-hash.ts`, `src/lib/forecast/window.ts`, calibration modules, projection writers, locked snapshots.
+- DB-only writes happen inside `publishForecastIfEligible`; no edge function, no cron, no read path triggers a write.
+- All v2 reads filter `consensus_version='v2.0'` so future v2.1+ can land additively.
