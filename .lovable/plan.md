@@ -1,210 +1,180 @@
-## Goal
+# Diamond — Forecast Classes, IA Refactor, Results & Card Rebuild
 
-Make Diamond forecasts a strict write-once lifecycle. Boards, cards, and React Query polling read persisted snapshots only. New forecast versions are created only when canonical material inputs change before first pitch. Live actuals never mutate forecast fields.
+This is large enough that shipping it all in one pass would leave the app in a half-converted state for hours. Splitting into 4 sequential phases. Each phase is independently shippable and leaves the product honest at every checkpoint. Your own message says **"Do not redesign navigation yet. Make all forecast state honest and consistent first"** — Phase 1 honors that.
 
-## 1. Audit: where simulations are triggered today
+---
 
-Confirmed call sites that run Monte Carlo or write projections:
+## Phase 1 — Forecast Class Honesty (do first, ship alone)
 
-- `src/lib/sim.functions.ts` → `buildMonteCarloGameEnvironment()` runs `simulate(...)` and writes an in-memory cache.
-- `getSimulationLeaders` (same file) calls `buildMonteCarloGameEnvironment` for every game on **today's** slate on every request. This is the main read-path leak.
-- `simulateGame` server fn — invoked directly by `src/routes/_authenticated/matchups.$gamePk.tsx` via React Query (re-simulates on focus/refetch).
-- `src/lib/ingest.functions.ts` → `runDailyPipeline` / projection writers call `buildMonteCarloGameEnvironment` and `projectForModelVersion`, persisting to `projections` with `sim_snapshot`.
-- `src/lib/actuals.functions.ts` → `getActualsForDate` is read-only today (good) but is currently the only live-update path; we keep it isolated.
+**Goal:** No public surface ever shows a probability sourced from a partial-lineup simulation again.
 
-Read paths that must become snapshot-only:
+### Data model
 
-- `getSimulationLeaders` (odds, diamond-consensus, calibration-lab)
-- `getDiamondScores` (top-props, diamond-scores)
-- `simulateGame` (matchups page)
-- `getActualsForDate` (already isolated; verify no forecast writes)
+Add a `forecast_class` to `forecast_runs`:
 
-## 2. Data model (migration)
+- `preview` — admin-only; created from probable pitchers or partial lineups
+- `official` — both starters confirmed AND both 9-deep batting orders confirmed
+- `locked` — official run frozen at first pitch (existing `status='locked'`)
+- `legacy_unverified` — existing historical rows (no migration of meaning)
 
-Add a forecast lifecycle layer. Keep `projections` for compatibility, but make `forecast_runs` the source of truth.
+The existing `status` column stays (`awaiting`/`published`/`locked`/`superseded`). `forecast_class` is the new orthogonal axis that controls public visibility. The lifecycle writer decides class at publish time by checking lineup completeness; it never upgrades a `preview` row to `official` — re-runs create a new run.
+
+### Lifecycle changes
+
+`publishForecastIfEligible` gains an `intendedClass` argument:
+
+- `engine_run` pipeline → `intendedClass: 'official'` only if both lineups are 9-deep confirmed AND both SPs confirmed; otherwise it returns `awaiting_official` and writes nothing.
+- New admin action "Generate Preview Simulations" → `intendedClass: 'preview'`. Refuses to overwrite any existing `official`/`locked` row for the same `(game_pk, model_version)`. Writes go to the same tables but with `forecast_class='preview'`.
+
+### Read-path enforcement (single chokepoint)
+
+Every public read (`getSimulationLeaders`, `getDiamondScores`, `getConsensus*`, `getTopProps`, `getTodaySlate`, calibration loaders) filters `forecast_class IN ('official','locked')`. Preview rows are invisible everywhere except the Admin surface.
+
+For games with no official forecast, the card payload returns a sentinel `{ forecast_state: 'awaiting_lineups' }` so the UI can render the empty state instead of nothing.
+
+### Admin UI changes (minimum to unblock honesty)
+
+- Rename "Force Run Diamond Engine" → **"Generate Preview Simulations"** with a yellow "Preview — not official forecast" banner on the resulting view.
+- Add **"Publish/Reissue Official Forecast"** button, disabled with tooltip when lineup completeness check fails.
+- Lineup Status dashboard adds five separate counters: Scheduled / Confirmed Lineups / Official Published / Previews / Locked.
+- Remove the misleading "With Projections 15/15" metric.
+
+### Tests (vitest)
+
+1. `publishForecastIfEligible` with partial lineups + `intendedClass='official'` returns `awaiting_official` and writes nothing.
+2. Preview publish refuses to supersede an existing `official` row.
+3. `getSimulationLeaders` excludes preview rows.
+4. `getCalibration*` excludes preview AND `legacy_unverified`.
+5. An official row's `inputs_hash` and `distributions` are unchanged after a subsequent preview run for the same game.
+
+**Ship gate:** All five tests green, dashboard counts match SQL, /odds and /diamond-consensus return zero rows for games without official forecasts.
+
+---
+
+## Phase 2 — Card Redesign (public surfaces)
+
+After Phase 1, cards on `/today`, `/odds`, `/diamond-consensus`, `/top-props` are restructured around **one primary forecast** per card:
 
 ```text
-forecast_runs
-  id (uuid)                       -- forecastRunId
-  game_pk (int)
-  game_id (uuid)                  -- fk games
-  slate_date (date)               -- Chicago date
-  model_version (text)
-  version_number (int)            -- 1..N per game
-  status (text)                   -- awaiting_lineups | published | locked | superseded | legacy_unverified
-  trigger_reason (text)           -- first_publish | lineup_change | pitcher_change | env_change | admin_reissue
-  input_hash (text)               -- canonical material hash
-  simulation_seed (bigint)        -- deterministic
-  material_inputs (jsonb)         -- full snapshot of hashed inputs
-  generated_at (timestamptz)
-  locked_at (timestamptz)
-  superseded_by (uuid)
-  created_by (uuid)               -- null = system, else admin user
-  notes (text)
-
-forecast_player_projections
-  forecast_run_id (uuid fk)
-  player_id (uuid)
-  mlb_id (int)
-  role (text)                     -- hitter | pitcher
-  distributions (jsonb)           -- means, p50/p90, prob>=1/2
-  diamond_score, confidence,
-  hit_prob, hr_prob, rbi_prob, run_prob, tb_prob, sb_prob,
-  pitcher_win_prob, qs_prob, projected_outs ...
-  PRIMARY KEY (forecast_run_id, player_id)
+┌──────────────────────────────────────────┐
+│ Aaron Judge   NYY @ BOS   #2  •  7:10 PM │
+├──────────────────────────────────────────┤
+│ AT LEAST 1 HIT                           │
+│       64%                                │
+│ 1.24 projected hits · 4.4 PA             │
+├──────────────────────────────────────────┤
+│ Lineup-confirmed · Alpha 0.3 · 6:42 PM   │
+│ ▸ Why Diamond likes it                   │
+└──────────────────────────────────────────┘
 ```
 
-`projections` rows generated by old code paths get backfilled with `status = legacy_unverified` and are excluded from calibration.
+Removed from default face: contact/power/speed blocks, every secondary market %, conflicting low-confidence pills, raw inputs. Diamond Score moves to a small rank chip in the header. Simulation details (mean/median/stddev) move behind an Admin-only expansion.
 
-Indexes: `(game_pk, status)`, `(slate_date, status)`, unique `(game_pk, version_number)`.
+Forecast-state line drives all visual states: Awaiting / Lineup-confirmed / Locked / Live / Final.
 
-GRANTs + RLS: SELECT for `authenticated` via `is_app_member()`; writes only via service_role (server fns).
+**Ship gate:** Visual diff on `/today` and `/odds`; manual review of card on 3 sample players.
 
-## 3. Canonical material input hash
+---
 
-New helper `src/lib/forecast/material-hash.ts`:
+## Phase 3 — IA / Navigation Consolidation
 
-Inputs (in this order, JSON-stringified then SHA-256):
+Top nav collapses to **Today · Forecasts · Results · Model · Admin**.
 
-- `gamePk`
-- `modelVersion`
-- `homeStarterMlbId`, `awayStarterMlbId` (official only; null otherwise blocks publish)
-- `homeLineup: [{ mlbId, order }]` sorted by order, length 9, confirmed only
-- `awayLineup: [{ mlbId, order }]` same
-- `parkFactors` actually used (`venueId` + resolved factor blob)
-- `gameEnvironment` (roof/weather flags actually fed to the engine)
+Route map (old routes become redirects, no code deleted):
 
-Explicitly excluded: any `updated_at`, roster sync timestamps, page load time, live boxscore, RQ cache state, `Date.now()`, RNG.
 
-`simulationSeed = hash64(gamePk + ":" + inputHash + ":" + modelVersion)`.
+| New                                                              | Subsumes                                                                                   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `/today`                                                         | current `/today`, `/slate`, live game                                                      |
+| `/forecasts` (tabs: Board / All / Rankings / Consensus / Search) | `/diamond-scores`, `/odds`, `/projections`, `/diamond-consensus`, `/top-props`, `/leaders` |
+| `/results`                                                       | new (Phase 4)                                                                              |
+| `/model`                                                         | `/calibration-lab`, `/model-results`                                                       |
+| `/admin`                                                         | `/admin`, `/lineup-status`, pipeline logs                                                  |
 
-## 4. Forecast generation rules (write path)
 
-New module `src/lib/forecast/lifecycle.ts` with one entry point:
+Implemented as a thin layout route per area + page-level tabs. Old route files keep their loaders but their components render a `<Navigate to=…>` so deep links survive.
 
-```ts
-publishForecastIfEligible({ gamePk, modelVersion, triggerReason, actor })
-```
+**Ship gate:** Every old URL still resolves, top nav has 5 items, no functionality removed.
 
-Behavior:
+---
 
-1. Load latest run for `(gamePk, modelVersion)`.
-2. Resolve material inputs from confirmed lineups + probable pitchers.
-3. If lineups or pitchers incomplete → upsert/keep `status = awaiting_lineups`, no sim, return.
-4. Compute `inputHash`.
-5. If latest run is `locked` → return locked run (never overwrite).
-6. If latest run is `published` and `inputHash` unchanged → return as-is, no sim.
-7. Otherwise: run `simulate(..., seed=simulationSeed)` once, write a new `forecast_runs` row with `version_number = prev+1`, status `published`, mark prior `published` row `superseded`. Log full event.
-8. Manual admin reissue requires `triggerReason = admin_reissue` + non-empty `notes`; same flow but bypasses hash equality check.
+## Phase 4 — Results Page ("Yesterday in Diamond")
 
-First-pitch lock job:
+`/results` defaults to the most recent date where every scheduled game is `Final`. If yesterday is partial → render `Partial slate — X of Y games final` and exclude unfinished games from all metrics.
 
-- Triggered by existing schedule refresh / lineup webhook when game status flips to live/in-progress.
-- Sets the current `published` run to `locked`, stamps `locked_at`. After lock, `publishForecastIfEligible` short-circuits.
+Page sections (all sourced strictly from `forecast_runs WHERE status='locked' AND forecast_class IN ('official','locked')` joined to finalized actuals):
 
-Where this is called from (write paths only — none of these are user reads):
+1. **Header strip** — date, finals/scheduled, locked-forecast coverage, model version(s), last actuals sync, date picker.
+2. **Daily summary** — graded count, predicted avg vs observed rate, calibration delta, Brier, hits/misses, sample-size badge.
+3. **Best Reads** — top correct locked forecasts with probability / projected line / actual line.
+4. **Biggest Misses** — same shape; only factual reason labels backed by box-score data (`0-for-4`, `removed in 3rd`); never invented.
+5. **Market Breakdown** — Hit 1+, TB 2+, HR 1+, RBI 1+, R 1+, SB 1+. Per-row Brier, observed rate, delta, sample warning.
+6. **Model Note** — generated from the metric table only; one sentence; cites the number. No metric → no claim.
 
-- `runDailyPipeline` (admin button) — bulk attempt across slate.
-- Lineup refresh webhook / cron (`refresh-lineups`) — per-game attempt when lineup transitions to confirmed.
-- Admin "Reissue Forecast" action on `/admin`.
+**Ship gate:** Acceptance test runs on a known historical date, all metrics match a hand-computed CSV from SQL.
 
-Removed: all read-path simulation. `buildMonteCarloGameEnvironment` becomes an internal helper used only by the lifecycle writer.
+---
 
-## 5. Read path changes
+## Technical notes
 
-- `getSimulationLeaders`: replace `buildMonteCarloGameEnvironment` loop with a single query against `forecast_runs` + `forecast_player_projections` joined on the slate's games. Always returns the latest non-superseded run per game (`locked` > `published` > `awaiting_lineups`). No sim, no MLB lineup calls. Today and historical paths unified.
-- `getDiamondScores`: same — read from `forecast_player_projections`.
-- `simulateGame` (matchups page): rename to `getForecastForGame`, returns latest run + projections only. No `simulate()` call. Remove `iterations` input.
-- `getActualsForDate`: unchanged behavior, but assert it never writes to `projections` / `forecast_*`. Returns live stats keyed by `(gamePk, playerId)`.
-- Card render contract: `{ forecast: <locked snapshot>, actual: <live stat>, grade: <derived> }`. Grade derivation lives in a pure function — no DB write.
+- **Migration:** one migration adds `forecast_class text not null default 'preview'` to `forecast_runs`, backfills existing rows by joining lineup completeness at publish time (rows for past dates with full lineup history → `official`; everything else → `legacy_unverified`), adds CHECK + partial unique index `(game_pk, model_version) WHERE forecast_class='official' AND status IN ('published','locked')`.
+- **No new tables.** Preview vs official share `forecast_runs` / `forecast_player_projections`; the class column is the only gate.
+- **Calibration protection:** `model_results` queries already gained the `legacy_unverified` filter — extend the same filter to exclude `'preview'`.
+- **Lifecycle math unchanged.** No engine formula edits in any phase.
+- **Subagents:** Phases 2 and 4 are visual-heavy; I'll spawn parallel subagents for the card component refactor (Phase 2) and the Results page layout (Phase 4) once Phase 1 lands.
 
-React Query:
+---
 
-- Forecast queries: `staleTime: Infinity`, no `refetchInterval`. Invalidated only by admin actions or lifecycle webhook.
-- Live actuals query: keep 45s `refetchInterval`, isolated `queryKey: ["actuals", date]`.
+## Order of execution
 
-## 6. UI labels (minimal, no redesign)
+1. Phase 1 (this PR) — DB migration + lifecycle class gate + read filters + admin rename + 5 tests + dashboard counter fix.
+2. Phase 2 — card redesign on public surfaces only.
+3. Phase 3 — nav/route consolidation + redirects.
+4. Phase 4 — `/results` build.
 
-In existing card/header components only:
+Approve and I'll start Phase 1.
 
-- `awaiting_lineups` → "Awaiting confirmed lineups" (replace any fake confidence/score).
-- `published` → "Lineup-confirmed forecast • Projected at {generated_at} • Model {version}".
-- `locked` → adds "Forecast locked at first pitch".
-- `superseded` (admin/debug views) → "Superseded by v{n}".
+Approve Phase 1 as the next standalone shipment. It solves the immediate product-integrity issue: public projections cannot exist from partial/projected lineups.
 
-No new tabs, no board redesign.
+Before implementation, make these required corrections:
 
-## 7. Calibration protection
+1. Keep forecast class and lifecycle status separate.
+  - `forecast_class`: `preview | official | legacy_unverified`
+  - `status`: `awaiting | published | locked | superseded`
+  - `locked` is a status, not a forecast class.
+  - An official forecast remains `forecast_class='official'` after first pitch; its status changes from `published` to `locked`.
+2. Be conservative with historical backfill.  
+Do not classify old projections as official merely because complete lineups can be reconstructed later. Only classify an old run as official if stored evidence proves both confirmed lineups, confirmed starters, and a pre-first-pitch generation timestamp. Otherwise mark it `legacy_unverified`.
+3. The lifecycle must determine eligibility internally.  
+`intendedClass='official'` is only a request, not authorization. The server must independently verify:
+  - game has not started
+  - both starters are officially confirmed
+  - both batting orders are official, exactly 9 unique hitters, and slots 1–9 are present
+  - official MLB/source data is used, not a projected lineup  
+  If any check fails, return `awaiting_official` and write no official row.
+4. Public read rules:
+  - Today / Forecasts / Top Props / Consensus / rankings may read only `forecast_class='official'` with `status IN ('published','locked')`.
+  - Results and calibration may read only `forecast_class='official'`, `status='locked'`, and final-game actuals.
+  - Preview rows may appear only in Admin and must visibly say `Preview — not an official forecast`.
+5. Preserve game visibility without fake probabilities.  
+Public slate pages should still show scheduled games without official forecasts, but return:  
+`{ forecast_state: 'awaiting_lineups' }`  
+and render:  
+`Awaiting confirmed lineups`  
+`No official Diamond forecast published yet`  
+Do not hide the game or replace the state with partial-lineup percentages.
+6. Enforce active-version uniqueness transactionally.  
+Keep the partial unique index by `(game_pk, model_version)` for active official `published` / `locked` rows, but ensure superseding the prior published run and inserting the next one happen in one transaction under the per-game advisory lock.
+7. Add one additional test:  
+A historical row with complete lineups discovered after the fact, but no verified pregame snapshot timestamp/input proof, must remain `legacy_unverified` and be excluded from public forecasts, Results, and calibration.
 
-- `model-results.functions.ts`: filter all aggregations to `forecast_runs.status IN ('locked','published')` AND `version_number = (current non-superseded)` AND exclude `legacy_unverified`.
-- Migration step: mark every existing `projections` row whose `sim_snapshot` was written after the matching game's `game_date` start as `legacy_unverified`. Keep rows; never delete.
-- Trusted calibration window starts at first `locked` run created after this ships.
+Ship Phase 1 alone after the tests pass and manually verify this exact case:
 
-## 8. Logging & tests
+- Lineup Status: 2 confirmed games
+- Official Published: no more than 2 eligible games
+- Preview count shown separately
+- Public Top Props / Consensus: zero forecast rows for the 13 non-confirmed games
+- Public slate: those 13 games visibly say “Awaiting confirmed lineups”
+- Admin Preview generation cannot change or replace an official forecast
 
-Server-side log per `publishForecastIfEligible` call: `{ gamePk, modelVersion, priorStatus, priorHash, newHash, decision: 'noop'|'published'|'superseded'|'awaiting'|'locked-skip', versionNumber, triggerReason, actor, durationMs }`.
-
-Vitest suite `src/lib/forecast/lifecycle.test.ts`:
-
-1. Ten consecutive `getSimulationLeaders` calls → 0 new `forecast_runs` rows, 0 `simulate()` calls (spy).
-2. Roster sync with unchanged material inputs → `publishForecastIfEligible` returns `noop`, 0 new rows.
-3. Lineup pitcher swap before first pitch → exactly one new `published` row, prior marked `superseded`.
-4. Game flips to live → run becomes `locked`; subsequent `publishForecastIfEligible` is no-op even with hash change.
-5. Live actuals update during locked game → no field on the locked forecast row changes (snapshot diff).
-
-## 9. Out of scope
-
-- No new tabs or visual redesign.
-- No model math changes.
-- Old `projections` table stays for backward reads during transition; new writes go to `forecast_*`.
-
-## Technical file list
-
-- New: `supabase/migrations/<ts>_forecast_lifecycle.sql`, `src/lib/forecast/material-hash.ts`, `src/lib/forecast/lifecycle.ts`, `src/lib/forecast/repository.ts`, `src/lib/forecast/lifecycle.test.ts`.
-- Modified: `src/lib/sim.functions.ts` (gut read-path sims, expose internal `runSimulationForLifecycle`), `src/lib/ingest.functions.ts` (delegate to `publishForecastIfEligible`), `src/lib/projections.functions.ts` (read from `forecast_*`), `src/lib/model-results.functions.ts` (filter by status), `src/lib/lineups/refresh.functions.ts` (call lifecycle on confirmed-lineup transition + lock on live status), `src/routes/_authenticated/matchups.$gamePk.tsx` (use `getForecastForGame`), `src/routes/_authenticated/odds.tsx` + `diamond-consensus.tsx` + `calibration-lab.tsx` + `top-props.tsx` + `diamond-scores.tsx` (remove `refetchInterval` on forecast queries; keep on actuals), `src/routes/_authenticated/_admin/admin.tsx` (add "Reissue Forecast" with reason).
-  FORECAST LIFECYCLE HARDENING — REQUIRED BEFORE SHIPPING
-  1. CONCURRENCY / IDEMPOTENCY
-  Wrap the read-latest-run → compare-hash → supersede → insert-new-run flow in one database transaction.
-  Use a per-game advisory transaction lock such as:
-  pg_advisory_xact_lock(hashtext('forecast:' || gamePk::text))
-  Then SELECT the latest forecast run FOR UPDATE before deciding whether to simulate.
-  Add a partial unique index ensuring only one active official forecast can exist per game:
-  UNIQUE (game_pk) WHERE status IN ('published', 'locked')
-  On unique conflict, reload the active run and return it rather than running a second simulation.
-  2. FIRST-PITCH HARD STOP
-  At the very start of publishForecastIfEligible, fetch game state.
-  If game state is live, final, delayed-after-start, or suspended:
-  - lock any current published run
-  - do not resolve new inputs
-  - do not run simulate()
-  - do not create a new forecast version
-  If no eligible forecast existed before first pitch, return a distinct derived state:
-  "No lineup-confirmed pregame forecast published."
-  Never create a pregame forecast after a game has begun.
-  3. FORECAST DELIVERY TO OPEN CLIENTS
-  Forecast queries must remain simulation-free, but a user with the app already open needs to see a newly published lineup-confirmed forecast.
-  Implement one of:
-  A. Supabase Realtime subscription to forecast_runs / forecast_player_projections that invalidates:
-     ["forecast-board", slateDate]
-     ["forecast-game", gamePk]
-  or
-  B. a low-frequency 2–5 minute READ-ONLY forecast snapshot refetch.
-  Do not use staleTime: Infinity unless Realtime invalidation is active.
-  4. CALIBRATION RULE
-  Official calibration and accuracy aggregations must require:
-  - forecast_runs.status = 'locked'
-  - game result/status = final
-  - forecast is not legacy_unverified
-  - use the exact locked forecast version for that game
-  Do not include `published` forecasts in graded calibration, even if an actuals query has partial live stats.
-  5. DETERMINISTIC SEED SAFETY
-  Store simulation_seed as text/hex or safely normalized signed integer, not an unsafe JavaScript number.
-  Use:
-  seed = deterministicHash(gamePk + ":" + inputHash + ":" + modelVersion)
-  Confirm identical material inputs + same model version always yield byte-for-byte identical stored projection outputs.
-  6. EXTRA TESTS
-  Add tests proving:
-  - concurrent lifecycle calls for the same game create only one forecast run
-  - a game with no pregame forecast cannot receive one after first pitch
-  - a lineup webhook publishes a forecast and an already-open client receives the new snapshot without a page refresh
-  - calibration ignores live, published, superseded, and legacy_unverified runs
+Do not begin card redesign, navigation work, or Results until this is confirmed in production.

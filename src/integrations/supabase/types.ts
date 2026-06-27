@@ -295,6 +295,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          forecast_class: string
           game_id: string
           game_pk: number
           generated_at: string
@@ -315,6 +316,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          forecast_class?: string
           game_id: string
           game_pk: number
           generated_at?: string
@@ -335,6 +337,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          forecast_class?: string
           game_id?: string
           game_pk?: number
           generated_at?: string
@@ -831,6 +834,7 @@ export type Database = {
           player_id: string
           power_score: number | null
           projected_outs: number | null
+          projection_class: string
           projection_role: string
           projection_status: string
           quality_start_probability: number | null
@@ -863,6 +867,7 @@ export type Database = {
           player_id: string
           power_score?: number | null
           projected_outs?: number | null
+          projection_class?: string
           projection_role?: string
           projection_status?: string
           quality_start_probability?: number | null
@@ -895,6 +900,7 @@ export type Database = {
           player_id?: string
           power_score?: number | null
           projected_outs?: number | null
+          projection_class?: string
           projection_role?: string
           projection_status?: string
           quality_start_probability?: number | null

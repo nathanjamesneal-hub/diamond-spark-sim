@@ -32,7 +32,20 @@ export type LifecycleDecision =
   | "superseded"
   | "locked-skip"
   | "post-first-pitch-skip"
+  | "official-exists-preview-blocked"
+  | "ineligible-for-official"
   | "error";
+
+/**
+ * Forecast class governs PUBLIC visibility. Orthogonal to status.
+ *   official          — built from confirmed lineups + confirmed starters
+ *   preview           — admin-only exploratory sim (partial/projected lineups)
+ *   legacy_unverified — pre-lifecycle row; never public, never calibration
+ *
+ * Note: `locked` is a status, not a class. An official run keeps
+ * forecast_class='official' after first pitch; its status changes to 'locked'.
+ */
+export type ForecastClass = "official" | "preview";
 
 export type LifecycleLogEntry = {
   gamePk: number;
@@ -138,6 +151,17 @@ export type PublishArgs = {
   notes?: string | null;
   /** Admin override: bypass hash-equality check (still respects first-pitch lock). */
   force?: boolean;
+  /**
+   * Intended forecast class. Default 'official'. The lifecycle does its own
+   * eligibility verification — 'official' is only honored when the candidate
+   * inputs validate (9-deep lineups + both starters). Otherwise it short-circuits
+   * to `ineligible-for-official` and writes nothing.
+   *
+   * 'preview' may be created from partial/projected inputs (still requires the
+   * sim to be runnable). Preview NEVER supersedes or overwrites an active
+   * official/locked run for the same (game_pk, model_version).
+   */
+  forecastClass?: ForecastClass;
   /** Resolved material inputs. If null, the lifecycle records "awaiting_lineups". */
   candidateInputs: Partial<MaterialInputs>;
   /** Game DB row (must include id, date, game_status, first_pitch_at). */
@@ -154,12 +178,14 @@ async function fetchLatestRun(
   admin: SupabaseClient<any>,
   gamePk: number,
   modelVersion: string,
+  forecastClass: ForecastClass,
 ): Promise<RunRow | null> {
   const { data } = await admin
     .from("forecast_runs")
     .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
     .eq("game_pk", gamePk)
     .eq("model_version", modelVersion)
+    .eq("forecast_class", forecastClass)
     .order("version_number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -170,18 +196,22 @@ async function fetchActiveRun(
   admin: SupabaseClient<any>,
   gamePk: number,
   modelVersion: string,
+  forecastClass: ForecastClass,
 ): Promise<RunRow | null> {
   const { data } = await admin
     .from("forecast_runs")
     .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
     .eq("game_pk", gamePk)
     .eq("model_version", modelVersion)
+    .eq("forecast_class", forecastClass)
     .in("status", ["published", "locked"])
     .order("version_number", { ascending: false })
     .limit(1)
     .maybeSingle();
   return (data as RunRow | null) ?? null;
 }
+
+
 
 function logLine(entry: LifecycleLogEntry) {
   // Compact server-side log per spec.
@@ -208,6 +238,7 @@ export async function publishForecastIfEligible(
     candidateInputs,
     game,
   } = args;
+  const forecastClass: ForecastClass = args.forecastClass ?? "official";
 
   const baseLog = (
     decision: LifecycleDecision,
@@ -226,21 +257,24 @@ export async function publishForecastIfEligible(
     triggerReason,
     actor,
     durationMs: Date.now() - startedAt,
-    message,
+    message: message ? `[${forecastClass}] ${message}` : `[${forecastClass}]`,
   });
 
-  // Always read the latest run first for status/hash comparison.
-  const latest = await fetchLatestRun(ctx.admin, gamePk, modelVersion);
+  // Always read the latest run of the SAME class first for status/hash comparison.
+  const latest = await fetchLatestRun(ctx.admin, gamePk, modelVersion, forecastClass);
 
   // FIRST-PITCH HARD STOP — no new pregame forecasts after the window closes.
   if (gameHasStartedOrPastStart(game.game_status, game.first_pitch_at)) {
-    // If there is a currently published run, lock it (idempotent).
-    const active = await fetchActiveRun(ctx.admin, gamePk, modelVersion);
-    if (active && active.status === "published") {
-      await ctx.admin
-        .from("forecast_runs")
-        .update({ status: "locked", locked_at: new Date().toISOString() })
-        .eq("id", active.id);
+    // If there is a currently published OFFICIAL run, lock it (idempotent).
+    // Preview runs are never locked — they expire silently.
+    if (forecastClass === "official") {
+      const active = await fetchActiveRun(ctx.admin, gamePk, modelVersion, "official");
+      if (active && active.status === "published") {
+        await ctx.admin
+          .from("forecast_runs")
+          .update({ status: "locked", locked_at: new Date().toISOString() })
+          .eq("id", active.id);
+      }
     }
     const log = baseLog(
       "post-first-pitch-skip",
@@ -252,7 +286,7 @@ export async function publishForecastIfEligible(
     logLine(log);
     return {
       decision: "post-first-pitch-skip",
-      forecastRunId: active?.id ?? latest?.id ?? null,
+      forecastRunId: latest?.id ?? null,
       versionNumber: latest?.version_number ?? null,
       log,
     };
@@ -269,23 +303,52 @@ export async function publishForecastIfEligible(
     };
   }
 
+  // PREVIEW GUARDRAIL: never shadow an active official forecast. Preview rows
+  // must never compete with or overwrite an official/locked snapshot for the
+  // same (game_pk, model_version).
+  if (forecastClass === "preview") {
+    const activeOfficial = await fetchActiveRun(ctx.admin, gamePk, modelVersion, "official");
+    if (activeOfficial) {
+      const log = baseLog(
+        "official-exists-preview-blocked",
+        latest,
+        null,
+        latest?.version_number ?? null,
+        "active official forecast exists; preview generation refused",
+      );
+      logLine(log);
+      return {
+        decision: "official-exists-preview-blocked",
+        forecastRunId: activeOfficial.id,
+        versionNumber: activeOfficial.version_number,
+        log,
+      };
+    }
+  }
+
   // Validate material inputs.
   const check = validateMaterialInputs(candidateInputs);
   if (!check.ok) {
-    // Ensure an awaiting_lineups row exists if no prior run.
-    if (!latest) {
-      await ctx.admin.from("forecast_runs").insert({
-        game_pk: gamePk,
-        game_id: game.id,
-        slate_date: game.date,
-        model_version: modelVersion,
-        version_number: 1,
-        status: "awaiting_lineups",
-        trigger_reason: triggerReason,
-        material_inputs: candidateInputs as any,
-        notes: check.reason,
-      });
+    // For OFFICIAL: write nothing. The public read path surfaces
+    // "Awaiting confirmed lineups" purely from current DB state — no sentinel
+    // row needed, and writing one would create misleading per-class history.
+    if (forecastClass === "official") {
+      const log = baseLog(
+        "ineligible-for-official",
+        latest,
+        null,
+        latest?.version_number ?? null,
+        check.reason,
+      );
+      logLine(log);
+      return {
+        decision: "ineligible-for-official",
+        forecastRunId: latest?.id ?? null,
+        versionNumber: latest?.version_number ?? null,
+        log,
+      };
     }
+    // For PREVIEW: sim cannot run without 9 hitters + 2 SPs; surface awaiting.
     const log = baseLog("awaiting", latest, null, latest?.version_number ?? null, check.reason);
     logLine(log);
     return {
@@ -320,6 +383,7 @@ export async function publishForecastIfEligible(
     gameId: game.id,
     slateDate: game.date,
     modelVersion,
+    forecastClass,
     versionNumber: newVersionNumber,
     status: "published",
     triggerReason,
@@ -334,7 +398,7 @@ export async function publishForecastIfEligible(
 
   if (!newRunId) {
     // Lost the supersede race — another writer just published. Reload and return.
-    const winner = await fetchActiveRun(ctx.admin, gamePk, modelVersion);
+    const winner = await fetchActiveRun(ctx.admin, gamePk, modelVersion, forecastClass);
     const log = baseLog(
       "noop",
       latest,
@@ -395,11 +459,11 @@ export async function publishForecastIfEligible(
 }
 
 /**
- * Insert a new published run, marking any prior published run as superseded
- * in the same transactional intent. We rely on the partial unique index
- * (game_pk, model_version) WHERE status IN ('published','locked') as the
- * concurrency backstop — on conflict we return null so the caller reloads
- * the winning run.
+ * Insert a new published run, marking any prior published run of the SAME
+ * forecast_class as superseded in the same transactional intent. The partial
+ * unique index `(game_pk, model_version) WHERE forecast_class='official' AND
+ * status IN ('published','locked')` is the concurrency backstop for official
+ * runs — on conflict we return null so the caller reloads the winning run.
  */
 async function insertRunWithSupersede(
   admin: SupabaseClient<any>,
@@ -408,6 +472,7 @@ async function insertRunWithSupersede(
     gameId: string;
     slateDate: string;
     modelVersion: string;
+    forecastClass: ForecastClass;
     versionNumber: number;
     status: "published";
     triggerReason: string;
@@ -441,6 +506,7 @@ async function insertRunWithSupersede(
       game_id: args.gameId,
       slate_date: args.slateDate,
       model_version: args.modelVersion,
+      forecast_class: args.forecastClass,
       version_number: args.versionNumber,
       status: args.status,
       trigger_reason: args.triggerReason,
@@ -454,8 +520,7 @@ async function insertRunWithSupersede(
     .select("id")
     .maybeSingle();
   if (error) {
-    // Unique violation on (game_pk, model_version) partial index → concurrent winner.
-    // Postgres code 23505.
+    // Unique violation on partial index → concurrent winner.
     // eslint-disable-next-line no-console
     console.warn("[forecast.lifecycle] insert failed:", error.message);
     return null;
