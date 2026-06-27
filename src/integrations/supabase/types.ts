@@ -202,6 +202,81 @@ export type Database = {
         }
         Relationships: []
       }
+      forecast_consensus: {
+        Row: {
+          completeness: Json
+          components: Json
+          computed_at: string
+          consensus_score: number
+          consensus_version: string
+          forecast_run_id: string
+          id: string
+          input_hash: string
+          lineup_state: Json
+          market: string
+          missing_components: string[]
+          notes: string | null
+          player_id: string
+          reference_meta: Json
+          score_confidence: number
+          uncertainty: Json
+          weights: Json
+        }
+        Insert: {
+          completeness?: Json
+          components?: Json
+          computed_at?: string
+          consensus_score: number
+          consensus_version: string
+          forecast_run_id: string
+          id?: string
+          input_hash: string
+          lineup_state?: Json
+          market: string
+          missing_components?: string[]
+          notes?: string | null
+          player_id: string
+          reference_meta?: Json
+          score_confidence?: number
+          uncertainty?: Json
+          weights?: Json
+        }
+        Update: {
+          completeness?: Json
+          components?: Json
+          computed_at?: string
+          consensus_score?: number
+          consensus_version?: string
+          forecast_run_id?: string
+          id?: string
+          input_hash?: string
+          lineup_state?: Json
+          market?: string
+          missing_components?: string[]
+          notes?: string | null
+          player_id?: string
+          reference_meta?: Json
+          score_confidence?: number
+          uncertainty?: Json
+          weights?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_consensus_forecast_run_id_fkey"
+            columns: ["forecast_run_id"]
+            isOneToOne: false
+            referencedRelation: "forecast_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forecast_consensus_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forecast_player_projections: {
         Row: {
           confidence: number | null
