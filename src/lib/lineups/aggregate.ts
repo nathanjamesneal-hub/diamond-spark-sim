@@ -350,6 +350,37 @@ export async function aggregateLineups(
       .upsert(lineupRowsToUpsert, { onConflict: "game_id,player_id" });
   }
 
+  // ---------- 6b. Drop orphan projected rows on MLB-confirmed teams ----------
+  // Once MLB confirms a lineup, any previously persisted projected row for
+  // that (game, team) is stale. They linger because the upsert key is
+  // (game_id, player_id) — projected rows reference *different* player_ids
+  // than the confirmed MLB ones. Leaving them in place breaks official
+  // forecast eligibility (which forbids any non-confirmed / projected rows
+  // on a team) and inflates lineup counts past 9.
+  const confirmedTeamKeys: Array<{ game_id: string; team_id: string }> = [];
+  const seenKey = new Set<string>();
+  for (const row of lineupRowsToUpsert) {
+    if (!row.confirmed) continue;
+    const k = `${row.game_id}:${row.team_id}`;
+    if (seenKey.has(k)) continue;
+    seenKey.add(k);
+    confirmedTeamKeys.push({ game_id: row.game_id, team_id: row.team_id });
+  }
+  for (const { game_id, team_id } of confirmedTeamKeys) {
+    await supabaseAdmin
+      .from("lineups")
+      .delete()
+      .eq("game_id", game_id)
+      .eq("team_id", team_id)
+      .in("lineup_source", [
+        "projected",
+        "rotowire",
+        "projection",
+        "draftkings_projected",
+        "diamond_projection",
+      ]);
+  }
+
   // ---------- 7. Upsert game_lineup_status ----------
   const statusRows: any[] = [];
   for (const [gameId, summary] of perGameSummary) {
