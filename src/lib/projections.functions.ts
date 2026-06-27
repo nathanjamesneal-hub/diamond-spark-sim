@@ -326,6 +326,39 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
 
 export type LineupBadgeStatus = "official" | "aggregated" | "low_confidence" | "locked";
 
+/**
+ * Game display state derived from `games.game_status` (MLB enum).
+ *   upcoming — scheduled, warmup, delayed start (pregame)
+ *   live     — in progress / manager challenge / suspended after start
+ *   final    — final, game over, completed
+ *   other    — postponed, cancelled, off (treated as not-on-slate)
+ */
+export type GameDisplayState = "upcoming" | "live" | "final" | "other";
+
+/**
+ * Public Forecast Board status. Derived from forecast_runs.status
+ * (published|locked|superseded) + GameDisplayState. NEVER includes preview.
+ *   no_official — no published/locked official forecast exists yet
+ *   published   — official forecast published, game still pregame
+ *   locked      — official forecast locked at first pitch, game pregame edge case
+ *   live        — official forecast locked, game in progress
+ *   final       — official forecast locked, game ended
+ */
+export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final";
+
+export type ForecastActuals = {
+  hits: number | null;
+  ab: number | null;
+  total_bases: number | null;
+  home_runs: number | null;
+  rbis: number | null;
+  stolen_bases: number | null;
+  walks: number | null;
+  strikeouts: number | null;
+  plate_appearances: number | null;
+  runs: number | null;
+};
+
 export type DiamondHitterCard = {
   player_id: string;
   mlb_id: number | null;
@@ -335,6 +368,7 @@ export type DiamondHitterCard = {
   game_id: string;
   mlb_game_id: number | null;
   game_status: string | null;
+  game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   batting_order: number | null;
   lineup_status: "locked" | "verified" | "waiting";
@@ -344,6 +378,10 @@ export type DiamondHitterCard = {
   last_refresh_at: string | null;
   source_count: number | null;
   model_version: string;
+  forecast_run_id: string | null;
+  forecast_status: ForecastBoardStatus;
+  forecast_locked_at: string | null;
+  forecast_published_at: string | null;
   diamond_score: number | null;
   contact_score: number | null;
   power_score: number | null;
@@ -357,7 +395,15 @@ export type DiamondHitterCard = {
   rbi_probability: number | null;
   run_probability: number | null;
   sb_probability: number | null;
+  /** Means pulled from sim_snapshot.distributions (no live sim). */
+  hit_mean: number | null;
+  hr_mean: number | null;
+  tb_mean: number | null;
+  rbi_mean: number | null;
+  /** PA isn't directly persisted yet; null when unavailable. */
+  projected_pa: number | null;
   inputs_narrative: string | null;
+  actual: ForecastActuals | null;
 };
 
 export type PitcherComponentSnapshot = {
@@ -378,11 +424,23 @@ export type DiamondPitcherCard = {
   game_id: string;
   mlb_game_id: number | null;
   game_status: string | null;
+  game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   model_version: string;
+  forecast_run_id: string | null;
+  forecast_status: ForecastBoardStatus;
+  forecast_locked_at: string | null;
+  forecast_published_at: string | null;
   diamond_score: number | null;
   confidence: number | null;
   projected_outs: number | null;
+  /** Means from sim_snapshot.distributions. */
+  k_mean: number | null;
+  bb_mean: number | null;
+  er_mean: number | null;
+  h_mean: number | null;
+  /** Batters Faced isn't directly persisted yet; null when unavailable. */
+  projected_bf: number | null;
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
@@ -391,6 +449,7 @@ export type DiamondPitcherCard = {
   lineup_confidence: number | null;
   lineup_source: string | null;
   badge: LineupBadgeStatus;
+  actual: ForecastActuals | null;
 };
 
 
@@ -407,6 +466,7 @@ export type DiamondScoresPayload = {
   slateConfirmed: number;
   slateTotal: number;
 };
+
 
 
 const MISSING_HITTER_FIELDS = [
