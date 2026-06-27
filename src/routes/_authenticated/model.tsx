@@ -149,14 +149,16 @@ function ModelResultsPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 space-y-8">
       <header className="space-y-3">
         <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">
-          Diamond model validation
+          Internal model audit
         </div>
         <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
-          Model Results
+          Model Diagnostics
         </h1>
         <p className="text-sm text-muted-foreground">
-          Historical review of finalized simulation projections vs. actual box scores.
+          Dense diagnostic tables for Diamond's finalized forecasts. For a postgame plain-language
+          recap, see <Link to="/results" className="underline hover:text-foreground">Daily Results</Link>.
         </p>
+
 
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/40 p-2">
           <button
