@@ -25,6 +25,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayInAppTz } from "@/lib/timezone";
 import { runRefresh } from "@/lib/lineups/refresh.functions";
 import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
+import { runDiamondEngineForGames } from "@/lib/ingest.functions";
+import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
 
 import { finishAutomationLog, logAutomation } from "./log";
 
@@ -42,9 +44,19 @@ export type OrchestrateResult = {
     engineRan: boolean;
     error?: string;
   };
+  preview: {
+    candidateGames: number;
+    projectionsRegenerated: number;
+    gamesProcessed: number;
+    gamesSkippedPreviewBlocked: number;
+    gamesSkippedWindowClosed: number;
+    engineRan: boolean;
+    error?: string;
+  };
   lock: { today: number; yesterday: number; error?: string };
   error?: string;
 };
+
 
 function chicagoYesterday(today: string): string {
   const d = new Date(`${today}T00:00:00`);
