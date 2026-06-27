@@ -6,6 +6,8 @@ import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
+import { getMarketSimulationMetrics, NO_PERSISTED_MEAN_TOOLTIP, type MarketKey, type MarketRole } from "@/lib/forecast/sim-metrics";
+
 
 
 type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
@@ -25,7 +27,26 @@ type PropRow = {
   diamond_score: number | null;
   lineup_badge: string;
   is_pitcher: boolean;
+  is_preview: boolean;
+  /** Persisted Monte Carlo mean for this propType's market (from the same selected snapshot). */
+  meanValue: number | null;
+  meanUnit: string;
+  meanSourcePath: string | null;
 };
+
+const PROP_MARKET: Record<PropType, { role: MarketRole; market: MarketKey; unit: string } | null> = {
+  hit:  { role: "hitter",  market: "H",   unit: "H" },
+  tb:   { role: "hitter",  market: "TB",  unit: "TB" },
+  hr:   { role: "hitter",  market: "HR",  unit: "HR" },
+  rbi:  { role: "hitter",  market: "RBI", unit: "RBI" },
+  runs: { role: "hitter",  market: "R",   unit: "R" },
+  sb:   { role: "hitter",  market: "SB",  unit: "SB" },
+  k:    { role: "pitcher", market: "K",   unit: "K" },
+  // No count mean is stored for win/qs — they remain probability-only.
+  win:  null,
+  qs:   null,
+};
+
 
 const PROP_META: Record<PropType, { label: string; line: string; hero: string }> = {
   hit:  { label: "Hits",          line: "1+ H",      hero: "Safest Hit" },
@@ -145,7 +166,15 @@ const SB_KEYS   = ["sb_probability", "sbProbability", "stolenBaseProbability", "
 
 let didLogSample = false;
 
+function meanForProp(distributions: unknown, propType: PropType): { value: number | null; unit: string; sourcePath: string | null } {
+  const spec = PROP_MARKET[propType];
+  if (!spec) return { value: null, unit: "", sourcePath: null };
+  const m = getMarketSimulationMetrics({ distributions, role: spec.role, market: spec.market });
+  return { value: m.mean, unit: spec.unit, sourcePath: m.sourcePath };
+}
+
 function flattenHitter(h: DiamondHitterCard): PropRow[] {
+  const isPreview = h.forecast_status === "preview";
   const base = {
     player_name: h.player_name,
     mlb_id: h.mlb_id,
@@ -156,6 +185,7 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     diamond_score: h.diamond_score,
     lineup_badge: badgeLabel(h.badge),
     is_pitcher: false,
+    is_preview: isPreview,
   };
   const raw = h as unknown as Record<string, unknown>;
 
@@ -163,12 +193,6 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     didLogSample = true;
     // eslint-disable-next-line no-console
     console.log("[top-props] sample hitter keys:", Object.keys(raw));
-    // eslint-disable-next-line no-console
-    console.log("[top-props] sample hitter probabilities:", {
-      hit: pickNumber(raw, HIT_KEYS), tb: pickNumber(raw, TB_KEYS),
-      hr: pickNumber(raw, HR_KEYS), rbi: pickNumber(raw, RBI_KEYS),
-      runs: pickNumber(raw, RUNS_KEYS), sb: pickNumber(raw, SB_KEYS),
-    });
   }
 
   const entries: Array<[PropType, number | null]> = [
@@ -181,19 +205,24 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
   ];
   const rows: PropRow[] = [];
   for (const [propType, prob] of entries) {
-    if (prob == null) continue; // only emit when a real field exists
+    if (prob == null) continue;
     const meta = PROP_META[propType];
+    const mean = meanForProp(h.distributions, propType);
     rows.push({
       ...base,
       key: `${h.player_id}:${h.game_id}:${h.model_version}:${propType}`,
       propType, label: meta.label, line: meta.line,
       probability: prob,
+      meanValue: mean.value,
+      meanUnit: mean.unit,
+      meanSourcePath: mean.sourcePath,
     });
   }
   return rows;
 }
 
 function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
+  const isPreview = p.forecast_status === "preview";
   const base = {
     player_name: p.player_name,
     mlb_id: p.mlb_id,
@@ -204,13 +233,10 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
     diamond_score: p.diamond_score,
     lineup_badge: badgeLabel(p.badge),
     is_pitcher: true,
+    is_preview: isPreview,
   };
   const rows: PropRow[] = [];
 
-  // Defensive: pick up any pitcher strikeout probability the server may surface
-  // under a variety of alias keys, and route it into the canonical "k" category.
-  // TODO: Strikeouts will populate when the engine provides real K probability fields;
-  // do not use inputs.pitcher_components.strikeoutScore as a probability.
   const pAny = p as unknown as Record<string, unknown>;
   const K_PROB_KEYS = [
     "strikeout_probability", "k_probability", "pitcher_k_probability", "pitcher_strikeout_probability",
@@ -219,27 +245,33 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
   for (const key of K_PROB_KEYS) {
     const v = pAny[key];
     if (typeof v === "number" && isFinite(v)) {
+      const mean = meanForProp(p.distributions, "k");
       rows.push({
         ...base,
         key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
         propType: "k", label: PROP_META.k.label, line: key.includes("over") ? key.replace("k_over_", "").replace("_probability", "").replace("_", ".") + "+ K" : PROP_META.k.line,
         probability: v,
+        meanValue: mean.value,
+        meanUnit: mean.unit,
+        meanSourcePath: mean.sourcePath,
       });
-      break; // only emit one K row per pitcher (prefer first available alias)
+      break;
     }
   }
 
-
   if (p.pitcher_win_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:win`,
-      propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability });
+      propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability,
+      meanValue: null, meanUnit: "", meanSourcePath: null });
   }
   if (p.quality_start_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:qs`,
-      propType: "qs", label: PROP_META.qs.label, line: PROP_META.qs.line, probability: p.quality_start_probability });
+      propType: "qs", label: PROP_META.qs.label, line: PROP_META.qs.line, probability: p.quality_start_probability,
+      meanValue: null, meanUnit: "", meanSourcePath: null });
   }
   return rows;
 }
+
 
 
 function pct(p: number): string {
@@ -494,7 +526,19 @@ function TopPropsPage() {
                         <td className="px-3 py-2 mono text-xs">{r.team_abbrev}</td>
                         <td className="px-3 py-2 mono text-xs text-muted-foreground">{r.opp_abbrev}</td>
                         <td className="px-3 py-2 mono text-xs">{r.line}</td>
-                        <td className="px-3 py-2 mono text-right text-xs text-muted-foreground italic">—</td>
+                        <td className="px-3 py-2 mono text-right text-xs">
+                          {r.meanValue != null ? (
+                            <span title={r.meanSourcePath ?? undefined}>
+                              {r.meanValue.toFixed(2)} <span className="text-muted-foreground">{r.meanUnit}</span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground italic" title={NO_PERSISTED_MEAN_TOOLTIP}>—</span>
+                          )}
+                          {r.is_preview ? (
+                            <span className="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-400">Preview</span>
+                          ) : null}
+                        </td>
+
                         <td className="px-3 py-2 text-right">
                           <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(r.probability)}`}>
                             {pct(r.probability)}

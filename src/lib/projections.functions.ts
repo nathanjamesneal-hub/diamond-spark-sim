@@ -360,7 +360,19 @@ export type ForecastActuals = {
   runs: number | null;
 };
 
+export type PersistedStatDist = {
+  mean?: number | null;
+  p10?: number | null;
+  p50?: number | null;
+  p90?: number | null;
+  stdev?: number | null;
+  probAtLeast1?: number | null;
+  probAtLeast2?: number | null;
+};
+export type PersistedDistributions = Record<string, PersistedStatDist>;
+
 export type DiamondHitterCard = {
+
   player_id: string;
   mlb_id: number | null;
   player_name: string;
@@ -403,8 +415,19 @@ export type DiamondHitterCard = {
   rbi_mean: number | null;
   /** PA isn't directly persisted yet; null when unavailable. */
   projected_pa: number | null;
+  /**
+   * Persisted Monte Carlo distributions from the SELECTED snapshot
+   * (sim_snapshot.distributions for this exact projections row). Read-only
+   * passthrough so the UI / consensus can extract market means without
+   * crossing snapshots from different runs.
+   */
+  distributions: PersistedDistributions | null;
+  /** Source of `distributions`: 'sim_snapshot' (projections row) or null. */
+  distributions_source: "sim_snapshot" | null;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
+
+
 };
 
 export type PitcherComponentSnapshot = {
@@ -442,6 +465,10 @@ export type DiamondPitcherCard = {
   h_mean: number | null;
   /** Batters Faced isn't directly persisted yet; null when unavailable. */
   projected_bf: number | null;
+  /** Persisted Monte Carlo distributions from the SELECTED snapshot. */
+  distributions: PersistedDistributions | null;
+  distributions_source: "sim_snapshot" | null;
+
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
@@ -805,6 +832,9 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           hr_mean: snapMean(snap, "HR"),
           tb_mean: snapMean(snap, "TB"),
           rbi_mean: snapMean(snap, "RBI"),
+          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
+          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+
           projected_pa: (() => {
             const pa = snap?.distributions?.PA?.mean ?? snap?.projected_pa ?? null;
             return typeof pa === "number" && isFinite(pa) ? pa : null;
@@ -863,9 +893,12 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           er_mean: snapMean(snap, "ER"),
           h_mean: snapMean(snap, "H"),
           projected_bf: (() => {
-            const bf = snap?.distributions?.BF?.mean ?? snap?.projected_bf ?? null;
+            const bf = (snap as any)?.distributions?.BF?.mean ?? (snap as any)?.projected_bf ?? null;
             return typeof bf === "number" && isFinite(bf) ? bf : null;
           })(),
+          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
+          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
