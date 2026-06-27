@@ -13,7 +13,8 @@ export type AutomationRow = {
   slate_date: string | null;
   game_pk: number | null;
   decision: string | null;
-  details: Record<string, string | number | boolean | null>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  details: any;
   error: string | null;
   started_at: string;
   finished_at: string | null;
