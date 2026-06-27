@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
+import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
 
 function todayIso(): string {
   // App is pinned to America/Chicago — "today" must match what the user sees.
@@ -344,7 +345,7 @@ export type GameDisplayState = "upcoming" | "live" | "final" | "other";
  *   live        — official forecast locked, game in progress
  *   final       — official forecast locked, game ended
  */
-export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final";
+export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final" | "preview";
 
 export type ForecastActuals = {
   hits: number | null;
@@ -570,13 +571,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("game_id, player_id, team_id, confirmed")
         .in("game_id", gameIds),
       sb.from("projections")
-        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, sim_snapshot, created_at, projection_status")
+        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, sim_snapshot, created_at, projection_status, projection_class")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
-        // Today/Slate board — OFFICIAL forecasts only. Games without
-        // an active official row will render with the awaiting-lineups
-        // placeholder downstream rather than display preview values.
-        .eq("projection_class", "official")
+        // EMERGENCY READ-LAYER: include preview snapshots so pregame
+        // Diamond Scores can render before official forecasts publish.
+        // Display priority (per (game, player, role, model_version)):
+        //   official  > preview (only when game has NOT started)
+        // Enforced when building hitter/pitcher rows below.
+        .in("projection_class", ["official", "preview"])
         .order("created_at", { ascending: false }),
 
       sb.from("game_lineup_status")
@@ -620,12 +623,16 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       activeVersion ? p.model_version === activeVersion : true,
     );
 
-    // Latest projection per (player, game, model_version) — newest wins (input
-    // is ordered DESC by created_at).
-    const latest = new Map<string, any>();
+    // Latest projection per (player, game, role, model_version, class) —
+    // newest wins (input is DESC by created_at). Role normalized so legacy
+    // null/"batter" rows map to "hitter".
+    const normRole = (r: string | null | undefined) => (r === "pitcher" ? "pitcher" : "hitter");
+    const latestOfficial = new Map<string, any>();
+    const latestPreview = new Map<string, any>();
     for (const p of projections) {
-      const k = `${p.player_id}:${p.game_id}:${p.model_version}`;
-      if (!latest.has(k)) latest.set(k, p);
+      const k = `${p.player_id}:${p.game_id}:${normRole(p.projection_role)}:${p.model_version}`;
+      const bucket = p.projection_class === "preview" ? latestPreview : latestOfficial;
+      if (!bucket.has(k)) bucket.set(k, p);
     }
 
     const playerIds = new Set<string>();
@@ -706,22 +713,58 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       };
     };
 
+    // Resolve display projection per (player, game, role, version):
+    //   1) latest active official      → forecast_status from forecast_runs/game state
+    //   2) latest active preview, ONLY when game has NOT started
+    //   3) otherwise no row
+    let previewRowsReturned = 0;
+    let officialRowsReturned = 0;
+    const resolveDisplay = (
+      playerId: string,
+      gameId: string,
+      role: "hitter" | "pitcher",
+      version: string,
+      gs: GameDisplayState,
+      gameStarted: boolean,
+    ): { proj: any | null; chosenClass: "official" | "preview" | null } => {
+      const k = `${playerId}:${gameId}:${role}:${version}`;
+      const official = latestOfficial.get(k);
+      if (official) return { proj: official, chosenClass: "official" };
+      if (gameStarted) return { proj: null, chosenClass: null };
+      const preview = latestPreview.get(k);
+      if (preview) return { proj: preview, chosenClass: "preview" };
+      // Game not started + no active forecast in either class. Mirror prior
+      // behavior of rendering a placeholder row for confirmed lineup spots,
+      // but only when at least one official exists for some version (rare).
+      void gs;
+      return { proj: null, chosenClass: null };
+    };
+
     const hitters: DiamondHitterCard[] = [];
     for (const l of lineups ?? []) {
       const g = gameById.get(l.game_id);
       if (!g) continue;
       const gls = glsByGame.get(l.game_id);
       const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
-      const versionsForPlayer = (projections ?? [])
-        .filter((p) => p.player_id === l.player_id && p.game_id === l.game_id);
-      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
-      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       const gs = gameStateOf(g.game_status);
+      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
+      // Versions present in either bucket for this player/game/hitter slot.
+      const versionSet = new Set<string>();
+      for (const p of projections) {
+        if (p.player_id === l.player_id && p.game_id === l.game_id && normRole(p.projection_role) === "hitter") {
+          versionSet.add(p.model_version);
+        }
+      }
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const proj = latest.get(`${l.player_id}:${l.game_id}:${v}`);
-        if (proj && proj.projection_role && proj.projection_role !== "hitter" && proj.projection_role !== "batter") continue;
-        const run = runByKey.get(`${l.game_id}:${v}`);
+        const { proj, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, gs, gameStarted);
+        // Skip rendering rows with no resolvable forecast (post-cutoff with no official).
+        if (!proj) continue;
+        if (chosenClass === "preview") previewRowsReturned += 1;
+        else officialRowsReturned += 1;
+        const run = chosenClass === "official" ? runByKey.get(`${l.game_id}:${v}`) : undefined;
         const snap = proj?.sim_snapshot ?? null;
+        const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         hitters.push({
           player_id: l.player_id,
           mlb_id: playerMlbId.get(l.player_id) ?? null,
@@ -742,7 +785,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           source_count: gls?.source_count ?? null,
           model_version: v,
           forecast_run_id: run?.id ?? null,
-          forecast_status: forecastStatusOf(run, gs),
+          forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
           forecast_published_at: run?.generated_at ?? null,
           diamond_score: proj?.diamond_score ?? null,
@@ -762,12 +805,16 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           hr_mean: snapMean(snap, "HR"),
           tb_mean: snapMean(snap, "TB"),
           rbi_mean: snapMean(snap, "RBI"),
-          projected_pa: null, // PA isn't persisted in sim_snapshot yet.
+          projected_pa: (() => {
+            const pa = snap?.distributions?.PA?.mean ?? snap?.projected_pa ?? null;
+            return typeof pa === "number" && isFinite(pa) ? pa : null;
+          })(),
           inputs_narrative: narrativeFromInputs(proj?.inputs),
           actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
         });
       }
     }
+
 
     const pitcherCards: DiamondPitcherCard[] = [];
     for (const sp of pitchers ?? []) {
@@ -775,16 +822,23 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       if (!g) continue;
       const gls = glsByGame.get(sp.game_id);
       const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
-      const versionsForPlayer = (projections ?? [])
-        .filter((p) => p.player_id === sp.player_id && p.game_id === sp.game_id);
-      const versionSet = new Set(versionsForPlayer.map((p) => p.model_version));
-      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       const gs = gameStateOf(g.game_status);
+      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
+      const versionSet = new Set<string>();
+      for (const p of projections) {
+        if (p.player_id === sp.player_id && p.game_id === sp.game_id && normRole(p.projection_role) === "pitcher") {
+          versionSet.add(p.model_version);
+        }
+      }
+      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const proj = latest.get(`${sp.player_id}:${sp.game_id}:${v}`);
-        if (proj && proj.projection_role && proj.projection_role !== "pitcher") continue;
-        const run = runByKey.get(`${sp.game_id}:${v}`);
+        const { proj, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, gs, gameStarted);
+        if (!proj) continue;
+        if (chosenClass === "preview") previewRowsReturned += 1;
+        else officialRowsReturned += 1;
+        const run = chosenClass === "official" ? runByKey.get(`${sp.game_id}:${v}`) : undefined;
         const snap = proj?.sim_snapshot ?? null;
+        const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         pitcherCards.push({
           player_id: sp.player_id,
           mlb_id: playerMlbId.get(sp.player_id) ?? null,
@@ -798,7 +852,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           first_pitch_at: g.first_pitch_at ?? null,
           model_version: v,
           forecast_run_id: run?.id ?? null,
-          forecast_status: forecastStatusOf(run, gs),
+          forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
           forecast_published_at: run?.generated_at ?? null,
           diamond_score: proj?.diamond_score ?? null,
@@ -808,7 +862,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           bb_mean: snapMean(snap, "BB"),
           er_mean: snapMean(snap, "ER"),
           h_mean: snapMean(snap, "H"),
-          projected_bf: null,
+          projected_bf: (() => {
+            const bf = snap?.distributions?.BF?.mean ?? snap?.projected_bf ?? null;
+            return typeof bf === "number" && isFinite(bf) ? bf : null;
+          })(),
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
@@ -826,6 +883,11 @@ export const getDiamondScores = createServerFn({ method: "GET" })
 
     hitters.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
     pitcherCards.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
+
+    console.info(
+      `[getDiamondScores] date=${date} version=${activeVersion} official=${officialRowsReturned} preview=${previewRowsReturned} total=${hitters.length + pitcherCards.length}`,
+    );
+
 
     const slateConfirmed = gameOptions.filter((g) => (g.confidence ?? 0) >= 95).length;
     const slateTotal = gameOptions.length;

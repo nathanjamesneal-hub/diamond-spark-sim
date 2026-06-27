@@ -45,9 +45,10 @@ function num(n: number | null | undefined, digits = 2): string {
   return n.toFixed(digits);
 }
 
-function statusPill(s: ForecastBoardStatus) {
+function statusPill(s: ForecastBoardStatus): { label: string; cls: string; title?: string } {
   switch (s) {
     case "no_official": return { label: "Awaiting", cls: "text-muted-foreground/80" };
+    case "preview":     return { label: "Preview",  cls: "text-amber-500", title: "Projected lineups — not an official Diamond forecast" };
     case "published":   return { label: "Published", cls: "text-muted-foreground" };
     case "locked":      return { label: "Locked",   cls: "text-foreground/80" };
     case "live":        return { label: "Live",     cls: "text-live" };
@@ -153,7 +154,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
           {rank <= 10 ? <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">#{rank}</span> : null}
         </div>
         {/* Status */}
-        <div className={`mono text-right text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</div>
+        <div title={pill.title} className={`mono text-right text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</div>
         {/* Actual */}
         <div className="mono min-w-0 truncate text-right text-[11px] tabular-nums text-foreground/90">{actualStr || ""}</div>
       </div>
@@ -167,7 +168,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
             {isHitter && row.batting_order ? ` · #${row.batting_order}` : ""}
           </span>
         </div>
-        <span className={`mono text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</span>
+        <span title={pill.title} className={`mono text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</span>
 
         <div className="mono col-span-2 mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] tabular-nums">
           <span><span className="text-muted-foreground">{(market === "pitcher_win" || market === "pitcher_qs") ? "" : "Prob "}</span><span className="font-semibold text-primary">{pct(prob)}</span></span>
