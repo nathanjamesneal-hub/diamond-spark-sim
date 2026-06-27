@@ -88,18 +88,18 @@ function TodayPage() {
 
 const DASHBOARD_CARDS = [
   {
-    to: "/odds",
-    kicker: "Simulation",
-    title: "Top Simulation Leaders",
-    desc: "Monte Carlo mean projections and probabilities ranked across every game.",
+    to: "/forecasts",
+    kicker: "Forecasts",
+    title: "Official Diamond Forecasts",
+    desc: "Lineup-confirmed forecasts, rankings, and consensus signals for today.",
     accent: "text-primary",
     accentBg: "color-mix(in oklab, var(--color-primary) 22%, transparent)",
   },
   {
-    to: "/diamond-scores",
-    kicker: "Model",
-    title: "Diamond Scores",
-    desc: "Hitter and pitcher Diamond Scores with tier badges and confidence.",
+    to: "/results",
+    kicker: "Results",
+    title: "Yesterday in Diamond",
+    desc: "Locked official forecasts graded against final box-score actuals.",
     accent: "text-[var(--color-success)]",
     accentBg: "color-mix(in oklab, var(--color-success) 22%, transparent)",
   },
