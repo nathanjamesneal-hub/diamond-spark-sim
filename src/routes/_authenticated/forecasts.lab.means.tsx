@@ -74,10 +74,6 @@ type SortKey =
   | "outs_mean"
   | "bb_mean";
 
-function statValue(d: DistStat): number {
-  return d?.mean ?? -Infinity;
-}
-
 function metricValue(m: LabRow["sim_metrics"][keyof LabRow["sim_metrics"]]): number {
   return m?.mean ?? -Infinity;
 }
