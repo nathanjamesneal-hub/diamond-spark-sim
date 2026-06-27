@@ -19,6 +19,8 @@ import {
   type MRScope,
 } from "@/lib/model-results";
 import { APP_LOCALE, APP_TIMEZONE, todayInAppTz } from "@/lib/timezone";
+import { selectHRRows, summarizeHR } from "@/lib/results-helpers";
+
 
 const calibrationQ = queryOptions({
   queryKey: ["calibration"],
