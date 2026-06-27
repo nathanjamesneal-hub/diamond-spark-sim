@@ -1043,6 +1043,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           lineup_source: gls?.primary_source ?? null,
           badge: badgeFor(gls?.confidence ?? null, gls?.status === "locked"),
           actual: buildHitterActuals(actualByKey.get(`${sp.player_id}:${sp.game_id}`)),
+          is_post_lock_addition: false,
         });
       }
     }
