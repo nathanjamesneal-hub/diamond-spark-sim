@@ -250,7 +250,7 @@ export async function buildMonteCarloGameEnvironment(
       away: awayTeam,
       venueId: game.venue?.id ?? null,
       iterations: iterations ?? 2000,
-      seed: gamePk,
+      seed: seed ?? gamePk,
     });
 
     const meta: SimMeta = {
@@ -271,7 +271,20 @@ export async function buildMonteCarloGameEnvironment(
     const gameEnvironment = toMonteCarloGameEnvironment(gamePk, result);
 
   CACHE.set(gamePk, { at: Date.now(), data: result, meta, gameEnvironment });
-  return { meta, result, gameEnvironment };
+  return { meta, result, gameEnvironment, venueId: game.venue?.id ?? null };
+}
+
+/**
+ * Forecast-lifecycle entrypoint: deterministic seed forces same engine output
+ * for the same material inputs. Internal use only — never called from a read
+ * path or React Query handler.
+ */
+export async function buildMonteCarloGameEnvironmentWithSeed(
+  gamePk: number,
+  seed: number,
+): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null }> {
+  CACHE.delete(gamePk);
+  return buildMonteCarloGameEnvironment(gamePk, undefined, seed);
 }
 
 export const simulateGame = createServerFn({ method: "GET" })
