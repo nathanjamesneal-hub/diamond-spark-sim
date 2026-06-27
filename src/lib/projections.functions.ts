@@ -113,8 +113,13 @@ export const getTodaysSlate = createServerFn({ method: "GET" })
           .select("player_id, game_id, diamond_score, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, confidence, created_at")
           .in("game_id", gameIds).eq("model_version", version)
           .eq("projection_status", "active")
+          // Public read paths must only surface OFFICIAL forecasts.
+          // Preview rows (admin-only) and legacy_unverified rows
+          // (pre-lifecycle) are filtered out.
+          .eq("projection_class", "official")
           .order("created_at", { ascending: false })
       : { data: [] as any[] };
+
 
     // Keep latest projection per (player, game)
     const latestProj = new Map<string, any>();
