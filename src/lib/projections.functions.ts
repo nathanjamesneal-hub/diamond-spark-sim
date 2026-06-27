@@ -360,7 +360,19 @@ export type ForecastActuals = {
   runs: number | null;
 };
 
+export type PersistedStatDist = {
+  mean?: number | null;
+  p10?: number | null;
+  p50?: number | null;
+  p90?: number | null;
+  stdev?: number | null;
+  probAtLeast1?: number | null;
+  probAtLeast2?: number | null;
+};
+export type PersistedDistributions = Record<string, PersistedStatDist>;
+
 export type DiamondHitterCard = {
+
   player_id: string;
   mlb_id: number | null;
   player_name: string;
