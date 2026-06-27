@@ -90,6 +90,34 @@ function TodayPage() {
   );
 }
 
+function TopForecasts() {
+  const q = useQuery({
+    queryKey: ["diamond-scores", "today"],
+    queryFn: () => getDiamondScores({ data: {} }),
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const data = q.data;
+  if (!data) return null;
+  const hasOfficial = [...data.hitters, ...data.pitchers].some((r) =>
+    ["published", "locked", "live", "final"].includes(r.forecast_status)
+  );
+  if (!hasOfficial) return null;
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex items-end justify-between">
+        <h2 className="display text-lg uppercase tracking-wider text-muted-foreground">Top forecasts</h2>
+        <Link to="/diamond-scores" className="mono text-[10px] uppercase tracking-widest text-primary hover:underline">
+          Open full board →
+        </Link>
+      </div>
+      <ForecastBoard payload={data} compact topN={8} />
+    </section>
+  );
+}
+
+
 const DASHBOARD_CARDS = [
   {
     to: "/forecasts",
