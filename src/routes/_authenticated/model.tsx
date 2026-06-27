@@ -98,18 +98,23 @@ export const Route = createFileRoute("/_authenticated/model")({
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
   loader: async ({ context, deps }) => {
+    // Explicit ?date= always wins over default-pick. Never override it.
     let date = deps.date;
+    let reason: "trusted_terminal" | "trusted_partial" | "no_trusted_forecasts_yet" | "explicit" = "explicit";
     if (!date) {
       const def = await getDefaultModelResultsDate();
       date = def.date;
+      reason = def.reason;
     }
     await Promise.all([
       context.queryClient.ensureQueryData(calibrationQ),
       context.queryClient.ensureQueryData(leadersQ(date)),
       context.queryClient.ensureQueryData(actualsQ(date)),
       context.queryClient.ensureQueryData(statusQ(date)),
+      context.queryClient.ensureQueryData(trustedRangeQ),
+      context.queryClient.ensureQueryData(diagnosticsQ(7)),
     ]);
-    return { date };
+    return { date, reason };
   },
   component: ModelResultsPage,
   errorComponent: ({ error }) => (
@@ -121,13 +126,16 @@ export const Route = createFileRoute("/_authenticated/model")({
 });
 
 function ModelResultsPage() {
-  const { date } = Route.useLoaderData();
+  const { date, reason } = Route.useLoaderData();
   const navigate = useNavigate({ from: Route.fullPath });
 
   const { data: calibration } = useSuspenseQuery(calibrationQ);
   const { data: leaders } = useSuspenseQuery(leadersQ(date));
   const { data: actuals } = useSuspenseQuery(actualsQ(date));
   const { data: status } = useSuspenseQuery(statusQ(date));
+  const { data: trustedRange } = useSuspenseQuery(trustedRangeQ);
+  const [diagDays, setDiagDays] = useState(7);
+  const { data: diagnostics } = useSuspenseQuery(diagnosticsQ(diagDays));
 
   const [scope, setScope] = useState<MRScope>("all");
 
