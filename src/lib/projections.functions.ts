@@ -759,11 +759,40 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       return "published";
     };
 
-    const snapMean = (snap: any, key: string): number | null => {
-      const d = snap?.distributions?.[key];
-      const v = d?.mean;
-      return typeof v === "number" && isFinite(v) ? v : null;
+    const selectedSnapshot = (
+      playerId: string,
+      role: "hitter" | "pitcher",
+      chosenClass: "official" | "preview",
+      run: any | undefined,
+      snap: any,
+    ) => {
+      const fppDistributions = run?.id
+        ? (fppDistByKey.get(`${run.id}:${playerId}:${role}`) ?? null)
+        : null;
+      return {
+        forecastRunId: run?.id ?? null,
+        projectionClass: chosenClass,
+        fppDistributions,
+        projectionSimSnapshot: (snap ?? null) as Record<string, any> | null,
+      };
     };
+
+    const sourceDistributions = (selected: ReturnType<typeof selectedSnapshot>) => {
+      if (selected.fppDistributions && Object.keys(selected.fppDistributions).length > 0) {
+        return { distributions: selected.fppDistributions, source: "fpp" as const };
+      }
+      const snapDist = (selected.projectionSimSnapshot as any)?.distributions ?? null;
+      if (snapDist && typeof snapDist === "object" && Object.keys(snapDist).length > 0) {
+        return { distributions: snapDist as PersistedDistributions, source: "sim_snapshot" as const };
+      }
+      return { distributions: null, source: null };
+    };
+
+    const metric = (
+      selected: ReturnType<typeof selectedSnapshot>,
+      role: "hitter" | "pitcher",
+      market: MarketKey,
+    ) => getMarketSimulationMetrics({ selectedForecast: selected, role, market });
 
     const buildHitterActuals = (a: any | undefined): ForecastActuals | null => {
       if (!a) return null;
