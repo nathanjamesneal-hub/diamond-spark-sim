@@ -294,7 +294,11 @@ export const getPlayerProjection = createServerFn({ method: "GET" })
       .from("projections")
       .select("created_at, model_version, diamond_score, hit_probability, hr_probability")
       .eq("player_id", data.playerId)
+      // Player detail card is a public read — never surface preview
+      // or legacy_unverified projection history.
+      .eq("projection_class", "official")
       .order("created_at", { ascending: false }).limit(30);
+
 
     const { data: results } = await sb
       .from("projection_results")
