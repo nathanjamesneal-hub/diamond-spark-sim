@@ -151,13 +151,32 @@ function buildRows(payload: SimulationLeadersPayload): ConsensusRow[] {
     const dss: (number | null)[] = [];
     const eligible: { row: SimLeaderHitterRow | SimLeaderPitcherRow; mean: number | null; prob: number | null; ds: number | null }[] = [];
 
+    // Per-category pregame-eligibility gate. Prevents probability-only rows
+    // (e.g. an active preview projection with hit_probability but no
+    // persisted sim_snapshot/H.mean) from polluting the leaderboard.
+    // Rules:
+    //   - Mean-bearing categories (every hitter cat + pitcher pk/outs):
+    //       require finite, positive Sim Mean from the SAME selected snapshot.
+    //   - Probability-bearing categories (hitter cats + qs/win):
+    //       also require finite Sim Probability.
+    const requireMean: Record<CatKey, boolean> = {
+      hit: true, hr: true, rbi: true, runs: true, tb: true, sb: true,
+      pk: true, outs: true,
+      qs: true, win: true, // pitcher must have a real snapshot too
+    };
+    const requireProb: Record<CatKey, boolean> = {
+      hit: true, hr: true, rbi: true, runs: true, tb: true, sb: true,
+      pk: false, outs: false,
+      qs: true, win: true,
+    };
+
     for (const r of source) {
       const stat = cat.getStat(r);
       const mean = stat?.mean ?? null;
       const prob = cat.getProb(r);
       const ds = r.diamond_score ?? null;
-      // require at least one signal to be considered for this category
-      if (mean == null && prob == null && ds == null) continue;
+      if (requireMean[cat.key] && !(mean != null && isFinite(mean) && mean > 0)) continue;
+      if (requireProb[cat.key] && !(prob != null && isFinite(prob))) continue;
       eligible.push({ row: r, mean, prob, ds });
       means.push(mean);
       probs.push(prob);
