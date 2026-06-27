@@ -295,7 +295,6 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
-          forecast_class: string
           game_id: string
           game_pk: number
           generated_at: string
@@ -305,6 +304,7 @@ export type Database = {
           material_inputs: Json | null
           model_version: string
           notes: string | null
+          projection_class: string
           simulation_seed: string | null
           slate_date: string
           status: string
@@ -316,7 +316,6 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
-          forecast_class?: string
           game_id: string
           game_pk: number
           generated_at?: string
@@ -326,6 +325,7 @@ export type Database = {
           material_inputs?: Json | null
           model_version: string
           notes?: string | null
+          projection_class?: string
           simulation_seed?: string | null
           slate_date: string
           status: string
@@ -337,7 +337,6 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
-          forecast_class?: string
           game_id?: string
           game_pk?: number
           generated_at?: string
@@ -347,6 +346,7 @@ export type Database = {
           material_inputs?: Json | null
           model_version?: string
           notes?: string | null
+          projection_class?: string
           simulation_seed?: string | null
           slate_date?: string
           status?: string

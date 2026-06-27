@@ -172,6 +172,22 @@ function ResultsPage() {
         ) : null}
       </header>
 
+      {totalGradedOfficial === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/70 bg-card/40 p-6">
+          <div className="mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+            No trusted results
+          </div>
+          <h2 className="font-display mt-2 text-xl tracking-tight text-foreground">
+            No trusted locked forecasts available for this slate.
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Trusted grading begins with <span className="text-foreground">official lineup-confirmed forecasts</span>{" "}
+            locked at first pitch. Preview simulations, legacy projections, and unlocked official
+            forecasts are intentionally excluded from this view.
+          </p>
+        </div>
+      ) : null}
+
       {/* A. Daily Forecast Scorecard */}
       <Section eyebrow="A · Scorecard" title="Daily Forecast Scorecard"
         sublabel="Event Probability Accuracy">

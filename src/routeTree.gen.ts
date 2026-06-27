@@ -15,14 +15,20 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTopPropsRouteImport } from './routes/_authenticated/top-props'
 import { Route as AuthenticatedStandingsRouteImport } from './routes/_authenticated/standings'
 import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/slate'
+import { Route as AuthenticatedSimLeadersRouteImport } from './routes/_authenticated/sim-leaders'
 import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
 import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
+import { Route as AuthenticatedProjectionsRouteImport } from './routes/_authenticated/projections'
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
+import { Route as AuthenticatedModelResultsRouteImport } from './routes/_authenticated/model-results'
 import { Route as AuthenticatedModelRouteImport } from './routes/_authenticated/model'
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
+import { Route as AuthenticatedLeadersRouteImport } from './routes/_authenticated/leaders'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
+import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
+import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
 import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenticated/calibration'
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
@@ -62,6 +68,11 @@ const AuthenticatedSlateRoute = AuthenticatedSlateRouteImport.update({
   path: '/slate',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSimLeadersRoute = AuthenticatedSimLeadersRouteImport.update({
+  id: '/sim-leaders',
+  path: '/sim-leaders',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedScoresRoute = AuthenticatedScoresRouteImport.update({
   id: '/scores',
   path: '/scores',
@@ -72,11 +83,23 @@ const AuthenticatedResultsRoute = AuthenticatedResultsRouteImport.update({
   path: '/results',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProjectionsRoute =
+  AuthenticatedProjectionsRouteImport.update({
+    id: '/projections',
+    path: '/projections',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
   id: '/odds',
   path: '/odds',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedModelResultsRoute =
+  AuthenticatedModelResultsRouteImport.update({
+    id: '/model-results',
+    path: '/model-results',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedModelRoute = AuthenticatedModelRouteImport.update({
   id: '/model',
   path: '/model',
@@ -88,12 +111,22 @@ const AuthenticatedLineupStatusRoute =
     path: '/lineup-status',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLeadersRoute = AuthenticatedLeadersRouteImport.update({
+  id: '/leaders',
+  path: '/leaders',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedLeaderboardsRoute =
   AuthenticatedLeaderboardsRouteImport.update({
     id: '/leaderboards',
     path: '/leaderboards',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedForecastsRoute = AuthenticatedForecastsRouteImport.update({
+  id: '/forecasts',
+  path: '/forecasts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiamondScoresRoute =
   AuthenticatedDiamondScoresRouteImport.update({
     id: '/diamond-scores',
@@ -104,6 +137,12 @@ const AuthenticatedDiamondConsensusRoute =
   AuthenticatedDiamondConsensusRouteImport.update({
     id: '/diamond-consensus',
     path: '/diamond-consensus',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCalibrationLabRoute =
+  AuthenticatedCalibrationLabRouteImport.update({
+    id: '/calibration-lab',
+    path: '/calibration-lab',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCalibrationRoute =
@@ -162,14 +201,20 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
+  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/forecasts': typeof AuthenticatedForecastsRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/model': typeof AuthenticatedModelRoute
+  '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
+  '/sim-leaders': typeof AuthenticatedSimLeadersRoute
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
@@ -185,14 +230,20 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
+  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/forecasts': typeof AuthenticatedForecastsRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/model': typeof AuthenticatedModelRoute
+  '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
+  '/sim-leaders': typeof AuthenticatedSimLeadersRoute
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
@@ -210,14 +261,20 @@ export interface FileRoutesById {
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/bets': typeof AuthenticatedBetsRoute
   '/_authenticated/calibration': typeof AuthenticatedCalibrationRoute
+  '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/_authenticated/forecasts': typeof AuthenticatedForecastsRoute
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
+  '/_authenticated/leaders': typeof AuthenticatedLeadersRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/_authenticated/model': typeof AuthenticatedModelRoute
+  '/_authenticated/model-results': typeof AuthenticatedModelResultsRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
+  '/_authenticated/projections': typeof AuthenticatedProjectionsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/scores': typeof AuthenticatedScoresRoute
+  '/_authenticated/sim-leaders': typeof AuthenticatedSimLeadersRoute
   '/_authenticated/slate': typeof AuthenticatedSlateRoute
   '/_authenticated/standings': typeof AuthenticatedStandingsRoute
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
@@ -236,14 +293,20 @@ export interface FileRouteTypes {
     | '/auth'
     | '/bets'
     | '/calibration'
+    | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/forecasts'
     | '/leaderboards'
+    | '/leaders'
     | '/lineup-status'
     | '/model'
+    | '/model-results'
     | '/odds'
+    | '/projections'
     | '/results'
     | '/scores'
+    | '/sim-leaders'
     | '/slate'
     | '/standings'
     | '/top-props'
@@ -259,14 +322,20 @@ export interface FileRouteTypes {
     | '/'
     | '/bets'
     | '/calibration'
+    | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/forecasts'
     | '/leaderboards'
+    | '/leaders'
     | '/lineup-status'
     | '/model'
+    | '/model-results'
     | '/odds'
+    | '/projections'
     | '/results'
     | '/scores'
+    | '/sim-leaders'
     | '/slate'
     | '/standings'
     | '/top-props'
@@ -283,14 +352,20 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin'
     | '/_authenticated/bets'
     | '/_authenticated/calibration'
+    | '/_authenticated/calibration-lab'
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
+    | '/_authenticated/forecasts'
     | '/_authenticated/leaderboards'
+    | '/_authenticated/leaders'
     | '/_authenticated/lineup-status'
     | '/_authenticated/model'
+    | '/_authenticated/model-results'
     | '/_authenticated/odds'
+    | '/_authenticated/projections'
     | '/_authenticated/results'
     | '/_authenticated/scores'
+    | '/_authenticated/sim-leaders'
     | '/_authenticated/slate'
     | '/_authenticated/standings'
     | '/_authenticated/top-props'
@@ -354,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSlateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sim-leaders': {
+      id: '/_authenticated/sim-leaders'
+      path: '/sim-leaders'
+      fullPath: '/sim-leaders'
+      preLoaderRoute: typeof AuthenticatedSimLeadersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/scores': {
       id: '/_authenticated/scores'
       path: '/scores'
@@ -368,11 +450,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedResultsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/projections': {
+      id: '/_authenticated/projections'
+      path: '/projections'
+      fullPath: '/projections'
+      preLoaderRoute: typeof AuthenticatedProjectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/odds': {
       id: '/_authenticated/odds'
       path: '/odds'
       fullPath: '/odds'
       preLoaderRoute: typeof AuthenticatedOddsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/model-results': {
+      id: '/_authenticated/model-results'
+      path: '/model-results'
+      fullPath: '/model-results'
+      preLoaderRoute: typeof AuthenticatedModelResultsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/model': {
@@ -389,11 +485,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLineupStatusRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/leaders': {
+      id: '/_authenticated/leaders'
+      path: '/leaders'
+      fullPath: '/leaders'
+      preLoaderRoute: typeof AuthenticatedLeadersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/leaderboards': {
       id: '/_authenticated/leaderboards'
       path: '/leaderboards'
       fullPath: '/leaderboards'
       preLoaderRoute: typeof AuthenticatedLeaderboardsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/forecasts': {
+      id: '/_authenticated/forecasts'
+      path: '/forecasts'
+      fullPath: '/forecasts'
+      preLoaderRoute: typeof AuthenticatedForecastsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/diamond-scores': {
@@ -408,6 +518,13 @@ declare module '@tanstack/react-router' {
       path: '/diamond-consensus'
       fullPath: '/diamond-consensus'
       preLoaderRoute: typeof AuthenticatedDiamondConsensusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calibration-lab': {
+      id: '/_authenticated/calibration-lab'
+      path: '/calibration-lab'
+      fullPath: '/calibration-lab'
+      preLoaderRoute: typeof AuthenticatedCalibrationLabRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/calibration': {
@@ -494,14 +611,20 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
   AuthenticatedCalibrationRoute: typeof AuthenticatedCalibrationRoute
+  AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
+  AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRoute
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
+  AuthenticatedLeadersRoute: typeof AuthenticatedLeadersRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
   AuthenticatedModelRoute: typeof AuthenticatedModelRoute
+  AuthenticatedModelResultsRoute: typeof AuthenticatedModelResultsRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
+  AuthenticatedProjectionsRoute: typeof AuthenticatedProjectionsRoute
   AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
+  AuthenticatedSimLeadersRoute: typeof AuthenticatedSimLeadersRoute
   AuthenticatedSlateRoute: typeof AuthenticatedSlateRoute
   AuthenticatedStandingsRoute: typeof AuthenticatedStandingsRoute
   AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
@@ -515,14 +638,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedBetsRoute: AuthenticatedBetsRoute,
   AuthenticatedCalibrationRoute: AuthenticatedCalibrationRoute,
+  AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
+  AuthenticatedForecastsRoute: AuthenticatedForecastsRoute,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
+  AuthenticatedLeadersRoute: AuthenticatedLeadersRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
   AuthenticatedModelRoute: AuthenticatedModelRoute,
+  AuthenticatedModelResultsRoute: AuthenticatedModelResultsRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
+  AuthenticatedProjectionsRoute: AuthenticatedProjectionsRoute,
   AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedScoresRoute: AuthenticatedScoresRoute,
+  AuthenticatedSimLeadersRoute: AuthenticatedSimLeadersRoute,
   AuthenticatedSlateRoute: AuthenticatedSlateRoute,
   AuthenticatedStandingsRoute: AuthenticatedStandingsRoute,
   AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,

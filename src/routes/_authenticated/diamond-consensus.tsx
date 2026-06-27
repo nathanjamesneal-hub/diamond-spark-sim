@@ -7,6 +7,7 @@
  * No engine math, no projection writes, no probability synthesis.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -324,6 +325,8 @@ function DiamondConsensusPage() {
       : "Every qualifying row, sorted by Consensus Score.";
 
   return (
+    <>
+      <ForecastsTabBar />
     <section className="space-y-4 p-4">
       <header className="space-y-1">
         <h1 className="font-display text-3xl uppercase tracking-wide text-foreground">
@@ -515,6 +518,7 @@ function DiamondConsensusPage() {
         For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
     </section>
+    </>
   );
 }
 

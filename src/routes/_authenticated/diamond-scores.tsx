@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { z } from "zod";
@@ -88,6 +89,8 @@ function DiamondScoresPage() {
 
 
   return (
+    <>
+      <ForecastsTabBar />
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -196,6 +199,7 @@ function DiamondScoresPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
 

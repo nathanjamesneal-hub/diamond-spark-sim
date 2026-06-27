@@ -185,7 +185,7 @@ async function fetchLatestRun(
     .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
     .eq("game_pk", gamePk)
     .eq("model_version", modelVersion)
-    .eq("forecast_class", forecastClass)
+    .eq("projection_class", forecastClass)
     .order("version_number", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -203,7 +203,7 @@ async function fetchActiveRun(
     .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
     .eq("game_pk", gamePk)
     .eq("model_version", modelVersion)
-    .eq("forecast_class", forecastClass)
+    .eq("projection_class", forecastClass)
     .in("status", ["published", "locked"])
     .order("version_number", { ascending: false })
     .limit(1)
@@ -506,7 +506,7 @@ async function insertRunWithSupersede(
       game_id: args.gameId,
       slate_date: args.slateDate,
       model_version: args.modelVersion,
-      forecast_class: args.forecastClass,
+      projection_class: args.forecastClass,
       version_number: args.versionNumber,
       status: args.status,
       trigger_reason: args.triggerReason,

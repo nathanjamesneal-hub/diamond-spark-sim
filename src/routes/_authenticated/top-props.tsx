@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { z } from "zod";
@@ -336,6 +337,8 @@ function TopPropsPage() {
   }, [allRows]);
 
   return (
+    <>
+      <ForecastsTabBar />
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>
@@ -511,6 +514,7 @@ function TopPropsPage() {
         ))}
       </div>
     </div>
+    </>
   );
 }
 
