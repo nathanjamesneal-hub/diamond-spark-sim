@@ -168,7 +168,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
             {isHitter && row.batting_order ? ` · #${row.batting_order}` : ""}
           </span>
         </div>
-        <span className={`mono text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</span>
+        <span title={pill.title} className={`mono text-[10px] font-semibold uppercase tracking-widest ${pill.cls}`}>{pill.label}</span>
 
         <div className="mono col-span-2 mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] tabular-nums">
           <span><span className="text-muted-foreground">{(market === "pitcher_win" || market === "pitcher_qs") ? "" : "Prob "}</span><span className="font-semibold text-primary">{pct(prob)}</span></span>
