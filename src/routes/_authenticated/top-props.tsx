@@ -27,7 +27,26 @@ type PropRow = {
   diamond_score: number | null;
   lineup_badge: string;
   is_pitcher: boolean;
+  is_preview: boolean;
+  /** Persisted Monte Carlo mean for this propType's market (from the same selected snapshot). */
+  meanValue: number | null;
+  meanUnit: string;
+  meanSourcePath: string | null;
 };
+
+const PROP_MARKET: Record<PropType, { role: MarketRole; market: MarketKey; unit: string } | null> = {
+  hit:  { role: "hitter",  market: "H",   unit: "H" },
+  tb:   { role: "hitter",  market: "TB",  unit: "TB" },
+  hr:   { role: "hitter",  market: "HR",  unit: "HR" },
+  rbi:  { role: "hitter",  market: "RBI", unit: "RBI" },
+  runs: { role: "hitter",  market: "R",   unit: "R" },
+  sb:   { role: "hitter",  market: "SB",  unit: "SB" },
+  k:    { role: "pitcher", market: "K",   unit: "K" },
+  // No count mean is stored for win/qs — they remain probability-only.
+  win:  null,
+  qs:   null,
+};
+
 
 const PROP_META: Record<PropType, { label: string; line: string; hero: string }> = {
   hit:  { label: "Hits",          line: "1+ H",      hero: "Safest Hit" },
