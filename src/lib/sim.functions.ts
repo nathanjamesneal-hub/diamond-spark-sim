@@ -448,23 +448,26 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         }
       }
     } else {
-      // LIVE (today): keep existing live Monte Carlo behavior.
-      await Promise.all(
-        gamePks.map(async (gamePk) => {
-          try {
-            const sim = await buildMonteCarloGameEnvironment(gamePk);
-            gamesSimulated += 1;
-            for (const b of sim.result.homeBatters) batterDistByMlbId.set(b.playerId, b);
-            for (const b of sim.result.awayBatters) batterDistByMlbId.set(b.playerId, b);
-            if (sim.result.homePitcher?.playerId)
-              pitcherDistByMlbId.set(sim.result.homePitcher.playerId, sim.result.homePitcher);
-            if (sim.result.awayPitcher?.playerId)
-              pitcherDistByMlbId.set(sim.result.awayPitcher.playerId, sim.result.awayPitcher);
-          } catch (e) {
-            warnings.push(`sim failed for gamePk ${gamePk}: ${(e as Error).message}`);
-          }
-        }),
-      );
+      // TODAY: read published/locked forecast snapshots only. Do NOT call the
+      // simulator from the read path — the Forecast Snapshot Lifecycle owns
+      // all writes via `publishForecastIfEligible`.
+      const { supabase } = context;
+      const { data: liveSnapRows } = gameIds.length
+        ? await supabase
+            .from("forecast_player_projections")
+            .select("player_id, role, distributions, forecast_run_id, forecast_runs!inner(game_id, status)")
+            .in("forecast_runs.game_id", gameIds)
+            .in("forecast_runs.status", ["published", "locked"])
+        : { data: [] as any[] };
+      for (const r of liveSnapRows ?? []) {
+        const dists = ((r as any).distributions ?? {}) as Record<string, SnapStat>;
+        if ((r as any).role === "pitcher") {
+          pitcherSnapByPlayer.set((r as any).player_id, dists);
+        } else {
+          hitterSnapByPlayer.set((r as any).player_id, dists);
+        }
+      }
+      gamesSimulated = 0; // read-only path
     }
 
     const { reshapeStoredToSimStat } = await import("./sim-snapshot");
