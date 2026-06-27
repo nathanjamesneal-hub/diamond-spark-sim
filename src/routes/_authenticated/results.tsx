@@ -102,9 +102,10 @@ function ResultsPage() {
 
   const goToDate = (d: string | null) => { if (d) navigate({ search: { date: d } }); };
   const goLatest = () => navigate({ search: { date: undefined } });
-  const { info, prevDate, nextDate, latestFinalizedDate } = status;
+  const { info, prevDate, nextDate, latestFinalizedDate, latestTrustedDate } = status;
 
   const totalGradedOfficial = info.snapshotCoverage.locked;
+  const noTrusted = totalGradedOfficial === 0;
   const hit1 = markets.find((m) => m.key === "hit");
 
   const banner = (() => {
@@ -177,117 +178,179 @@ function ResultsPage() {
         ) : null}
       </header>
 
-      {totalGradedOfficial === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/70 bg-card/40 p-6">
-          <div className="mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-            No trusted results
-          </div>
-          <h2 className="font-display mt-2 text-xl tracking-tight text-foreground">
-            No trusted locked forecasts available for this slate.
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Trusted grading begins with <span className="text-foreground">official lineup-confirmed forecasts</span>{" "}
-            locked at first pitch. Preview simulations, legacy projections, and unlocked official
-            forecasts are intentionally excluded from this view.
+      {noTrusted ? (
+        <NoTrustedForecasts
+          date={date}
+          info={info}
+          reason={reason}
+          latestTrustedDate={latestTrustedDate}
+          onJump={(d) => goToDate(d)}
+          formatLongDate={formatLongDate}
+        />
+      ) : (
+        <>
+          {/* A. Daily Forecast Scorecard */}
+          <Section eyebrow="A · Scorecard" title="Daily Forecast Scorecard"
+            sublabel="Event Probability Accuracy">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Hit 1+ Predicted"
+                value={hit1?.predicted_avg == null ? "—" : `${(hit1.predicted_avg * 100).toFixed(1)}%`}
+                sub={hit1?.observed_rate == null ? "—" : `Observed ${(hit1.observed_rate * 100).toFixed(1)}%`} />
+              <Stat label="Hit 1+ Delta"
+                value={hit1?.delta == null ? "—" : `${hit1.delta >= 0 ? "+" : ""}${(hit1.delta * 100).toFixed(1)} pp`}
+                tone={hit1?.delta != null ? (Math.abs(hit1.delta) <= 0.05 ? "good" : Math.abs(hit1.delta) <= 0.15 ? "warn" : "bad") : undefined}
+                sub={`over ${hit1?.n ?? 0} forecasts`} />
+              <Stat label="HR Expected → Actual"
+                value={hr.forecast_count === 0 ? "—" : `${hr.expected_hr_total.toFixed(1)} → ${hr.actual_hr_total}`}
+                tone={hr.forecast_count === 0 ? undefined : Math.abs(hr.delta) <= 1.5 ? "good" : Math.abs(hr.delta) <= 3 ? "warn" : "bad"}
+                sub={hr.forecast_count === 0 ? "no calls" : `Δ ${hr.delta >= 0 ? "+" : ""}${hr.delta.toFixed(1)} · ${sampleLabel(hr.sample_label)}`} />
+              <Stat label="Official Forecasts Graded"
+                value={totalGradedOfficial.toLocaleString()}
+                sub={`${info.snapshotCoverage.eligible} eligible`} />
+            </div>
+          </Section>
+
+          {/* B + C: Best Reads / Biggest Misses */}
+          {(highlights.best.length > 0 || highlights.worst.length > 0) ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Section eyebrow="B · Best Reads" title="Best Reads" sublabel="Largest beats vs mean projection">
+                <HighlightTable rows={highlights.best} tone="good" />
+              </Section>
+              <Section eyebrow="C · Biggest Misses" title="Biggest Misses" sublabel="Largest shortfalls vs mean projection">
+                <HighlightTable rows={highlights.worst} tone="bad" />
+              </Section>
+            </div>
+          ) : null}
+
+          {/* D. Market Breakdown */}
+          <Section eyebrow="D · Markets" title="Market Breakdown"
+            sublabel="Per-market predicted vs observed across the slate">
+            <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
+              <table className="table-modern w-full text-left text-xs">
+                <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <tr className="border-b border-border/40">
+                    <th className="px-2 py-2">Market</th>
+                    <th className="px-2 py-2 text-right">N</th>
+                    <th className="px-2 py-2 text-right">Predicted</th>
+                    <th className="px-2 py-2 text-right">Observed</th>
+                    <th className="px-2 py-2 text-right">Δpp</th>
+                    <th className="px-2 py-2 text-right">Brier</th>
+                    <th className="px-2 py-2 text-right">Baseline Brier</th>
+                    <th className="px-2 py-2 text-right">Log Loss</th>
+                    <th className="px-2 py-2">Sample</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {markets.map((m) => (
+                    <tr key={m.key} className="border-t border-border/30">
+                      <td className="px-2 py-2 font-semibold">{m.label}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{m.n}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{m.predicted_avg == null ? "—" : `${(m.predicted_avg * 100).toFixed(1)}%`}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{m.observed_rate == null ? "—" : `${(m.observed_rate * 100).toFixed(1)}%`}</td>
+                      <td className={`px-2 py-2 text-right mono tabular-nums ${m.delta == null ? "" : Math.abs(m.delta) <= 0.05 ? "text-emerald-300" : Math.abs(m.delta) <= 0.15 ? "text-amber-300" : "text-rose-300"}`}>
+                        {m.delta == null ? "—" : `${m.delta >= 0 ? "+" : ""}${(m.delta * 100).toFixed(1)}`}
+                      </td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{m.brier == null ? "—" : m.brier.toFixed(3)}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums text-muted-foreground">{m.baseline_brier == null ? "—" : m.baseline_brier.toFixed(3)}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{m.log_loss == null ? "—" : m.log_loss.toFixed(3)}</td>
+                      <td className="px-2 py-2 text-[10px] mono uppercase tracking-widest text-muted-foreground">{sampleLabel(m.sample_label)}</td>
+                    </tr>
+                  ))}
+                  {meanSummaries.filter((s) => s.qualified > 0).map((s) => (
+                    <tr key={s.cat.key} className="border-t border-border/30">
+                      <td className="px-2 py-2 font-semibold">
+                        {s.cat.label}
+                        <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">mean</span>
+                      </td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{s.qualified}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums text-edge">{s.avgMean == null ? "—" : s.avgMean.toFixed(2)}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums">{s.avgActual == null ? "—" : s.avgActual.toFixed(2)}</td>
+                      <td className={`px-2 py-2 text-right mono tabular-nums ${s.bias == null ? "" : s.bias >= 0 ? "text-sky-300" : "text-amber-300"}`}>
+                        {s.bias == null ? "—" : `${s.bias >= 0 ? "+" : ""}${s.bias.toFixed(2)}`}
+                      </td>
+                      <td className="px-2 py-2 text-right mono tabular-nums" colSpan={2}>MAE {s.mae == null ? "—" : s.mae.toFixed(2)}</td>
+                      <td className="px-2 py-2 text-right mono tabular-nums text-muted-foreground">—</td>
+                      <td className="px-2 py-2 text-[10px] mono uppercase tracking-widest text-muted-foreground">{s.qualified < 10 ? "early" : "trusted"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* E. Model Note */}
+          {note ? (
+            <Section eyebrow="E · Note" title="Model Note">
+              <p className="rounded-lg border border-border/60 bg-card/40 px-4 py-3 text-sm leading-relaxed text-foreground">{note}</p>
+            </Section>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function NoTrustedForecasts({
+  date,
+  info,
+  reason,
+  latestTrustedDate,
+  onJump,
+  formatLongDate,
+}: {
+  date: string;
+  info: { scheduled: number; final: number; snapshotCoverage: { eligible: number; locked: number }; actualsGameCount: number };
+  reason: string;
+  latestTrustedDate: string | null;
+  onJump: (d: string) => void;
+  formatLongDate: (iso: string) => string;
+}) {
+  return (
+    <section className="rounded-lg border border-dashed border-border/70 bg-card/40 p-6 space-y-4">
+      <div>
+        <div className="mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+          No trusted results
+        </div>
+        <h2 className="font-display mt-2 text-xl tracking-tight text-foreground">
+          No trusted locked forecasts available for {formatLongDate(date)}.
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Diamond began trusted tracking after the write-once forecast lifecycle was introduced.
+          Historical preview and legacy projections are intentionally excluded from official grading.
+        </p>
+        {reason === "no_trusted_forecasts_yet" ? (
+          <p className="mt-2 text-xs text-amber-200">
+            No trusted locked forecasts exist anywhere yet. New official forecasts publish once a
+            game's lineup is confirmed and lock at first pitch.
           </p>
-        </div>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <MiniCount label="Games final / scheduled" value={`${info.final} / ${info.scheduled}`} />
+        <MiniCount label="Official published" value={info.snapshotCoverage.eligible.toLocaleString()} />
+        <MiniCount label="Forecasts locked" value={info.snapshotCoverage.locked.toLocaleString()} />
+        <MiniCount label="Games with actuals" value={info.actualsGameCount.toLocaleString()} />
+      </div>
+
+      {latestTrustedDate && latestTrustedDate !== date ? (
+        <button
+          type="button"
+          onClick={() => onJump(latestTrustedDate)}
+          className="mono inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[11px] uppercase tracking-widest text-primary transition hover:bg-primary/20"
+        >
+          Jump to latest trusted date · {latestTrustedDate}
+        </button>
       ) : null}
+    </section>
+  );
+}
 
-      {/* A. Daily Forecast Scorecard */}
-      <Section eyebrow="A · Scorecard" title="Daily Forecast Scorecard"
-        sublabel="Event Probability Accuracy">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label="Hit 1+ Predicted"
-            value={hit1?.predicted_avg == null ? "—" : `${(hit1.predicted_avg * 100).toFixed(1)}%`}
-            sub={hit1?.observed_rate == null ? "—" : `Observed ${(hit1.observed_rate * 100).toFixed(1)}%`} />
-          <Stat label="Hit 1+ Delta"
-            value={hit1?.delta == null ? "—" : `${hit1.delta >= 0 ? "+" : ""}${(hit1.delta * 100).toFixed(1)} pp`}
-            tone={hit1?.delta != null ? (Math.abs(hit1.delta) <= 0.05 ? "good" : Math.abs(hit1.delta) <= 0.15 ? "warn" : "bad") : undefined}
-            sub={`over ${hit1?.n ?? 0} forecasts`} />
-          <Stat label="HR Expected → Actual"
-            value={hr.forecast_count === 0 ? "—" : `${hr.expected_hr_total.toFixed(1)} → ${hr.actual_hr_total}`}
-            tone={hr.forecast_count === 0 ? undefined : Math.abs(hr.delta) <= 1.5 ? "good" : Math.abs(hr.delta) <= 3 ? "warn" : "bad"}
-            sub={hr.forecast_count === 0 ? "no calls" : `Δ ${hr.delta >= 0 ? "+" : ""}${hr.delta.toFixed(1)} · ${sampleLabel(hr.sample_label)}`} />
-          <Stat label="Official Forecasts Graded"
-            value={totalGradedOfficial.toLocaleString()}
-            sub={`${info.snapshotCoverage.eligible} eligible`} />
-        </div>
-      </Section>
-
-      {/* B + C: Best Reads / Biggest Misses */}
-      {(highlights.best.length > 0 || highlights.worst.length > 0) ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Section eyebrow="B · Best Reads" title="Best Reads" sublabel="Largest beats vs mean projection">
-            <HighlightTable rows={highlights.best} tone="good" />
-          </Section>
-          <Section eyebrow="C · Biggest Misses" title="Biggest Misses" sublabel="Largest shortfalls vs mean projection">
-            <HighlightTable rows={highlights.worst} tone="bad" />
-          </Section>
-        </div>
-      ) : null}
-
-      {/* D. Market Breakdown */}
-      <Section eyebrow="D · Markets" title="Market Breakdown"
-        sublabel="Per-market predicted vs observed across the slate">
-        <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
-          <table className="table-modern w-full text-left text-xs">
-            <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              <tr className="border-b border-border/40">
-                <th className="px-2 py-2">Market</th>
-                <th className="px-2 py-2 text-right">N</th>
-                <th className="px-2 py-2 text-right">Predicted</th>
-                <th className="px-2 py-2 text-right">Observed</th>
-                <th className="px-2 py-2 text-right">Δpp</th>
-                <th className="px-2 py-2 text-right">Brier</th>
-                <th className="px-2 py-2 text-right">Baseline Brier</th>
-                <th className="px-2 py-2 text-right">Log Loss</th>
-                <th className="px-2 py-2">Sample</th>
-              </tr>
-            </thead>
-            <tbody>
-              {markets.map((m) => (
-                <tr key={m.key} className="border-t border-border/30">
-                  <td className="px-2 py-2 font-semibold">{m.label}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{m.n}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{m.predicted_avg == null ? "—" : `${(m.predicted_avg * 100).toFixed(1)}%`}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{m.observed_rate == null ? "—" : `${(m.observed_rate * 100).toFixed(1)}%`}</td>
-                  <td className={`px-2 py-2 text-right mono tabular-nums ${m.delta == null ? "" : Math.abs(m.delta) <= 0.05 ? "text-emerald-300" : Math.abs(m.delta) <= 0.15 ? "text-amber-300" : "text-rose-300"}`}>
-                    {m.delta == null ? "—" : `${m.delta >= 0 ? "+" : ""}${(m.delta * 100).toFixed(1)}`}
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{m.brier == null ? "—" : m.brier.toFixed(3)}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-muted-foreground">{m.baseline_brier == null ? "—" : m.baseline_brier.toFixed(3)}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{m.log_loss == null ? "—" : m.log_loss.toFixed(3)}</td>
-                  <td className="px-2 py-2 text-[10px] mono uppercase tracking-widest text-muted-foreground">{sampleLabel(m.sample_label)}</td>
-                </tr>
-              ))}
-              {meanSummaries.filter((s) => s.qualified > 0).map((s) => (
-                <tr key={s.cat.key} className="border-t border-border/30">
-                  <td className="px-2 py-2 font-semibold">
-                    {s.cat.label}
-                    <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">mean</span>
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{s.qualified}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-edge">{s.avgMean == null ? "—" : s.avgMean.toFixed(2)}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{s.avgActual == null ? "—" : s.avgActual.toFixed(2)}</td>
-                  <td className={`px-2 py-2 text-right mono tabular-nums ${s.bias == null ? "" : s.bias >= 0 ? "text-sky-300" : "text-amber-300"}`}>
-                    {s.bias == null ? "—" : `${s.bias >= 0 ? "+" : ""}${s.bias.toFixed(2)}`}
-                  </td>
-                  <td className="px-2 py-2 text-right mono tabular-nums" colSpan={2}>MAE {s.mae == null ? "—" : s.mae.toFixed(2)}</td>
-                  <td className="px-2 py-2 text-right mono tabular-nums text-muted-foreground">—</td>
-                  <td className="px-2 py-2 text-[10px] mono uppercase tracking-widest text-muted-foreground">{s.qualified < 10 ? "early" : "trusted"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      {/* E. Model Note */}
-      {note ? (
-        <Section eyebrow="E · Note" title="Model Note">
-          <p className="rounded-lg border border-border/60 bg-card/40 px-4 py-3 text-sm leading-relaxed text-foreground">{note}</p>
-        </Section>
-      ) : null}
+function MiniCount({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card/60 p-3">
+      <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="font-display mt-1 text-lg font-bold tabular-nums">{value}</div>
     </div>
   );
 }
