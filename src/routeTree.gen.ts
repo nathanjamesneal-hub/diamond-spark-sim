@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authentic
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
+import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -216,6 +217,12 @@ const ApiPublicHooksBeforeUserCreatedRoute =
     path: '/api/public/hooks/before-user-created',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedForecastsLabMeansRoute =
+  AuthenticatedForecastsLabMeansRouteImport.update({
+    id: '/means',
+    path: '/means',
+    getParentRoute: () => AuthenticatedForecastsLabRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/forecasts/': typeof AuthenticatedForecastsIndexRoute
+  '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
@@ -275,6 +283,7 @@ export interface FileRoutesByTo {
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/forecasts': typeof AuthenticatedForecastsIndexRoute
+  '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
@@ -310,6 +319,7 @@ export interface FileRoutesById {
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/_authenticated/forecasts/': typeof AuthenticatedForecastsIndexRoute
+  '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/forecasts/'
+    | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
     | '/forecasts/lab/'
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/forecasts'
+    | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
     | '/forecasts/lab'
@@ -408,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/players/$playerId'
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/forecasts/'
+    | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
     | '/_authenticated/forecasts/lab/'
@@ -646,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksBeforeUserCreatedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/forecasts/lab/means': {
+      id: '/_authenticated/forecasts/lab/means'
+      path: '/means'
+      fullPath: '/forecasts/lab/means'
+      preLoaderRoute: typeof AuthenticatedForecastsLabMeansRouteImport
+      parentRoute: typeof AuthenticatedForecastsLabRoute
+    }
   }
 }
 
@@ -664,11 +684,13 @@ const AuthenticatedAdminRouteRouteWithChildren =
   )
 
 interface AuthenticatedForecastsLabRouteChildren {
+  AuthenticatedForecastsLabMeansRoute: typeof AuthenticatedForecastsLabMeansRoute
   AuthenticatedForecastsLabIndexRoute: typeof AuthenticatedForecastsLabIndexRoute
 }
 
 const AuthenticatedForecastsLabRouteChildren: AuthenticatedForecastsLabRouteChildren =
   {
+    AuthenticatedForecastsLabMeansRoute: AuthenticatedForecastsLabMeansRoute,
     AuthenticatedForecastsLabIndexRoute: AuthenticatedForecastsLabIndexRoute,
   }
 

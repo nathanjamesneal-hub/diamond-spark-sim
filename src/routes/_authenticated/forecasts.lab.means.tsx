@@ -187,7 +187,7 @@ function MeansPage() {
         onAdvanced={setAdvanced}
         onChange={(patch) =>
           navigate({
-            search: (prev) => ({ ...prev, ...patch }),
+            search: (prev: Record<string, any>) => ({ ...prev, ...patch }),
             replace: true,
           })
         }
