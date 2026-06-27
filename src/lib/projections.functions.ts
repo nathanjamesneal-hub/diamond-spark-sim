@@ -919,7 +919,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
     if (!proj) return null;
 
     const [{ data: gRow }, { data: pRow }, { data: runRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
-      sb.from("games").select("id, mlb_game_id, first_pitch_at, venue, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle(),
+      sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle(),
       sb.from("players").select("id, name, mlb_id, team_id").eq("id", data.playerId).maybeSingle(),
       sb.from("forecast_runs").select("id, status, locked_at, generated_at, model_version").eq("game_id", data.gameId).eq("model_version", proj.model_version).eq("projection_class", "official").is("superseded_by", null).order("generated_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("projection_results").select("hits, total_bases, home_runs, rbis, stolen_bases, walks, strikeouts, plate_appearances, runs").eq("player_id", data.playerId).eq("game_id", data.gameId).maybeSingle(),
@@ -989,7 +989,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
         id: data.gameId,
         mlb_game_id: (gRow as any)?.mlb_game_id ?? null,
         first_pitch_at: (gRow as any)?.first_pitch_at ?? null,
-        venue: (gRow as any)?.venue ?? null,
+        venue: (gRow as any)?.ballpark ?? null,
         game_status: (gRow as any)?.game_status ?? null,
       },
       forecast: {
