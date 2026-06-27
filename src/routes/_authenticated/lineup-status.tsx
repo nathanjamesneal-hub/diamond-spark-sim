@@ -366,10 +366,3 @@ function windowClosed(row: LineupStatusRow): boolean {
   }
   return false;
 }
-      disabled={disabled}
-      className="mono rounded-md border border-border/60 bg-background px-2 py-1 text-[10px] font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-40"
-    >
-      {children}
-    </button>
-  );
-}
