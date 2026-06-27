@@ -114,6 +114,12 @@ type ConsensusRow = {
   contributions: { ds: number; mean: number; prob: number; confidence: number };
   probAvailable: boolean;
   alignment: AlignmentLabel;
+  // Lifecycle (frozen from selected pregame snapshot)
+  projection_class: "official" | "preview";
+  forecast_status: SimLeaderHitterRow["forecast_status"];
+  game_display_state: SimLeaderHitterRow["game_display_state"];
+  forecast_run_id: string | null;
+  forecast_locked_at: string | null;
 };
 
 function leadersQuery(date: string | undefined) {
