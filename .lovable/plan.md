@@ -1,96 +1,118 @@
+## Why the board is empty today
 
-## Goal
+DB snapshot (2026-06-27):
+- `forecast_runs`: 5 `preview/published`, 0 `official` of any status.
+- `projections`: 320 active `preview` rows, 0 active `official`.
 
-Make pregame Preview Simulations visible across every public forecast surface, while guaranteeing Official locked forecasts always win and Preview rows never contaminate Results / Model / Calibration.
+Every public read path hard-filters `projection_class = 'official'`. With no officials today, all surfaces collapse to empty even though preview snapshots exist with Monte Carlo distributions.
 
-## 1. Shared read-side selector (single source of truth)
+No engine math, lifecycle writes, snapshot generation, calibration, Diamond Score, or Consensus formulas change. Only the read layer and labeling.
 
-New module: `src/lib/forecast/select-public.ts`
+## 1. Shared best-available selector
 
-Export `selectPublicForecasts({ date, gameIds?, modelVersion? })` that returns one row per `(game_id, player_id, market, model_version)` using this priority:
+New module `src/lib/forecast/select-public.ts` — pure, no DB I/O.
 
-1. `projection_class='official'` + `status='locked'`
-2. `projection_class='official'` + `status='active'` (published)
-3. `projection_class='preview'` + `status='active'` AND `game_status` is pregame (not Live/Final/Suspended-after-start)
-4. else: drop the row
+Selector identity (corrected): `(game_id, player_id, role, market, model_version)`.
+- `role` ∈ `hitter | pitcher`
+- `market` is supplied by the caller (Forecast Board cycles per active market; Sim Leaders/Top Props/Consensus iterate over the market set). A player's Hit / TB / HR / RBI rows never collapse.
 
-Returns each row tagged with `display_class: 'official' | 'preview'` and `lineup_completeness` (confirmed batters / 18) for preview rows, plus `preview_generated_at`.
+Priority — pick exactly one per key, drop the rest:
+1. `projection_class='official'` + `forecast_runs.status='locked'`
+2. `projection_class='official'` + `forecast_runs.status='published'`
+3. `projection_class='preview'`  + `forecast_runs.status='published'` AND `!gameHasStartedOrPastStart(game)`
+4. nothing → excluded
 
-Implementation: one SQL pass that joins `forecast_runs` → `forecast_player_projections` → `games`, ordered by class priority and `generated_at desc`, deduped in JS by composite key. Live/Final games drop any preview candidate. This is the only place priority rules live.
+Authoritative start state: import the shared `gameHasStartedOrPastStart` / `assertForecastWindowOpen` from `src/lib/forecast/window.ts`. Previews are eligible for any game whose forecast window is open (delayed-before-first-pitch ✅, in-progress/final/post-first-pitch ❌). Once a game has actually started, previews drop permanently.
 
-## 2. Wire every public surface to the selector
+Active public model-version gate (corrected): before the selector runs, callers filter rows to `model_version === activeVersion` from `model_versions WHERE active = true`. Shadow versions never appear on Forecast Board, Top Props, Sim Leaders, or Consensus — only Admin / Projection Lab with explicit version selector.
 
-Replace direct `projection_class='official'` filters with `selectPublicForecasts(...)` in:
+Tagging on the surviving row (corrected — keep fields orthogonal):
+- `projection_class`: `'preview' | 'official'` (passed through unchanged)
+- `forecast_run_status`: `'published' | 'locked' | 'superseded'` (passed through unchanged)
+- `game_display_state`: `'upcoming' | 'live' | 'final' | 'other'` (existing)
+- `display_state` (NEW, UI-only): `'preview' | 'published' | 'locked' | 'live' | 'final'`
+- `display_label` (NEW, UI-only):
+  - preview → `Monte Carlo preview — projected lineups, not an official Diamond forecast`
+  - official + published → `Lineup-confirmed Monte Carlo forecast`
+  - official + locked / live / final → `Locked Monte Carlo forecast — original projection preserved`
+- `lineup_completeness?: { confirmed: number; expected: number }` (from `game_lineup_status`)
 
-- `src/lib/projections.functions.ts` — `getDiamondScores`, `getSimulationLeaders`, `getTopProps`, `getForecastBoard`, `getProjectionsForGame` (public path), `getConsensusBoard`
-- `src/lib/projection-lab.functions.ts` — public mode (keep an explicit `includePreview`/`adminMode` flag for the existing admin preview toggle so deep inspection still works)
-- Today mini-board (`src/routes/_authenticated/index.tsx`) inherits via `getDiamondScores`
+No new `forecast_status='preview'` value. The existing `ForecastBoardStatus` is renamed to `display_state` end-to-end.
 
-Untouched (must still filter to locked official only):
-- `src/lib/model-results.functions.ts` (Results, Model, Calibration, Brier/log-loss, projected-vs-actual audits)
-- Any "trusted performance history" / promotion paths
-- `today.live.tsx` actuals grading
+## 2. Wire the selector into read paths
 
-Add a unit assertion that `model-results.functions.ts` never imports `selectPublicForecasts`.
+Each path widens its SQL filter to `projection_class IN ('official','preview')` and `forecast_runs.status IN ('published','locked')` (still excludes `superseded`), filters to active model version, then pipes through `selectBestAvailable()`:
 
-## 3. Public UI treatment
+- `src/lib/projections.functions.ts` → `getDiamondScores` (powers Forecast Board, Diamond Scores, Top Props, Today Top Forecasts; Sim Leaders consumes its payload).
+- `src/lib/sim.functions.ts` → `getSimulationLeaders` today path (`forecast_player_projections` + `forecast_runs.status IN ('published','locked')`, both classes, then selector).
+- `getPlayerProjection` history list stays official-only (trusted history).
 
-New component `src/components/diamond/preview-badge.tsx` (amber).
+## 3. Monte Carlo snapshot visibility (preview AND official)
 
-Row-level changes (Forecast Board, Top Props, Sim Leaders, Diamond Scores, Consensus, Today mini-board):
+The persisted snapshot is the single source of truth — **never re-run Monte Carlo on read**.
 
-- Preview rows show: amber `Preview` badge, subtitle `Projected lineups`, `Projected lineups: X/18 confirmed`, preview generated timestamp. Never use the words `Locked`, `Official`, or `Lineup-confirmed`.
-- Official rows show: `Lineup-confirmed forecast`, swapping to `Forecast locked at first pitch` once `status='locked'`.
+- Hitters: snapshot in `projections.sim_snapshot.distributions[{H,HR,TB,RBI,SB,R,BB,K,PA}]` with `{mean, p10, p50, p90, prob_over[]}`.
+- Pitchers: same shape for `{K,BB,ER,H,OUTS,BF}` plus `quality_start_probability`, `pitcher_win_probability`.
+- Today's live path also reads `forecast_player_projections.distributions` — same selector applies.
 
-Top Props & Sim Leaders:
-- Add a scope filter `All Available | Official Only | Preview Only`, default `All Available`.
-- Section headers split counts: `Official Forecasts (N)` and `Preview Forecasts (M)`.
-- Preview rows never display `Safest` / `Official Top Prop` adornments.
+Cards already returned by `getDiamondScores` extended (no recompute):
+- `hit_mean`, `hr_mean`, `tb_mean`, `rbi_mean`, plus per-market `*_p10/p50/p90` and `*_event_probability` (e.g. `hit_1plus_prob`, `hr_1plus_prob`, `tb_2plus_prob`).
+- `projected_pa` for hitters when present in snapshot; `projected_bf` and `projected_outs` for pitchers.
+- `simulation_iterations` and `simulation_seed` are returned but tagged admin-only.
 
-Diamond Consensus:
-- Include preview rows only when no official exists for that player/game/market.
-- Label preview rows `Preview Alignment`.
-- Sort: all official rows above all preview rows; within each, existing Consensus order.
-- Persisted `forecast_consensus` (official, immutable) is unchanged. Preview Consensus is computed read-side and never written.
+### Forecast Board compact row
+- `Prob` column: market-specific MC event probability from snapshot.
+- `Mean` column: market-specific MC projected mean from snapshot.
+- Hitter rows show `PA`; pitcher rows show `BF / Outs` context.
+- Amber `Preview` badge in the status column whenever `display_state==='preview'`; existing badge logic otherwise.
 
-## 4. Lock / overwrite protection (verify, do not change math)
+### Forecast Detail Drawer (read-only)
+- Monte Carlo projected mean
+- P10 / P50 / P90 for the selected market
+- Event probability (P(Hit 1+), P(HR 1+), P(TB 2+), etc.)
+- Projected PA / BF / Outs
+- `simulation_iterations` + `simulation_seed` rendered only inside the Admin advanced section (`hasRole('admin')`)
+- Drawer never triggers a sim; reads `sim_snapshot` only.
 
-Audit-only confirmations in `src/lib/ingest.functions.ts` + `src/lib/forecast/lifecycle.ts`:
+### Consensus
+- Keep visible columns: Monte Carlo mean, Monte Carlo probability.
+- Preview-sourced rows carry an amber `Preview Alignment` label.
+- Official rows carry their existing official/locked label.
+- Sort and weights unchanged.
 
-- Preview pass only runs when game is pregame (reuse `partitionOpenGames` cutoff guard) and material hash changed.
-- Preview write path never touches rows where `projection_class='official'` (add explicit guard / test).
-- Official publish never mutates preview rows.
-- Add unit test: attempting to update an official row from the preview writer throws.
-- Once `game_status` is live, the orchestrator preview pass skips that game (already enforced; add regression test).
+### Top page banner
+On `/diamond-scores` and `/` Today section, only when visible slice contains any preview rows: amber strip explaining preview vs official.
 
-## 5. Results / Model integrity (no changes, add guard tests)
+## 4. Forecast Board UI controls
 
-Tests in `src/lib/forecast/__tests__/`:
+`src/components/diamond/forecast-board/forecast-board.tsx`:
+- Accepted display states: `['published','locked','live','final','preview']`.
+- New filter: `All available | Official only | Preview only` (default `All available`).
+- Empty state only when zero rows survive after selector + filter. With preview rows present, board renders them with amber badges — no empty state.
 
-- `select-public.test.ts` — priority, dedup, live-game preview drop, completeness reporting.
-- `results-excludes-preview.test.ts` — `MR_*` audits only see `projection_class='official' AND status IN ('active','locked')`.
-- `preview-immutability.test.ts` — preview writer cannot modify official; official publish does not modify preview.
-- `consensus-preview-rank.test.ts` — official ranks above preview; persisted official Consensus unchanged after preview refresh.
+## 5. Trusted paths stay official-locked only
 
-## 6. Acceptance scenarios encoded as tests
+No change to: `model-results.functions.ts`, `/results`, `/model`, `/calibration`, live grading, `projection_results` joins, `calibration_summary`. Each `eq('projection_class','official')` gets a one-line comment "trusted-path filter, do not widen". Only official locked Monte Carlo outputs are eligible for projected-vs-actual comparison.
 
-1. Pregame-only game → appears in all 4 public boards with amber Preview.
-2. Official publishes → public switches to official row, preview hidden.
-3. Preview re-run cannot mutate any official/locked field.
-4. Game flips to Live → no new preview row created.
-5. Preview rows absent from Results / Model / Calibration queries.
-6. No (game, player, market) shows both preview + official in any public board.
+## 6. Verification after build (values returned in chat)
 
-## Technical notes
+Server-side audit for active slate date:
+- `previewActiveCount` — selector outputs where `display_state === 'preview'`.
+- `officialActiveCount` — selector outputs where `display_state ∈ {published, locked, live, final}`.
+- `boardRowCount` — rows the board renders with default `All available` filter.
+- `duplicateKeyCount` — count of `(game_id, player_id, role, market, model_version)` with more than one row after selector. MUST be 0.
+- Sample A: preview row currently shown for a pregame game with no official forecast (proves preview shows pre-publication).
+- Sample B: a game with both `preview` published AND `official` published — confirm only the official is in selector output (proves official replaces preview).
+- Sample C: a game with `official locked` AND a newer `preview published` for same key — confirm locked official wins (proves locked permanence).
+- Confirmation message: "No `projections.*`, `forecast_runs.*`, or `sim_snapshot` data was written, updated, regenerated, or deleted by this change. No Monte Carlo simulation was executed."
 
-- No schema changes. Reuses existing `projection_class`, `status`, `superseded_by`, `locked_at`, and `game_status` columns.
-- Lineup completeness derived from `lineups` table where `lineup_status='confirmed'` per game.
-- Selector returns at most one row per composite key — dedup happens in SQL via `DISTINCT ON (game_id, player_id, market, model_version) ... ORDER BY class_priority, generated_at DESC`.
-- Admin Projection Lab keeps a `viewMode: 'public' | 'preview-inspect' | 'all'` param so admins can still inspect preview drafts side-by-side.
+## Acceptance
 
-## Out of scope
-
-- Diamond Score / Alpha / Monte Carlo / calibration math.
-- Forecast lifecycle state machine.
-- `forecast_consensus` persisted table schema.
-- Orchestrator scheduling.
+- ~320 preview-backed rows render today with amber `Monte Carlo preview — projected lineups…` labels.
+- Zero duplicate preview + official rows for the same `(game, player, role, market, model_version)`.
+- Publishing one official forecast for a game removes its preview rows from every public surface (Board, Top Props, Sim Leaders, Consensus, Today).
+- Locked official remains selected even when newer preview data exists.
+- Once a game has actually started (per `gameHasStartedOrPastStart`), previews drop immediately and permanently; delayed-before-first-pitch games keep showing previews.
+- Future shadow model versions never leak into public surfaces.
+- Results, Model, Calibration, trusted audits remain byte-identical: official-only, locked snapshots only.
+- No migrations, no schema changes, no engine/lifecycle/sim edits.
