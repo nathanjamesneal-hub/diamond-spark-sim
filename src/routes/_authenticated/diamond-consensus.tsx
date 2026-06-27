@@ -298,6 +298,125 @@ function consensusTone(score: number) {
 }
 
 type ScopeMode = "balanced" | "top25" | "high-prob" | "all";
+type ViewMode = "pregame" | "live" | "final";
+
+/** Per-category market definition used by the Live Consensus Tracker.
+ *  Display-only. Reads frozen pregame Sim Mean / Prob already on the row,
+ *  plus actuals from getActualsForDate. Never alters rank/order. */
+type MarketKind = "count_threshold" | "count_raw_mean" | "binary_event";
+type MarketDef = {
+  unit: string;
+  threshold: number | null; // for count_threshold only
+  kind: MarketKind;
+  actualCount: (h?: HitterActual, p?: PitcherActual) => number | null;
+  /** For binary_event markets only. */
+  actualBinary?: (h?: HitterActual, p?: PitcherActual) => boolean | null;
+};
+
+const MARKETS: Record<CatKey, MarketDef> = {
+  hit:  { unit: "H",    threshold: 1, kind: "count_threshold", actualCount: (h) => h?.H ?? null },
+  hr:   { unit: "HR",   threshold: 1, kind: "count_threshold", actualCount: (h) => h?.HR ?? null },
+  rbi:  { unit: "RBI",  threshold: 1, kind: "count_threshold", actualCount: (h) => h?.RBI ?? null },
+  runs: { unit: "R",    threshold: 1, kind: "count_threshold", actualCount: (h) => h?.R ?? null },
+  tb:   { unit: "TB",   threshold: 2, kind: "count_threshold", actualCount: (h) => h?.TB ?? null },
+  sb:   { unit: "SB",   threshold: 1, kind: "count_threshold", actualCount: (h) => h?.SB ?? null },
+  pk:   { unit: "K",    threshold: null, kind: "count_raw_mean", actualCount: (_h, p) => p?.K ?? null },
+  outs: { unit: "outs", threshold: null, kind: "count_raw_mean", actualCount: (_h, p) => p?.outs ?? null },
+  qs:   { unit: "QS",   threshold: null, kind: "binary_event",
+          actualCount: (_h, p) => p?.outs ?? null,
+          actualBinary: (_h, p) => (p == null ? null : p.qualityStart) },
+  win:  { unit: "W",    threshold: null, kind: "binary_event",
+          actualCount: (_h, p) => null,
+          actualBinary: (_h, p) => (p == null ? null : p.win) },
+};
+
+type LiveStatus = "Pending" | "In Play" | "Met" | "Behind" | "Missed" | "N/A" | "Final";
+
+function deriveLiveOverlay(args: {
+  row: ConsensusRow;
+  hitterActual?: HitterActual;
+  pitcherActual?: PitcherActual;
+  gameState: "upcoming" | "live" | "final" | "other";
+}) {
+  const market = MARKETS[args.row.catKey];
+  const meanCls = classifyCountProjection({
+    rawMean: args.row.simMean,
+    hasPersistedMetric: args.row.simMean != null,
+  });
+  // N/A guard: missing/non-positive mean → never grade.
+  if (market.kind !== "binary_event" && meanCls.excludeFromAccuracy) {
+    return {
+      market,
+      actual: null as number | null,
+      actualBinary: null as boolean | null,
+      threshold: market.threshold,
+      progress: null as string | null,
+      status: "N/A" as LiveStatus,
+      final: args.gameState === "final" ? ("N/A" as LiveStatus) : null,
+      tooltip: "No meaningful persisted pregame projection for this market",
+    };
+  }
+  const actualCount = market.actualCount(args.hitterActual, args.pitcherActual);
+  const actualBinary = market.actualBinary ? market.actualBinary(args.hitterActual, args.pitcherActual) : null;
+
+  let status: LiveStatus = "Pending";
+  let finalResult: LiveStatus | null = null;
+
+  if (args.gameState === "upcoming") {
+    status = "Pending";
+  } else if (market.kind === "count_threshold" && market.threshold != null) {
+    if (actualCount == null) status = args.gameState === "final" ? "Missed" : "In Play";
+    else if (actualCount >= market.threshold) status = "Met";
+    else status = args.gameState === "final" ? "Missed" : "Behind";
+    if (args.gameState === "final") finalResult = status;
+  } else if (market.kind === "binary_event") {
+    if (actualBinary == null) status = args.gameState === "final" ? "Missed" : "In Play";
+    else status = actualBinary ? "Met" : args.gameState === "final" ? "Missed" : "Behind";
+    if (args.gameState === "final") finalResult = status;
+  } else {
+    // count_raw_mean — no threshold; just show actual vs mean.
+    status = args.gameState === "final" ? "Final" : "In Play";
+    if (args.gameState === "final") finalResult = "Final";
+  }
+
+  // Progress string per market.
+  let progress: string | null = null;
+  const a = actualCount;
+  if (market.kind === "count_threshold" && market.threshold != null) {
+    progress = `${a ?? 0} ${market.unit} / target ${market.threshold}`;
+  } else if (market.kind === "binary_event") {
+    if (args.row.catKey === "qs") {
+      progress = `${a ?? 0} outs · ${actualBinary == null ? "—" : actualBinary ? "QS ✓" : "no QS"}`;
+    } else {
+      progress = actualBinary == null ? "—" : actualBinary ? "Win ✓" : "no decision";
+    }
+  } else {
+    // raw mean
+    const meanStr = args.row.simMean != null ? args.row.simMean.toFixed(args.row.meanDigits) : "—";
+    const delta = a != null && args.row.simMean != null ? a - args.row.simMean : null;
+    const deltaStr = delta == null ? "" : ` · ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
+    progress = `${a ?? "—"} ${market.unit} / Sim Mean ${meanStr}${deltaStr}`;
+  }
+
+  return {
+    market,
+    actual: actualCount,
+    actualBinary,
+    threshold: market.threshold,
+    progress,
+    status,
+    final: finalResult,
+    tooltip: null,
+  };
+}
+
+function statusTone(s: LiveStatus): "strong" | "good" | "warn" | "muted" {
+  if (s === "Met") return "strong";
+  if (s === "In Play" || s === "Behind") return "warn";
+  if (s === "Missed" || s === "N/A") return "muted";
+  return "muted";
+}
+
 
 function DiamondConsensusPage() {
   const { data: payload } = useSuspenseQuery(leadersQuery(undefined));
