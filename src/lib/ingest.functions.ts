@@ -694,21 +694,57 @@ export async function runDiamondEngineForGames(
 
 export const runDiamondEngine = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { date?: string; modelVersion?: string; gameIds?: string[] }) => data ?? {})
+  .inputValidator((data: { date?: string; modelVersion?: string; gameIds?: string[]; intendedClass?: "official" | "preview" }) => data ?? {})
   .handler(async ({ data, context }): Promise<ImportResult> => {
     await assertAdmin(context);
     const date = data.date ?? todayIso();
+    const intendedClass = data.intendedClass ?? "official";
     try {
-      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion);
+      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion, intendedClass);
+      const skippedNote =
+        intendedClass === "official"
+          ? ` · ${r.gamesSkippedNotEligible} skipped (lineups not confirmed)`
+          : r.gamesSkippedPreviewBlocked > 0
+          ? ` · ${r.gamesSkippedPreviewBlocked} skipped (active official forecast)`
+          : "";
       return {
         ok: true,
         count: r.projectionsInserted,
-        details: `${r.projectionsInserted} projections (v${r.version}) across ${r.gamesProcessed} games${r.environmentFailures ? ` (${r.environmentFailures} env failures)` : ""}.`,
+        details: `[${intendedClass}] ${r.projectionsInserted} projections (v${r.version}) across ${r.gamesProcessed} games${r.environmentFailures ? ` (${r.environmentFailures} env failures)` : ""}${skippedNote}.`,
       };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? String(e) };
     }
   });
+
+/**
+ * Admin: publish/reissue OFFICIAL forecast for today's eligible games.
+ * Wraps runDiamondEngineForGames with intendedClass='official' so that only
+ * games with confirmed 9-deep lineups + both starters are written.
+ */
+export const publishOfficialForecast = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date?: string; gameIds?: string[]; modelVersion?: string }) => data ?? {})
+  .handler(async ({ data, context }): Promise<ImportResult & {
+    eligible?: number; skippedNotEligible?: number; forecastsPublished?: number;
+  }> => {
+    await assertAdmin(context);
+    const date = data.date ?? todayIso();
+    try {
+      const r = await runDiamondEngineForGames(date, data.gameIds, data.modelVersion, "official");
+      return {
+        ok: true,
+        count: r.projectionsInserted,
+        eligible: r.gamesEligible,
+        skippedNotEligible: r.gamesSkippedNotEligible,
+        forecastsPublished: r.forecastsPublished,
+        details: `[official] ${r.projectionsInserted} projections · ${r.gamesEligible} eligible · ${r.gamesSkippedNotEligible} ineligible (awaiting confirmed lineups) · ${r.forecastsPublished} forecast runs published.`,
+      };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
+    }
+  });
+
 
 // ---------- One-click daily pipeline ----------
 // One admin click runs: schedule → SP → confirmed lineups → aggregator
