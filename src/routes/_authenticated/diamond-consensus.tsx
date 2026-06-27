@@ -122,15 +122,20 @@ function leadersQuery(date: string | undefined) {
 }
 
 export const Route = createFileRoute("/_authenticated/diamond-consensus")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(leadersQuery(undefined)),
-  head: () => ({
-    meta: [
-      { title: "Diamond Consensus — Where the model agrees" },
-      { name: "description", content: "Display-only consensus board combining Diamond Score, Sim Mean, Sim Probability, and lineup confidence." },
-    ],
-  }),
-  component: DiamondConsensusPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/forecasts/consensus" });
+  },
+  component: () => null,
 });
+
+function _UnusedRoute() {
+  return {
+    loader: ({ context }: any) => context.queryClient.ensureQueryData(leadersQuery(undefined)),
+    component: DiamondConsensusPage,
+  };
+}
+export { DiamondConsensusPage };
+
 
 function buildRows(payload: SimulationLeadersPayload): ConsensusRow[] {
   const seen = new Set<string>();
