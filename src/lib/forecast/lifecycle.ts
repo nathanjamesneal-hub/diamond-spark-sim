@@ -32,7 +32,20 @@ export type LifecycleDecision =
   | "superseded"
   | "locked-skip"
   | "post-first-pitch-skip"
+  | "official-exists-preview-blocked"
+  | "ineligible-for-official"
   | "error";
+
+/**
+ * Forecast class governs PUBLIC visibility. Orthogonal to status.
+ *   official          — built from confirmed lineups + confirmed starters
+ *   preview           — admin-only exploratory sim (partial/projected lineups)
+ *   legacy_unverified — pre-lifecycle row; never public, never calibration
+ *
+ * Note: `locked` is a status, not a class. An official run keeps
+ * forecast_class='official' after first pitch; its status changes to 'locked'.
+ */
+export type ForecastClass = "official" | "preview";
 
 export type LifecycleLogEntry = {
   gamePk: number;
