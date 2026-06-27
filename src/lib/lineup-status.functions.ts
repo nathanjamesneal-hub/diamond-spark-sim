@@ -150,10 +150,11 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),
       sb.from("projections")
-        .select("game_id, model_version, created_at")
+        .select("game_id, model_version, created_at, projection_class")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
         .order("created_at", { ascending: false }),
+
       sb.from("cron_runs")
         .select("started_at, finished_at, engine_ran")
         .order("started_at", { ascending: false })
