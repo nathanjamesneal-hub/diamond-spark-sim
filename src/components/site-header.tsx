@@ -15,8 +15,10 @@ const nav = [
   { to: "/lineup-status", label: "Pipeline" },
 
   { to: "/calibration", label: "Calibration" },
-  { to: "/calibration-lab", label: "Model Results" },
+  { to: "/results", label: "Results" },
+  { to: "/model", label: "Model" },
   { to: "/leaderboards", label: "Leaders" },
+
 ] as const;
 
 export function SiteHeader() {
