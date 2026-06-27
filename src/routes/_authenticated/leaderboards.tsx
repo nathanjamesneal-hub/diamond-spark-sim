@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getLeaderboards } from "@/lib/mlb.functions";
 

@@ -1,9 +1,11 @@
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 /**
  * Top 25 Simulation Leaders.
  * Display-only. All values come from existing Monte Carlo outputs surfaced by
  * getSimulationLeaders — no math is performed in this file.
  */
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { z } from "zod";
