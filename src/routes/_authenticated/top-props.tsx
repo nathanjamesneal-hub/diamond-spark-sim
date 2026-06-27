@@ -253,6 +253,9 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
     const v = pAny[key];
     if (typeof v === "number" && isFinite(v)) {
       const mean = meanForProp(p.selected_forecast, "k");
+      // Same eligibility rule as hitter props: pitcher K only ranks when the
+      // selected snapshot persists a finite positive K mean from the same run.
+      if (!(mean.value != null && isFinite(mean.value) && mean.value > 0)) break;
       rows.push({
         ...base,
         key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
