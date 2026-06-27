@@ -49,7 +49,9 @@ export type MRGrade =
   | "Close"
   | "Missed"
   | "Low Projection / No Event"
-  | "Unexpected Event";
+  | "Unexpected Event"
+  | "N/A";
+
 
 export type MRTone = "strong" | "good" | "warn" | "bad" | "muted";
 
