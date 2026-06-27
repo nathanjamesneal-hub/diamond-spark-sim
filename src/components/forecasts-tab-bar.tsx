@@ -5,12 +5,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 
 const TABS = [
-  { to: "/diamond-scores", label: "Board" },
-  { to: "/slate", label: "All Forecasts" },
-  { to: "/odds", label: "Rankings" },
-  { to: "/diamond-consensus", label: "Consensus" },
-  { to: "/top-props", label: "Top Props" },
-  { to: "/leaderboards", label: "Player Search" },
+  { to: "/diamond-scores", label: "Board", match: "exact" },
+  { to: "/slate", label: "All Forecasts", match: "exact" },
+  { to: "/odds", label: "Rankings", match: "exact" },
+  { to: "/diamond-consensus", label: "Consensus", match: "exact" },
+  { to: "/top-props", label: "Top Props", match: "exact" },
+  { to: "/leaderboards", label: "Player Search", match: "exact" },
+  { to: "/forecasts/lab", label: "Projection Lab", match: "prefix" },
 ] as const;
 
 export function ForecastsTabBar() {
@@ -22,7 +23,8 @@ export function ForecastsTabBar() {
       </div>
       <nav className="flex items-center gap-1 overflow-x-auto border-b border-border/60">
         {TABS.map((t) => {
-          const active = pathname === t.to;
+          const active =
+            t.match === "prefix" ? pathname.startsWith(t.to) : pathname === t.to;
           return (
             <Link
               key={t.to}
