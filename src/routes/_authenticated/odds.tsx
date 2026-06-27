@@ -189,9 +189,11 @@ type Grade = {
     | "Hit Event"
     | "Live"
     | "Pending"
+    | "N/A"
     | "—";
   tone: "strong" | "good" | "warn" | "bad" | "muted" | "live";
   excludeFromAccuracy?: boolean;
+  tooltip?: string;
 };
 const GRADE_CLASS: Record<Grade["tone"], string> = {
   strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
@@ -205,9 +207,16 @@ const GRADE_CLASS: Record<Grade["tone"], string> = {
 
 const LOW_MEAN_TOOLTIP =
   "Low mean projections below 0.5 are treated as neutral when the event does not occur, so the model does not receive false-positive credit for predicting near-zero outcomes. An actual result of zero is never counted as a successful prediction.";
+const NO_MEANINGFUL_TOOLTIP_LOCAL =
+  "This forecast had no positive persisted mean or projected opportunity, so it is excluded from count-stat grading.";
 
 function gradeCounting(mean: number | null, actual: number | null): Grade {
   if (mean == null || actual == null) return { label: "—", tone: "muted" };
+  // Hard rule: a non-positive persisted mean never counts as a successful
+  // projection — even when actual is also 0. Excluded from accuracy.
+  if (!isFinite(mean) || mean <= 0) {
+    return { label: "N/A", tone: "muted", excludeFromAccuracy: true, tooltip: NO_MEANINGFUL_TOOLTIP_LOCAL };
+  }
   // Zero actual never counts as success.
   if (actual === 0) {
     if (mean < 0.5) {
@@ -226,6 +235,7 @@ function gradeCounting(mean: number | null, actual: number | null): Grade {
   if (Math.abs(actual - floor) <= 1) return { label: "Close", tone: "warn" };
   return { label: "Missed", tone: "bad" };
 }
+
 function gradeHR(actual: number | null): Grade {
   if (actual == null) return { label: "—", tone: "muted" };
   if (actual >= 1) return { label: "Hit Event", tone: "strong" };
