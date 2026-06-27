@@ -280,7 +280,11 @@ export const getLineupStatus = createServerFn({ method: "GET" })
       if (isLocked) badges.push("locked");
       else if (isConfirmed) badges.push("confirmed");
       else if (hasLineups) badges.push("projected");
-      if (proj && proj.count > 0) badges.push("projections_available");
+      const totalProj = proj ? proj.official + proj.preview + proj.legacy_unverified : 0;
+      // "projections_available" is reserved for OFFICIAL forecasts. Preview
+      // and legacy_unverified rows must not be counted toward the public
+      // "ready" signal even though they exist in the table.
+      if (proj && proj.official > 0) badges.push("projections_available");
       else badges.push("no_projections");
 
       return {
@@ -300,11 +304,15 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         dna_hitters_total: allLineup.length,
         last_refresh_at: gl?.last_refresh_at ?? null,
         latest_projection_at: proj?.created_at ?? null,
-        active_projection_count: proj?.count ?? 0,
+        active_projection_count: totalProj,
+        active_official_count: proj?.official ?? 0,
+        active_preview_count: proj?.preview ?? 0,
+        active_legacy_unverified_count: proj?.legacy_unverified ?? 0,
         projection_model_version: proj?.model_version ?? null,
         badges,
       };
     });
+
 
     const summary: LineupStatusSummary = {
       games_scheduled: games.length,
