@@ -74,8 +74,8 @@ type SortKey =
   | "outs_mean"
   | "bb_mean";
 
-function statValue(d: DistStat): number {
-  return d?.mean ?? -Infinity;
+function metricValue(m: LabRow["sim_metrics"][keyof LabRow["sim_metrics"]]): number {
+  return m?.mean ?? -Infinity;
 }
 
 function fmt(n: number | null | undefined, digits = 2): string {
@@ -86,6 +86,11 @@ function fmt(n: number | null | undefined, digits = 2): string {
 function fmtPct(n: number | null | undefined): string {
   if (n == null || !isFinite(n)) return "—";
   return `${(n * 100).toFixed(0)}%`;
+}
+
+function MetricCell({ m }: { m: LabRow["sim_metrics"][keyof LabRow["sim_metrics"]] }) {
+  const title = m.available ? m.sourcePath ?? undefined : m.unavailableReason ?? undefined;
+  return <td className="px-2 py-2 text-right mono tabular-nums" title={title}>{fmt(m.mean)}</td>;
 }
 
 function StatusPill({ row }: { row: LabRow }) {
@@ -210,21 +215,21 @@ function pickSort(r: LabRow, key: SortKey): number {
     case "diamond_score":
       return r.diamond_score ?? -Infinity;
     case "hits_mean":
-      return statValue(r.distributions.H);
+      return metricValue(r.sim_metrics.H);
     case "tb_mean":
-      return statValue(r.distributions.TB);
+      return metricValue(r.sim_metrics.TB);
     case "hr_mean":
-      return statValue(r.distributions.HR);
+      return metricValue(r.sim_metrics.HR);
     case "rbi_mean":
-      return statValue(r.distributions.RBI);
+      return metricValue(r.sim_metrics.RBI);
     case "r_mean":
-      return statValue(r.distributions.R);
+      return metricValue(r.sim_metrics.R);
     case "k_mean":
-      return statValue(r.distributions.K);
+      return metricValue(r.sim_metrics.K);
     case "bb_mean":
-      return statValue(r.distributions.BB);
+      return metricValue(r.sim_metrics.BB);
     case "outs_mean":
-      return statValue(r.distributions.outs);
+      return metricValue(r.sim_metrics.OUTS);
   }
 }
 
@@ -494,14 +499,14 @@ function HitterTable({
             <tr key={`${r.forecast_run_id}::${r.player?.id ?? i}`} className="border-b border-border/40">
               <td className="px-2 py-2"><PlayerCell row={r} /></td>
               <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.diamond_score, 1)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.H?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.TB?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.HR?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.RBI?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.R?.mean)}</td>
+              <MetricCell m={r.sim_metrics.H} />
+              <MetricCell m={r.sim_metrics.TB} />
+              <MetricCell m={r.sim_metrics.HR} />
+              <MetricCell m={r.sim_metrics.RBI} />
+              <MetricCell m={r.sim_metrics.R} />
               {advanced ? (
                 <>
-                  <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.BB?.mean)}</td>
+                  <MetricCell m={r.sim_metrics.BB} />
                   <td className="px-2 py-2 text-right text-muted-foreground">not stored</td>
                   <td className="px-2 py-2 text-right text-muted-foreground">not stored</td>
                   <td className="px-2 py-2 text-right"><PercentilesCell d={r.distributions.H} /></td>
@@ -559,9 +564,9 @@ function PitcherTable({
             <tr key={`${r.forecast_run_id}::${r.player?.id ?? i}`} className="border-b border-border/40">
               <td className="px-2 py-2"><PlayerCell row={r} /></td>
               <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.diamond_score, 1)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.K?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.outs?.mean)}</td>
-              <td className="px-2 py-2 text-right mono tabular-nums">{fmt(r.distributions.BB?.mean)}</td>
+              <MetricCell m={r.sim_metrics.K} />
+              <MetricCell m={r.sim_metrics.OUTS} />
+              <MetricCell m={r.sim_metrics.BB} />
               <td className="px-2 py-2 text-right mono tabular-nums">{fmtPct(r.pitcher_win_probability)}</td>
               <td className="px-2 py-2 text-right mono tabular-nums">{fmtPct(r.quality_start_probability)}</td>
               {advanced ? (

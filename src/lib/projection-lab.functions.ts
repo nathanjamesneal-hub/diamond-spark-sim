@@ -26,6 +26,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz, shiftIsoDate } from "@/lib/timezone";
+import { getMarketSimulationMetrics, metricsToSimStat, type SimulationMetrics } from "@/lib/forecast/sim-metrics";
 
 const OFFICIAL_RUN_STATUSES = ["published", "locked"] as const;
 type OfficialStatus = (typeof OFFICIAL_RUN_STATUSES)[number];
@@ -166,6 +167,21 @@ export type LabRow = {
     BB: DistStat;
     outs: DistStat;
     ER: DistStat;
+  };
+
+  sim_metrics: {
+    H: SimulationMetrics;
+    HR: SimulationMetrics;
+    TB: SimulationMetrics;
+    RBI: SimulationMetrics;
+    R: SimulationMetrics;
+    SB: SimulationMetrics;
+    K: SimulationMetrics;
+    BB: SimulationMetrics;
+    PA: SimulationMetrics;
+    OUTS: SimulationMetrics;
+    BF: SimulationMetrics;
+    ER: SimulationMetrics;
   };
 
   actual: Record<string, any> | null;
@@ -349,6 +365,25 @@ async function loadLab(
     (actualsData ?? []).map((a: any) => [`${a.game_id}::${a.player_id}`, a]),
   );
 
+  // Same selected-run snapshot fallback used by public forecast surfaces. This
+  // is read-only and keyed to the exact selected run's game/version/class so a
+  // preview snapshot can never fill an official row (or vice versa).
+  const { data: projectionSnapshotsData } = gameIds.length && playerIds.length
+    ? await supabase
+        .from("projections")
+        .select("game_id, player_id, projection_role, model_version, projection_class, sim_snapshot, created_at")
+        .in("game_id", gameIds)
+        .in("player_id", playerIds)
+        .eq("projection_status", "active")
+        .order("created_at", { ascending: false })
+    : { data: [] as any[] };
+  const projectionSnapshotByKey = new Map<string, any>();
+  for (const pr of projectionSnapshotsData ?? []) {
+    const role = (pr as any).projection_role === "pitcher" ? "pitcher" : "hitter";
+    const k = `${(pr as any).game_id}::${(pr as any).player_id}::${role}::${(pr as any).model_version}::${(pr as any).projection_class}`;
+    if (!projectionSnapshotByKey.has(k)) projectionSnapshotByKey.set(k, (pr as any).sim_snapshot ?? null);
+  }
+
   const runsByRunId = new Map(selectedRuns.map((r) => [r.id, r]));
 
   function readBattingOrderFromSnapshot(
@@ -400,9 +435,31 @@ async function loadLab(
       }
     }
 
-    const dist = (p.distributions ?? null) as Record<string, DistStat> | null;
-    if (!dist) missingDist += 1;
-    const ds = (k: string): DistStat => (dist && dist[k]) ? (dist[k] as DistStat) : null;
+    const selectedForecast = {
+      forecastRunId: p.forecast_run_id,
+      projectionClass: run.projection_class,
+      fppDistributions: p.distributions ?? null,
+      projectionSimSnapshot: projectionSnapshotByKey.get(`${run.game_id}::${p.player_id}::${p.role}::${run.model_version}::${run.projection_class}`) ?? null,
+    };
+    if (!p.distributions) missingDist += 1;
+    const metric = (market: Parameters<typeof getMarketSimulationMetrics>[0]["market"]): SimulationMetrics => getMarketSimulationMetrics({
+      selectedForecast,
+      role: p.role,
+      market,
+    });
+    const mH = metric("H");
+    const mHR = metric("HR");
+    const mTB = metric("TB");
+    const mRBI = metric("RBI");
+    const mR = metric("R");
+    const mSB = metric("SB");
+    const mK = metric("K");
+    const mBB = metric("BB");
+    const mPA = metric("PA");
+    const mOUTS = metric("OUTS");
+    const mBF = metric("BF");
+    const mER = metric("ER");
+    const ds = (m: SimulationMetrics): DistStat => metricsToSimStat(m) as DistStat;
 
     const actual = game ? (actualsByKey.get(`${game.id}::${p.player_id}`) ?? null) : null;
 
@@ -461,16 +518,17 @@ async function loadLab(
           : null,
 
       distributions: {
-        H: ds("H"),
-        HR: ds("HR"),
-        TB: ds("TB"),
-        RBI: ds("RBI"),
-        R: ds("R"),
-        K: ds("K"),
-        BB: ds("BB"),
-        outs: ds("outs"),
-        ER: ds("ER"),
+        H: ds(mH),
+        HR: ds(mHR),
+        TB: ds(mTB),
+        RBI: ds(mRBI),
+        R: ds(mR),
+        K: ds(mK),
+        BB: ds(mBB),
+        outs: ds(mOUTS),
+        ER: ds(mER),
       },
+      sim_metrics: { H: mH, HR: mHR, TB: mTB, RBI: mRBI, R: mR, SB: mSB, K: mK, BB: mBB, PA: mPA, OUTS: mOUTS, BF: mBF, ER: mER },
       actual,
     };
 

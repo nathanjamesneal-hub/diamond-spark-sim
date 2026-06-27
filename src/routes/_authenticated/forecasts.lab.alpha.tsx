@@ -89,7 +89,10 @@ function AlphaComparePage() {
       row: r,
       alpha: r.hit_probability,
       calibrated: r.calibrated_hit_probability,
-      hitsMean: r.distributions.H?.mean ?? null,
+      hitsMean: r.sim_metrics.H.mean,
+      hitsMeanReason: r.sim_metrics.H.available ? r.sim_metrics.H.sourcePath : r.sim_metrics.H.unavailableReason,
+      paMean: r.sim_metrics.PA.mean,
+      paMeanReason: r.sim_metrics.PA.available ? r.sim_metrics.PA.sourcePath : r.sim_metrics.PA.unavailableReason,
       ds: r.diamond_score,
     }));
     // Diamond Rank within slate by DS desc
@@ -236,7 +239,7 @@ function AlphaComparePage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map(({ row, alpha, calibrated, hitsMean, ds, rank }, i) => {
+              {sorted.map(({ row, alpha, calibrated, hitsMean, hitsMeanReason, paMean, paMeanReason, ds, rank }, i) => {
                 const actualHits = (row.actual as any)?.hits ?? null;
                 const grade = gradeHit(actualHits);
                 return (
@@ -256,8 +259,8 @@ function AlphaComparePage() {
                         <span className="mono tabular-nums">{fmtPct(calibrated)}</span>
                       )}
                     </td>
-                    <td className="px-2 py-2 text-right mono tabular-nums">{fmtNum(hitsMean)}</td>
-                    <td className="px-2 py-2 text-right text-muted-foreground">not stored</td>
+                    <td className="px-2 py-2 text-right mono tabular-nums" title={hitsMeanReason ?? undefined}>{fmtNum(hitsMean)}</td>
+                    <td className="px-2 py-2 text-right mono tabular-nums" title={paMeanReason ?? undefined}>{fmtNum(paMean)}</td>
                     <td className="px-2 py-2 text-right mono tabular-nums">{fmtNum(ds, 1)}</td>
                     <td className="px-2 py-2 text-right mono tabular-nums">{rank ?? "—"}</td>
                     <td className="px-2 py-2 text-right">

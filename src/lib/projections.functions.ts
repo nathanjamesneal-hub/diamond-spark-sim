@@ -6,6 +6,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
+import { selectBestPublicForecast } from "@/lib/forecast/select-public";
+import {
+  getMarketSimulationMetrics,
+  type MarketKey,
+  type SimulationMetrics,
+} from "@/lib/forecast/sim-metrics";
 
 function todayIso(): string {
   // App is pinned to America/Chicago — "today" must match what the user sees.
@@ -391,6 +397,7 @@ export type DiamondHitterCard = {
   last_refresh_at: string | null;
   source_count: number | null;
   model_version: string;
+  projection_class: "official" | "preview";
   forecast_run_id: string | null;
   forecast_status: ForecastBoardStatus;
   forecast_locked_at: string | null;
@@ -408,12 +415,12 @@ export type DiamondHitterCard = {
   rbi_probability: number | null;
   run_probability: number | null;
   sb_probability: number | null;
-  /** Means pulled from sim_snapshot.distributions (no live sim). */
+  /** Means pulled by getMarketSimulationMetrics from the selected snapshot (no live sim). */
   hit_mean: number | null;
   hr_mean: number | null;
   tb_mean: number | null;
   rbi_mean: number | null;
-  /** PA isn't directly persisted yet; null when unavailable. */
+  /** PA from getMarketSimulationMetrics when persisted; null when unavailable. */
   projected_pa: number | null;
   /**
    * Persisted Monte Carlo distributions from the SELECTED snapshot
@@ -422,8 +429,16 @@ export type DiamondHitterCard = {
    * crossing snapshots from different runs.
    */
   distributions: PersistedDistributions | null;
-  /** Source of `distributions`: 'sim_snapshot' (projections row) or null. */
-  distributions_source: "sim_snapshot" | null;
+  /** Source of `distributions`: selected FPP first, then selected projections.sim_snapshot. */
+  distributions_source: "fpp" | "sim_snapshot" | null;
+  /** Exact selected forecast inputs for the shared read-only normalizer. */
+  selected_forecast: {
+    forecastRunId: string | null;
+    projectionClass: "official" | "preview";
+    fppDistributions: PersistedDistributions | null;
+    projectionSimSnapshot: Record<string, any> | null;
+  };
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
 
@@ -451,6 +466,7 @@ export type DiamondPitcherCard = {
   game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   model_version: string;
+  projection_class: "official" | "preview";
   forecast_run_id: string | null;
   forecast_status: ForecastBoardStatus;
   forecast_locked_at: string | null;
@@ -458,16 +474,23 @@ export type DiamondPitcherCard = {
   diamond_score: number | null;
   confidence: number | null;
   projected_outs: number | null;
-  /** Means from sim_snapshot.distributions. */
+  /** Means from getMarketSimulationMetrics. */
   k_mean: number | null;
   bb_mean: number | null;
   er_mean: number | null;
   h_mean: number | null;
-  /** Batters Faced isn't directly persisted yet; null when unavailable. */
+  /** Batters Faced from getMarketSimulationMetrics when persisted; null when unavailable. */
   projected_bf: number | null;
   /** Persisted Monte Carlo distributions from the SELECTED snapshot. */
   distributions: PersistedDistributions | null;
-  distributions_source: "sim_snapshot" | null;
+  distributions_source: "fpp" | "sim_snapshot" | null;
+  selected_forecast: {
+    forecastRunId: string | null;
+    projectionClass: "official" | "preview";
+    fppDistributions: PersistedDistributions | null;
+    projectionSimSnapshot: Record<string, any> | null;
+  };
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
 
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
@@ -613,13 +636,14 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),
 
-      // Forecast lifecycle status per (game, model_version). Filter to the
-      // public-visible runs: published or locked, non-superseded, official.
+      // Forecast lifecycle status per (game, model_version, class). Filter to
+      // the public-visible selected runs: official published/locked, or
+      // preview published/locked for pregame fallback.
       sb.from("forecast_runs")
         .select("id, game_id, model_version, status, locked_at, generated_at, projection_class, superseded_by")
         .in("game_id", gameIds)
-        .eq("projection_class", "official")
         .is("superseded_by", null)
+        .in("projection_class", ["official", "preview"])
         .in("status", ["published", "locked"]),
 
       // Final / in-progress box-score actuals for the actual column.
@@ -629,9 +653,20 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     ]);
 
     const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
-    const runByKey = new Map<string, any>();
-    for (const r of forecastRunRows ?? []) {
-      runByKey.set(`${r.game_id}:${r.model_version}`, r);
+    const fppDistByKey = new Map<string, PersistedDistributions>();
+    const runIds = (forecastRunRows ?? []).map((r: any) => r.id).filter(Boolean);
+    if (runIds.length > 0) {
+      const { data: fppRows } = await sb
+        .from("forecast_player_projections")
+        .select("forecast_run_id, player_id, role, distributions")
+        .in("forecast_run_id", runIds);
+      for (const r of fppRows ?? []) {
+        const role = (r as any).role === "pitcher" ? "pitcher" : "hitter";
+        const dist = ((r as any).distributions ?? null) as PersistedDistributions | null;
+        if (dist && Object.keys(dist).length > 0) {
+          fppDistByKey.set(`${(r as any).forecast_run_id}:${(r as any).player_id}:${role}`, dist);
+        }
+      }
     }
     const actualByKey = new Map<string, any>();
     for (const a of actualRows ?? []) {
@@ -650,17 +685,8 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       activeVersion ? p.model_version === activeVersion : true,
     );
 
-    // Latest projection per (player, game, role, model_version, class) —
-    // newest wins (input is DESC by created_at). Role normalized so legacy
-    // null/"batter" rows map to "hitter".
+    // Role normalized so legacy null/"batter" rows map to "hitter".
     const normRole = (r: string | null | undefined) => (r === "pitcher" ? "pitcher" : "hitter");
-    const latestOfficial = new Map<string, any>();
-    const latestPreview = new Map<string, any>();
-    for (const p of projections) {
-      const k = `${p.player_id}:${p.game_id}:${normRole(p.projection_role)}:${p.model_version}`;
-      const bucket = p.projection_class === "preview" ? latestPreview : latestOfficial;
-      if (!bucket.has(k)) bucket.set(k, p);
-    }
 
     const playerIds = new Set<string>();
     for (const l of lineups ?? []) playerIds.add(l.player_id);
@@ -721,11 +747,40 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       return "published";
     };
 
-    const snapMean = (snap: any, key: string): number | null => {
-      const d = snap?.distributions?.[key];
-      const v = d?.mean;
-      return typeof v === "number" && isFinite(v) ? v : null;
+    const selectedSnapshot = (
+      playerId: string,
+      role: "hitter" | "pitcher",
+      chosenClass: "official" | "preview",
+      run: any | undefined,
+      snap: any,
+    ) => {
+      const fppDistributions = run?.id
+        ? (fppDistByKey.get(`${run.id}:${playerId}:${role}`) ?? null)
+        : null;
+      return {
+        forecastRunId: run?.id ?? null,
+        projectionClass: chosenClass,
+        fppDistributions,
+        projectionSimSnapshot: (snap ?? null) as Record<string, any> | null,
+      };
     };
+
+    const sourceDistributions = (selected: ReturnType<typeof selectedSnapshot>) => {
+      if (selected.fppDistributions && Object.keys(selected.fppDistributions).length > 0) {
+        return { distributions: selected.fppDistributions, source: "fpp" as const };
+      }
+      const snapDist = (selected.projectionSimSnapshot as any)?.distributions ?? null;
+      if (snapDist && typeof snapDist === "object" && Object.keys(snapDist).length > 0) {
+        return { distributions: snapDist as PersistedDistributions, source: "sim_snapshot" as const };
+      }
+      return { distributions: null, source: null };
+    };
+
+    const metric = (
+      selected: ReturnType<typeof selectedSnapshot>,
+      role: "hitter" | "pitcher",
+      market: MarketKey,
+    ) => getMarketSimulationMetrics({ selectedForecast: selected, role, market });
 
     const buildHitterActuals = (a: any | undefined): ForecastActuals | null => {
       if (!a) return null;
@@ -751,20 +806,21 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       gameId: string,
       role: "hitter" | "pitcher",
       version: string,
-      gs: GameDisplayState,
-      gameStarted: boolean,
-    ): { proj: any | null; chosenClass: "official" | "preview" | null } => {
-      const k = `${playerId}:${gameId}:${role}:${version}`;
-      const official = latestOfficial.get(k);
-      if (official) return { proj: official, chosenClass: "official" };
-      if (gameStarted) return { proj: null, chosenClass: null };
-      const preview = latestPreview.get(k);
-      if (preview) return { proj: preview, chosenClass: "preview" };
-      // Game not started + no active forecast in either class. Mirror prior
-      // behavior of rendering a placeholder row for confirmed lineup spots,
-      // but only when at least one official exists for some version (rare).
-      void gs;
-      return { proj: null, chosenClass: null };
+      gameStatus: string | null | undefined,
+      firstPitchAt: string | null | undefined,
+    ): { proj: any | null; run: any | null; chosenClass: "official" | "preview" | null } => {
+      const selected = selectBestPublicForecast({
+        playerId,
+        gameId,
+        role,
+        modelVersion: version,
+        gameStatus,
+        firstPitchAt,
+        runs: (forecastRunRows ?? []) as any[],
+        projections: projections as any[],
+      });
+      if (!selected) return { proj: null, run: null, chosenClass: null };
+      return { proj: selected.projection, run: selected.run, chosenClass: selected.projectionClass };
     };
 
     const hitters: DiamondHitterCard[] = [];
@@ -774,7 +830,6 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(l.game_id);
       const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
       // Versions present in either bucket for this player/game/hitter slot.
       const versionSet = new Set<string>();
       for (const p of projections) {
@@ -784,13 +839,19 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       }
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const { proj, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, gs, gameStarted);
+        const { proj, run, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, g.game_status, g.first_pitch_at);
         // Skip rendering rows with no resolvable forecast (post-cutoff with no official).
-        if (!proj) continue;
+        if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = chosenClass === "official" ? runByKey.get(`${l.game_id}:${v}`) : undefined;
         const snap = proj?.sim_snapshot ?? null;
+        const selected = selectedSnapshot(l.player_id, "hitter", chosenClass, run, snap);
+        const distSource = sourceDistributions(selected);
+        const mH = metric(selected, "hitter", "H");
+        const mHR = metric(selected, "hitter", "HR");
+        const mTB = metric(selected, "hitter", "TB");
+        const mRBI = metric(selected, "hitter", "RBI");
+        const mPA = metric(selected, "hitter", "PA");
         const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         hitters.push({
           player_id: l.player_id,
@@ -811,6 +872,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           last_refresh_at: gls?.last_refresh_at ?? null,
           source_count: gls?.source_count ?? null,
           model_version: v,
+          projection_class: chosenClass,
           forecast_run_id: run?.id ?? null,
           forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
@@ -828,17 +890,16 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           rbi_probability: proj?.rbi_probability ?? null,
           run_probability: proj?.run_probability ?? null,
           sb_probability: proj?.sb_probability ?? null,
-          hit_mean: snapMean(snap, "H"),
-          hr_mean: snapMean(snap, "HR"),
-          tb_mean: snapMean(snap, "TB"),
-          rbi_mean: snapMean(snap, "RBI"),
-          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
-          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+          hit_mean: mH.mean,
+          hr_mean: mHR.mean,
+          tb_mean: mTB.mean,
+          rbi_mean: mRBI.mean,
+          distributions: distSource.distributions,
+          distributions_source: distSource.source,
+          selected_forecast: selected,
+          sim_metrics: { H: mH, HR: mHR, TB: mTB, RBI: mRBI, PA: mPA },
 
-          projected_pa: (() => {
-            const pa = snap?.distributions?.PA?.mean ?? snap?.projected_pa ?? null;
-            return typeof pa === "number" && isFinite(pa) ? pa : null;
-          })(),
+          projected_pa: mPA.mean,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
           actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
         });
@@ -853,7 +914,6 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(sp.game_id);
       const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
       const versionSet = new Set<string>();
       for (const p of projections) {
         if (p.player_id === sp.player_id && p.game_id === sp.game_id && normRole(p.projection_role) === "pitcher") {
@@ -862,12 +922,19 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       }
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const { proj, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, gs, gameStarted);
-        if (!proj) continue;
+        const { proj, run, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, g.game_status, g.first_pitch_at);
+        if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = chosenClass === "official" ? runByKey.get(`${sp.game_id}:${v}`) : undefined;
         const snap = proj?.sim_snapshot ?? null;
+        const selected = selectedSnapshot(sp.player_id, "pitcher", chosenClass, run, snap);
+        const distSource = sourceDistributions(selected);
+        const mK = metric(selected, "pitcher", "K");
+        const mBB = metric(selected, "pitcher", "BB");
+        const mER = metric(selected, "pitcher", "ER");
+        const mH = metric(selected, "pitcher", "H");
+        const mBF = metric(selected, "pitcher", "BF");
+        const mOUTS = metric(selected, "pitcher", "OUTS");
         const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         pitcherCards.push({
           player_id: sp.player_id,
@@ -881,6 +948,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           game_display_state: gs,
           first_pitch_at: g.first_pitch_at ?? null,
           model_version: v,
+          projection_class: chosenClass,
           forecast_run_id: run?.id ?? null,
           forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
@@ -888,16 +956,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           diamond_score: proj?.diamond_score ?? null,
           confidence: proj?.confidence ?? null,
           projected_outs: proj?.projected_outs ?? null,
-          k_mean: snapMean(snap, "K"),
-          bb_mean: snapMean(snap, "BB"),
-          er_mean: snapMean(snap, "ER"),
-          h_mean: snapMean(snap, "H"),
-          projected_bf: (() => {
-            const bf = (snap as any)?.distributions?.BF?.mean ?? (snap as any)?.projected_bf ?? null;
-            return typeof bf === "number" && isFinite(bf) ? bf : null;
-          })(),
-          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
-          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+          k_mean: mK.mean,
+          bb_mean: mBB.mean,
+          er_mean: mER.mean,
+          h_mean: mH.mean,
+          projected_bf: mBF.mean,
+          distributions: distSource.distributions,
+          distributions_source: distSource.source,
+          selected_forecast: selected,
+          sim_metrics: { K: mK, BB: mBB, ER: mER, H: mH, BF: mBF, OUTS: mOUTS },
 
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
@@ -947,10 +1014,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
 
 export type ForecastDetailDistribution = {
   mean: number | null;
+  p10: number | null;
   p50: number | null;
   p90: number | null;
+  eventProbability: number | null;
   probAtLeast1: number | null;
   probAtLeast2: number | null;
+  sourcePath: string | null;
+  available: boolean;
+  unavailableReason: string | null;
 };
 
 export type ForecastBoardDetail = {
@@ -960,6 +1032,7 @@ export type ForecastBoardDetail = {
     run_id: string | null;
     status: ForecastBoardStatus;
     model_version: string;
+    projection_class: "official" | "preview";
     locked_at: string | null;
     published_at: string | null;
     projection_role: "hitter" | "pitcher";
@@ -972,6 +1045,7 @@ export type ForecastBoardDetail = {
   };
   /** Reshaped sim_snapshot.distributions. Unavailable keys are undefined. */
   distributions: Record<string, ForecastDetailDistribution>;
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   diamond: {
     score: number | null;
     confidence: number | null;
@@ -1004,19 +1078,38 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
     const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
     const modelVersion = data.modelVersion ?? active?.version ?? null;
 
-    let projQ = sb.from("projections")
-      .select("player_id, game_id, model_version, projection_role, diamond_score, confidence, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, sim_snapshot, inputs, created_at")
-      .eq("player_id", data.playerId).eq("game_id", data.gameId)
-      .eq("projection_status", "active").eq("projection_class", "official");
-    if (modelVersion) projQ = projQ.eq("model_version", modelVersion);
-    const { data: projRows } = await projQ.order("created_at", { ascending: false }).limit(1);
-    const proj: any = projRows?.[0];
-    if (!proj) return null;
+    const { data: gRow } = await sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle();
+    const gameStarted = gameHasStartedOrPastStart((gRow as any)?.game_status, (gRow as any)?.first_pitch_at);
 
-    const [{ data: gRow }, { data: pRow }, { data: runRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
-      sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle(),
+    let projQ = sb.from("projections")
+      .select("player_id, game_id, model_version, projection_role, projection_class, diamond_score, confidence, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, sim_snapshot, inputs, created_at")
+      .eq("player_id", data.playerId).eq("game_id", data.gameId)
+      .eq("projection_status", "active")
+      .in("projection_class", ["official", "preview"]);
+    if (modelVersion) projQ = projQ.eq("model_version", modelVersion);
+    const { data: projRows } = await projQ.order("created_at", { ascending: false });
+    const projectionModelVersion = modelVersion ?? (projRows?.[0] as any)?.model_version ?? null;
+    if (!projectionModelVersion) return null;
+
+    const { data: runRows } = await sb.from("forecast_runs")
+      .select("id, status, locked_at, generated_at, model_version, projection_class")
+      .eq("game_id", data.gameId)
+      .eq("model_version", projectionModelVersion)
+      .in("projection_class", ["official", "preview"])
+      .in("status", ["published", "locked"])
+      .is("superseded_by", null)
+      .order("generated_at", { ascending: false });
+    const officialRun = (runRows ?? []).find((r: any) => r.projection_class === "official");
+    const previewRun = (runRows ?? []).find((r: any) => r.projection_class === "preview");
+    const officialProj = (projRows ?? []).find((p: any) => p.projection_class === "official" && p.model_version === projectionModelVersion);
+    const previewProj = (projRows ?? []).find((p: any) => p.projection_class === "preview" && p.model_version === projectionModelVersion);
+    const chosenClass: "official" | "preview" | null = officialProj && officialRun ? "official" : (!gameStarted && previewProj && previewRun ? "preview" : null);
+    if (!chosenClass) return null;
+    const proj: any = chosenClass === "official" ? officialProj : previewProj;
+    const runRow: any = chosenClass === "official" ? officialRun : previewRun;
+
+    const [{ data: pRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
       sb.from("players").select("id, name, mlb_id, team_id").eq("id", data.playerId).maybeSingle(),
-      sb.from("forecast_runs").select("id, status, locked_at, generated_at, model_version").eq("game_id", data.gameId).eq("model_version", proj.model_version).eq("projection_class", "official").is("superseded_by", null).order("generated_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("projection_results").select("hits, total_bases, home_runs, rbis, stolen_bases, walks, strikeouts, plate_appearances, runs").eq("player_id", data.playerId).eq("game_id", data.gameId).maybeSingle(),
       sb.from("lineups").select("batting_order, team_id").eq("game_id", data.gameId).eq("player_id", data.playerId).maybeSingle(),
       sb.from("starting_pitchers").select("game_id, player_id, team_id").eq("game_id", data.gameId),
@@ -1035,22 +1128,45 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
       opposingStarterName = (spPlayer as any)?.name ?? null;
     }
 
-    const dist: Record<string, ForecastDetailDistribution> = {};
-    const distRaw = proj.sim_snapshot?.distributions ?? {};
-    for (const k of Object.keys(distRaw)) {
-      const d = distRaw[k] ?? {};
-      dist[k] = {
-        mean: typeof d.mean === "number" ? d.mean : null,
-        p50: typeof d.p50 === "number" ? d.p50 : null,
-        p90: typeof d.p90 === "number" ? d.p90 : null,
-        probAtLeast1: typeof d.probAtLeast1 === "number" ? d.probAtLeast1 : null,
-        probAtLeast2: typeof d.probAtLeast2 === "number" ? d.probAtLeast2 : null,
-      };
-    }
-
     const inputs = (proj.inputs ?? {}) as Record<string, any>;
     const pc = pitcherComponentsFromInputs(inputs);
     const role: "hitter" | "pitcher" = proj.projection_role === "pitcher" ? "pitcher" : "hitter";
+    const { data: fppRows } = await sb
+      .from("forecast_player_projections")
+      .select("distributions")
+      .eq("forecast_run_id", runRow.id)
+      .eq("player_id", data.playerId)
+      .eq("role", role)
+      .limit(1);
+    const selectedForecast = {
+      forecastRunId: runRow.id ?? null,
+      projectionClass: chosenClass,
+      fppDistributions: ((fppRows?.[0] as any)?.distributions ?? null) as PersistedDistributions | null,
+      projectionSimSnapshot: (proj.sim_snapshot ?? null) as Record<string, any> | null,
+    };
+    const markets: MarketKey[] = role === "hitter"
+      ? ["H", "HR", "TB", "RBI", "R", "SB", "BB", "K", "PA"]
+      : ["K", "OUTS", "BF", "BB", "ER", "H"];
+    const simMetrics: Partial<Record<MarketKey, SimulationMetrics>> = {};
+    const dist: Record<string, ForecastDetailDistribution> = {};
+    for (const market of markets) {
+      const m = getMarketSimulationMetrics({ selectedForecast, role, market });
+      simMetrics[market] = m;
+      if (m.available || m.p10 != null || m.p50 != null || m.p90 != null || m.eventProbability != null || m.probAtLeast1 != null || m.probAtLeast2 != null) {
+        dist[market] = {
+          mean: m.mean,
+          p10: m.p10,
+          p50: m.p50,
+          p90: m.p90,
+          eventProbability: m.eventProbability,
+          probAtLeast1: m.probAtLeast1,
+          probAtLeast2: m.probAtLeast2,
+          sourcePath: m.sourcePath,
+          available: m.available,
+          unavailableReason: m.unavailableReason,
+        };
+      }
+    }
 
     const gameStateOf = (status: string | null | undefined): GameDisplayState => {
       const s = (status ?? "").toLowerCase();
@@ -1060,7 +1176,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
     };
     const gs = gameStateOf(gRow?.game_status);
     const status: ForecastBoardStatus =
-      !runRow ? "no_official"
+      chosenClass === "preview" ? "preview"
       : gs === "final" ? "final"
       : gs === "live" ? "live"
       : runRow.status === "locked" ? "locked"
@@ -1091,6 +1207,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
         run_id: (runRow as any)?.id ?? null,
         status,
         model_version: proj.model_version,
+        projection_class: chosenClass,
         locked_at: (runRow as any)?.locked_at ?? null,
         published_at: (runRow as any)?.generated_at ?? null,
         projection_role: role,
@@ -1101,6 +1218,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
         calibration_version: typeof inputs.calibration_version === "string" ? inputs.calibration_version : null,
       },
       distributions: dist,
+      sim_metrics: simMetrics,
       diamond: {
         score: proj.diamond_score ?? null,
         confidence: proj.confidence ?? null,

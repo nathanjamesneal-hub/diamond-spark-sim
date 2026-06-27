@@ -15,7 +15,7 @@ import {
 } from "@/lib/projections.functions";
 import { formatTimeInAppTz } from "@/lib/timezone";
 import type { BoardCard } from "./forecast-row";
-import { MARKET_META, type Market, formatActual } from "./market";
+import { MARKET_META, type Market, formatActual, marketMeanReason, hitterMean, pitcherMean } from "./market";
 
 type Props = {
   open: boolean;
@@ -78,6 +78,21 @@ function DrawerBody({
   const meta = MARKET_META[market];
   const status = (detail?.forecast.status ?? row.forecast_status) as ForecastBoardStatus;
   const role = card.kind;
+  const detailMarketKey = (() => {
+    switch (market) {
+      case "hit": return "H";
+      case "hr": return "HR";
+      case "tb": return "TB";
+      case "rbi": return "RBI";
+      case "pitcher_k": return "K";
+      case "pitcher_outs": return "OUTS";
+      case "pitcher_bb": return "BB";
+      default: return null;
+    }
+  })() as keyof NonNullable<ForecastBoardDetail["sim_metrics"]> | null;
+  const selectedMeanMetric = detailMarketKey ? detail?.sim_metrics?.[detailMarketKey] : null;
+  const selectedMean = selectedMeanMetric?.mean ?? (role === "hitter" ? hitterMean(row, market) : pitcherMean(row, market));
+  const selectedMeanReason = selectedMeanMetric?.unavailableReason ?? marketMeanReason(row, market) ?? null;
 
   return (
     <>
@@ -103,11 +118,9 @@ function DrawerBody({
             : null)}
           />
           <Metric label={`Mean ${meta.meanUnit || meta.meanLabel}`} value={num(
-            role === "hitter"
-              ? (market === "hit" ? row.hit_mean : market === "hr" ? row.hr_mean : market === "tb" ? row.tb_mean : row.rbi_mean)
-              : (market === "pitcher_k" ? row.k_mean : market === "pitcher_outs" ? row.projected_outs : market === "pitcher_bb" ? row.bb_mean : null),
+            selectedMean,
             market === "pitcher_outs" || market === "pitcher_k" || market === "pitcher_bb" ? 1 : 2,
-          )} />
+          )} title={selectedMean == null ? selectedMeanReason ?? undefined : selectedMeanMetric?.sourcePath ?? undefined} />
           <Metric label="Diamond Score" value={row.diamond_score != null ? Math.round(row.diamond_score).toString() : "—"} />
         </div>
         {row.projected_pa != null || row.projected_bf != null ? (
@@ -148,7 +161,7 @@ function DrawerBody({
             {Object.entries(detail.distributions).map(([k, d]) => (
               <div key={k} className="mono grid grid-cols-[1fr_56px_56px_56px_56px] gap-2 text-xs tabular-nums">
                 <span className="uppercase tracking-widest text-foreground/80">{k}</span>
-                <span className="text-right">{num(d.mean, 2)}</span>
+                <span className="text-right" title={d.mean == null ? d.unavailableReason ?? undefined : d.sourcePath ?? undefined}>{num(d.mean, 2)}</span>
                 <span className="text-right">{num(d.p50, 2)}</span>
                 <span className="text-right">{num(d.p90, 2)}</span>
                 <span className="text-right">{pct(d.probAtLeast1)}</span>
@@ -242,9 +255,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     </section>
   );
 }
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-md border border-border/50 bg-secondary/30 px-2.5 py-2">
+    <div className="rounded-md border border-border/50 bg-secondary/30 px-2.5 py-2" title={title}>
       <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="mono mt-0.5 text-lg font-bold tabular-nums text-foreground">{value}</div>
     </div>

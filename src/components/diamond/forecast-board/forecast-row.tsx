@@ -19,6 +19,7 @@ import {
   hitterMean,
   hitterProb,
   isPitcherMarket,
+  marketMeanReason,
   pitcherMean,
   pitcherProb,
   type Market,
@@ -69,6 +70,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
   const row = card.row as any;
   const prob = isHitter ? hitterProb(row, market) : pitcherProb(row, market);
   const mean = isHitter ? hitterMean(row, market) : pitcherMean(row, market);
+  const meanReason = marketMeanReason(card.row as any, market);
   const status = row.forecast_status as ForecastBoardStatus;
   const pill = statusPill(status);
   const actualStr = formatActual(row.actual, market);
@@ -143,7 +145,7 @@ export function ForecastRow({ card, rank, market, onOpen }: Props) {
         {/* Probability */}
         <div className="mono text-right text-sm font-semibold tabular-nums text-primary">{pct(prob)}</div>
         {/* Mean */}
-        <div className="mono text-right text-sm tabular-nums text-foreground">{meanCell}</div>
+        <div className="mono text-right text-sm tabular-nums text-foreground" title={mean === null ? (meanReason ?? undefined) : undefined}>{meanCell}</div>
         {/* PA / BF */}
         <div className="mono text-right text-[11px] tabular-nums text-muted-foreground">
           {isHitter ? (row.projected_pa != null ? num(row.projected_pa, 1) : "—") : (row.projected_bf != null ? num(row.projected_bf, 0) : "—")}

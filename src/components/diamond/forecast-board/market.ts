@@ -52,10 +52,10 @@ export function hitterProb(h: DiamondHitterCard, m: Market): number | null {
 }
 export function hitterMean(h: DiamondHitterCard, m: Market): number | null {
   switch (m) {
-    case "hit": return h.hit_mean;
-    case "hr":  return h.hr_mean;
-    case "tb":  return h.tb_mean;
-    case "rbi": return h.rbi_mean;
+    case "hit": return h.sim_metrics.H?.mean ?? null;
+    case "hr":  return h.sim_metrics.HR?.mean ?? null;
+    case "tb":  return h.sim_metrics.TB?.mean ?? null;
+    case "rbi": return h.sim_metrics.RBI?.mean ?? null;
     default: return null;
   }
 }
@@ -69,9 +69,22 @@ export function pitcherProb(p: DiamondPitcherCard, m: Market): number | null {
 }
 export function pitcherMean(p: DiamondPitcherCard, m: Market): number | null {
   switch (m) {
-    case "pitcher_k":    return p.k_mean;
-    case "pitcher_outs": return p.projected_outs;
-    case "pitcher_bb":   return p.bb_mean;
+    case "pitcher_k":    return p.sim_metrics.K?.mean ?? null;
+    case "pitcher_outs": return p.sim_metrics.OUTS?.mean ?? null;
+    case "pitcher_bb":   return p.sim_metrics.BB?.mean ?? null;
+    default: return null;
+  }
+}
+
+export function marketMeanReason(row: DiamondHitterCard | DiamondPitcherCard, m: Market): string | null {
+  switch (m) {
+    case "hit": return (row as DiamondHitterCard).sim_metrics.H?.unavailableReason ?? null;
+    case "hr": return (row as DiamondHitterCard).sim_metrics.HR?.unavailableReason ?? null;
+    case "tb": return (row as DiamondHitterCard).sim_metrics.TB?.unavailableReason ?? null;
+    case "rbi": return (row as DiamondHitterCard).sim_metrics.RBI?.unavailableReason ?? null;
+    case "pitcher_k": return (row as DiamondPitcherCard).sim_metrics.K?.unavailableReason ?? null;
+    case "pitcher_outs": return (row as DiamondPitcherCard).sim_metrics.OUTS?.unavailableReason ?? null;
+    case "pitcher_bb": return (row as DiamondPitcherCard).sim_metrics.BB?.unavailableReason ?? null;
     default: return null;
   }
 }
