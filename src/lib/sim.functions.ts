@@ -299,6 +299,7 @@ export const simulateGame = createServerFn({ method: "GET" })
     meta: SimMeta;
     result: SimResult;
     gameEnvironment: MonteCarloGameEnvironment;
+    venueId: number | null;
   }> => {
     return buildMonteCarloGameEnvironment(data.gamePk, data.iterations);
   });
