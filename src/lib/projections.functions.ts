@@ -570,13 +570,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("game_id, player_id, team_id, confirmed")
         .in("game_id", gameIds),
       sb.from("projections")
-        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, sim_snapshot, created_at, projection_status")
+        .select("player_id, game_id, model_version, diamond_score, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, confidence, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, projection_role, inputs, sim_snapshot, created_at, projection_status, projection_class")
         .in("game_id", gameIds)
         .eq("projection_status", "active")
-        // Today/Slate board — OFFICIAL forecasts only. Games without
-        // an active official row will render with the awaiting-lineups
-        // placeholder downstream rather than display preview values.
-        .eq("projection_class", "official")
+        // EMERGENCY READ-LAYER: include preview snapshots so pregame
+        // Diamond Scores can render before official forecasts publish.
+        // Display priority (per (game, player, role, model_version)):
+        //   official  > preview (only when game has NOT started)
+        // Enforced when building hitter/pitcher rows below.
+        .in("projection_class", ["official", "preview"])
         .order("created_at", { ascending: false }),
 
       sb.from("game_lineup_status")
