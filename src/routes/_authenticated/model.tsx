@@ -66,7 +66,7 @@ function formatLongDate(iso: string): string {
   }
 }
 
-export const Route = createFileRoute("/_authenticated/calibration-lab")({
+export const Route = createFileRoute("/_authenticated/model")({
   ssr: false,
   head: () => ({
     meta: [

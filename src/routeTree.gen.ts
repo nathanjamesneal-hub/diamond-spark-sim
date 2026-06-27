@@ -18,11 +18,11 @@ import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
 import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
+import { Route as AuthenticatedModelRouteImport } from './routes/_authenticated/model'
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
-import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
 import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenticated/calibration'
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
@@ -77,6 +77,11 @@ const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
   path: '/odds',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedModelRoute = AuthenticatedModelRouteImport.update({
+  id: '/model',
+  path: '/model',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedLineupStatusRoute =
   AuthenticatedLineupStatusRouteImport.update({
     id: '/lineup-status',
@@ -99,12 +104,6 @@ const AuthenticatedDiamondConsensusRoute =
   AuthenticatedDiamondConsensusRouteImport.update({
     id: '/diamond-consensus',
     path: '/diamond-consensus',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedCalibrationLabRoute =
-  AuthenticatedCalibrationLabRouteImport.update({
-    id: '/calibration-lab',
-    path: '/calibration-lab',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCalibrationRoute =
@@ -163,11 +162,11 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
-  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/model': typeof AuthenticatedModelRoute
   '/odds': typeof AuthenticatedOddsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -186,11 +185,11 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/bets': typeof AuthenticatedBetsRoute
   '/calibration': typeof AuthenticatedCalibrationRoute
-  '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/model': typeof AuthenticatedModelRoute
   '/odds': typeof AuthenticatedOddsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -211,11 +210,11 @@ export interface FileRoutesById {
   '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/bets': typeof AuthenticatedBetsRoute
   '/_authenticated/calibration': typeof AuthenticatedCalibrationRoute
-  '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/_authenticated/model': typeof AuthenticatedModelRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/scores': typeof AuthenticatedScoresRoute
@@ -237,11 +236,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/bets'
     | '/calibration'
-    | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
+    | '/model'
     | '/odds'
     | '/results'
     | '/scores'
@@ -260,11 +259,11 @@ export interface FileRouteTypes {
     | '/'
     | '/bets'
     | '/calibration'
-    | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/leaderboards'
     | '/lineup-status'
+    | '/model'
     | '/odds'
     | '/results'
     | '/scores'
@@ -284,11 +283,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin'
     | '/_authenticated/bets'
     | '/_authenticated/calibration'
-    | '/_authenticated/calibration-lab'
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
     | '/_authenticated/leaderboards'
     | '/_authenticated/lineup-status'
+    | '/_authenticated/model'
     | '/_authenticated/odds'
     | '/_authenticated/results'
     | '/_authenticated/scores'
@@ -376,6 +375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOddsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/model': {
+      id: '/_authenticated/model'
+      path: '/model'
+      fullPath: '/model'
+      preLoaderRoute: typeof AuthenticatedModelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/lineup-status': {
       id: '/_authenticated/lineup-status'
       path: '/lineup-status'
@@ -402,13 +408,6 @@ declare module '@tanstack/react-router' {
       path: '/diamond-consensus'
       fullPath: '/diamond-consensus'
       preLoaderRoute: typeof AuthenticatedDiamondConsensusRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/calibration-lab': {
-      id: '/_authenticated/calibration-lab'
-      path: '/calibration-lab'
-      fullPath: '/calibration-lab'
-      preLoaderRoute: typeof AuthenticatedCalibrationLabRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/calibration': {
@@ -495,11 +494,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
   AuthenticatedCalibrationRoute: typeof AuthenticatedCalibrationRoute
-  AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
+  AuthenticatedModelRoute: typeof AuthenticatedModelRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
   AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
@@ -516,11 +515,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedBetsRoute: AuthenticatedBetsRoute,
   AuthenticatedCalibrationRoute: AuthenticatedCalibrationRoute,
-  AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
+  AuthenticatedModelRoute: AuthenticatedModelRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
   AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedScoresRoute: AuthenticatedScoresRoute,
