@@ -311,6 +311,7 @@ export const simulateGame = createServerFn({ method: "GET" })
 
 import { getDiamondScores } from "./projections.functions";
 import type { PlayerStatDist, BatterDist, PitcherDist } from "./sim/engine";
+import { getMarketSimulationMetrics, metricsToSimStat, type MarketKey } from "./forecast/sim-metrics";
 
 export type SimStat = {
   mean: number | null;
@@ -403,71 +404,15 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     const warnings: string[] = [];
     const scores = await getDiamondScores({ data: data.date ? { date: data.date } : {} } as any) as Awaited<ReturnType<typeof getDiamondScores>>;
 
-    type SnapStat = import("./sim-snapshot").StoredStatDist;
-    type DistMap = Record<string, SnapStat | undefined>;
-
-    // ------------------------------------------------------------------
-    // Read-side selector: for each card, the SELECTED snapshot must be used
-    // intact. Priority within the SAME selected forecast/run:
-    //   1) matching forecast_player_projections.distributions
-    //      (only valid for OFFICIAL rows with a forecast_run_id)
-    //   2) matching projections.sim_snapshot.distributions
-    //      (already attached on the card as `distributions`)
-    //   3) null / unavailable
-    // We NEVER mix an official FPP row from one run with a preview snapshot
-    // from a different run.
-    // ------------------------------------------------------------------
-
-    const { supabase } = context;
-
-    // Collect official run ids actually selected by the public selector so we
-    // only fetch FPP rows that belong to those exact runs.
-    const officialRunIds = new Set<string>();
-    for (const h of scores.hitters) {
-      if (h.forecast_status !== "preview" && h.forecast_run_id) officialRunIds.add(h.forecast_run_id);
-    }
-    for (const p of scores.pitchers) {
-      if (p.forecast_status !== "preview" && p.forecast_run_id) officialRunIds.add(p.forecast_run_id);
-    }
-
-    // Map keyed by (forecast_run_id, player_id, role) → distributions
-    const fppDistByKey = new Map<string, DistMap>();
-    if (officialRunIds.size > 0) {
-      const { data: fppRows } = await supabase
-        .from("forecast_player_projections")
-        .select("player_id, role, distributions, forecast_run_id")
-        .in("forecast_run_id", Array.from(officialRunIds));
-      for (const r of fppRows ?? []) {
-        const role = (r as any).role === "pitcher" ? "pitcher" : "hitter";
-        const key = `${(r as any).forecast_run_id}:${(r as any).player_id}:${role}`;
-        const dists = ((r as any).distributions ?? {}) as DistMap;
-        fppDistByKey.set(key, dists);
-      }
-    }
-
-    const { reshapeStoredToSimStat } = await import("./sim-snapshot");
-
-    function pickDistMap(
-      role: "hitter" | "pitcher",
-      card: { player_id: string; forecast_run_id: string | null; forecast_status: string; distributions: any },
-    ): { dists: DistMap | null; source: "fpp" | "sim_snapshot" | null } {
-      // Official chosen → prefer FPP for the exact run; fall back to attached
-      // projections.sim_snapshot.distributions for the SAME selected row.
-      if (card.forecast_status !== "preview" && card.forecast_run_id) {
-        const fpp = fppDistByKey.get(`${card.forecast_run_id}:${card.player_id}:${role}`);
-        if (fpp) return { dists: fpp, source: "fpp" };
-      }
-      const snap = (card.distributions ?? null) as DistMap | null;
-      if (snap && Object.keys(snap).length > 0) return { dists: snap, source: "sim_snapshot" };
-      return { dists: null, source: null };
-    }
-
     let hitterMeanCount = 0;
     let pitcherMeanCount = 0;
 
     const hitters: SimLeaderHitterRow[] = scores.hitters.map((h) => {
-      const { dists } = pickDistMap("hitter", h);
-      const pick = (k: string): SimStat | null => (dists ? reshapeStoredToSimStat(dists[k]) : null);
+      const pick = (market: MarketKey): SimStat | null => metricsToSimStat(getMarketSimulationMetrics({
+        selectedForecast: h.selected_forecast,
+        role: "hitter",
+        market,
+      }));
       const H = pick("H");
       if (H?.mean != null) hitterMeanCount += 1;
       return {
@@ -501,12 +446,11 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     });
 
     const pitchers: SimLeaderPitcherRow[] = scores.pitchers.map((p) => {
-      const { dists } = pickDistMap("pitcher", p);
-      // Alias-safe pitcher outs: OUTS or outs.
-      const pick = (k: string): SimStat | null => {
-        if (!dists) return null;
-        return reshapeStoredToSimStat(dists[k] ?? dists[k.toLowerCase()] ?? dists[k.toUpperCase()]);
-      };
+      const pick = (market: MarketKey): SimStat | null => metricsToSimStat(getMarketSimulationMetrics({
+        selectedForecast: p.selected_forecast,
+        role: "pitcher",
+        market,
+      }));
       const K = pick("K");
       if (K?.mean != null) pitcherMeanCount += 1;
       return {
@@ -521,7 +465,7 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         diamond_score: p.diamond_score,
         confidence: p.confidence,
         projected_outs: p.projected_outs,
-        outs: pick("outs"),
+        outs: pick("OUTS"),
         K,
         BB: pick("BB"),
         ER: pick("ER"),
@@ -539,7 +483,7 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     }
 
     console.info(
-      `[getSimulationLeaders] date=${scores.date} hitters=${hitters.length} (mean=${hitterMeanCount}) pitchers=${pitchers.length} (mean=${pitcherMeanCount}) officialRuns=${officialRunIds.size}`,
+      `[getSimulationLeaders] date=${scores.date} hitters=${hitters.length} (mean=${hitterMeanCount}) pitchers=${pitchers.length} (mean=${pitcherMeanCount}) source=selected-forecast-normalizer`,
     );
 
     return {
