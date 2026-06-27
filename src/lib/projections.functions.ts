@@ -832,6 +832,9 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           hr_mean: snapMean(snap, "HR"),
           tb_mean: snapMean(snap, "TB"),
           rbi_mean: snapMean(snap, "RBI"),
+          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
+          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+
           projected_pa: (() => {
             const pa = snap?.distributions?.PA?.mean ?? snap?.projected_pa ?? null;
             return typeof pa === "number" && isFinite(pa) ? pa : null;
