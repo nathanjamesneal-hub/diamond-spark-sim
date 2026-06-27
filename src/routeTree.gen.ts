@@ -40,6 +40,7 @@ import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
+import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 import { Route as AuthenticatedForecastsLabAlphaRouteImport } from './routes/_authenticated/forecasts.lab.alpha'
@@ -212,6 +213,12 @@ const ApiPublicHooksRefreshLineupsRoute =
     path: '/api/public/hooks/refresh-lineups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksLockLiveForecastsRoute =
+  ApiPublicHooksLockLiveForecastsRouteImport.update({
+    id: '/api/public/hooks/lock-live-forecasts',
+    path: '/api/public/hooks/lock-live-forecasts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksBeforeUserCreatedRoute =
   ApiPublicHooksBeforeUserCreatedRouteImport.update({
     id: '/api/public/hooks/before-user-created',
@@ -262,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -294,6 +302,7 @@ export interface FileRoutesByTo {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -331,6 +340,7 @@ export interface FileRoutesById {
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/refresh-lineups'
     | '/forecasts/lab/'
   fileRoutesByTo: FileRoutesByTo
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/refresh-lineups'
     | '/forecasts/lab'
   id:
@@ -435,6 +447,7 @@ export interface FileRouteTypes {
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/refresh-lineups'
     | '/_authenticated/forecasts/lab/'
   fileRoutesById: FileRoutesById
@@ -443,6 +456,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
+  ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
 }
 
@@ -665,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksRefreshLineupsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/lock-live-forecasts': {
+      id: '/api/public/hooks/lock-live-forecasts'
+      path: '/api/public/hooks/lock-live-forecasts'
+      fullPath: '/api/public/hooks/lock-live-forecasts'
+      preLoaderRoute: typeof ApiPublicHooksLockLiveForecastsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/before-user-created': {
       id: '/api/public/hooks/before-user-created'
       path: '/api/public/hooks/before-user-created'
@@ -798,6 +819,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
+  ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
 }
 export const routeTree = rootRouteImport

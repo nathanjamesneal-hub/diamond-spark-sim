@@ -68,31 +68,11 @@ export type LifecycleResult = {
   log: LifecycleLogEntry;
 };
 
-/** Game statuses that mean the official pregame window is closed. */
-export function gameHasStartedOrPastStart(
-  status: string | null | undefined,
-  firstPitchAt: string | null | undefined,
-): boolean {
-  const s = (status ?? "").toLowerCase();
-  if (
-    s.includes("in progress") ||
-    s.includes("live") ||
-    s.includes("final") ||
-    s.includes("game over") ||
-    s.includes("completed") ||
-    s.includes("manager challenge") ||
-    s.includes("suspended") ||
-    (s.includes("delayed") && !s.includes("delayed start"))
-  ) {
-    return true;
-  }
-  // Some MLB feeds keep "Scheduled" past first pitch — wall-clock backstop.
-  if (firstPitchAt) {
-    const t = Date.parse(firstPitchAt);
-    if (Number.isFinite(t) && Date.now() >= t) return true;
-  }
-  return false;
-}
+// Re-export the canonical first-pitch cutoff (lives in window.ts so every
+// write path shares one definition). External callers still import from
+// this module for backwards compatibility.
+export { gameHasStartedOrPastStart } from "./window";
+import { gameHasStartedOrPastStart } from "./window";
 
 type RunRow = {
   id: string;

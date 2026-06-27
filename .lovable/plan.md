@@ -1,237 +1,218 @@
-## Goal
 
-Restore visibility into the engine without re-running it on read. Projection Lab reads only the persisted snapshots that `publishForecastIfEligible` already writes to `forecast_runs` and `forecast_player_projections`. No simulator calls on the read path. Results and Model stay as-is.
+# First-Pitch Forecast Cutoff — implementation plan
 
-## Information architecture
+Diamond already has a partial cutoff inside the lifecycle writer
+(`publishForecastIfEligible`). The legacy `projections` write path, the
+preview-class branch, the lineup-refresh cron, and the admin UI all still
+allow post-first-pitch writes. This plan closes those gaps with **one
+shared server-side guard** and aligns every write path to it.
 
-Add three routes under the existing `/forecasts` hub. Tab bar gets a "Projection Lab" group with three sub-tabs.
+## 1. Single shared guard
 
-```text
-/forecasts (existing hub)
-  Board · All · Rankings · Consensus · Top Props · Player Search
-  Projection Lab ▾
-    /forecasts/lab            -> Engine Status (default landing)
-    /forecasts/lab/means      -> Simulation Means
-    /forecasts/lab/alpha      -> Alpha vs Diamond
+Create `src/lib/forecast/window.ts`:
+
+- `assertForecastWindowOpen(admin, gamePk)` — async. Loads the
+  authoritative game row from `games` (status + first_pitch_at). Returns
+  `{ open: true, game } | { open: false, gameStatus, reason }`.
+- Reuses the existing `gameHasStartedOrPastStart()` logic from
+  `lifecycle.ts` so live, in-progress, final, suspended-after-start, and
+  delayed-after-first-pitch all close the window. Scheduled, Pre-Game,
+  Warmup, Postponed (before start), "Delayed Start: Rain" stay open.
+- Logs every closed result with the exact required shape:
+  `console.log("[forecast.window]", { gamePk, gameStatus, action, decision: "forecast_window_closed" })`.
+- Companion `filterOpenGames(admin, gamePks) → { openPks, blocked[] }` so
+  batch write paths can skip live games in a single call.
+- Re-export `gameHasStartedOrPastStart` from this file so
+  `eligibility.ts`'s duplicate `gameHasStarted` collapses to one
+  implementation.
+
+This is the only function any write path should consult. No other write
+path is allowed to re-implement "has the game started".
+
+## 2. Enforce in every write path
+
+For each path below: call the guard first, skip with a structured
+`forecast_window_closed` result if closed, and emit the log line.
+
+| Path | File | Change |
+|---|---|---|
+| Official forecast lifecycle | `src/lib/forecast/lifecycle.ts` | Replace inline check with `assertForecastWindowOpen`. Behavior unchanged: still locks any active `published` row when closed; still returns `post-first-pitch-skip`. |
+| Legacy engine writer | `src/lib/ingest.functions.ts` `runDiamondEngineForGames` | Call `filterOpenGames` after loading `games`. Remove blocked games from `targetGameIds` / `eligibleGameIds` for BOTH `official` and `preview`. Do not call `projectForModelVersion`, `buildMonteCarloGameEnvironment`, `simulate()`, `buildHitterSnapshot`, `buildPitcherSnapshot`, or the `projections` insert for blocked games. Return new counters: `gamesSkippedWindowClosed`. |
+| Daily pipeline | `runDailyPipeline` in `ingest.functions.ts` | Same filter applied to the per-game loop that decides which games go to the engine. |
+| Force / preview admin | `forceRunDiamondEngine` | Same filter; preview is explicitly bound by the cutoff per spec. |
+| Publish official admin | `publishOfficialForecast` | Same filter before delegating to lifecycle. |
+| Lineup refresh worker | `src/lib/lineups/refresh.functions.ts` `runRefresh` | After the aggregator computes `changedGameIds`, filter through the guard. A lineup change for a game already in progress can update `lineups`/`game_lineup_status` rows (for audit) but MUST NOT trigger `runDiamondEngineForGames` for that game. Closed games are recorded in the cron run notes. |
+| Per-game admin engine | `runEngineForGame` in `lineup-status.functions.ts` | Guard first; if closed, return `{ ok: false, decision: "forecast_window_closed", gameStatus }` and do not supersede. |
+| Per-game lineup refresh | `refreshLineupsForGame` | Allow the lineup aggregator to run (audit), but do not allow it to chain into the engine for closed games. |
+| Sim writer | `sim.functions.ts` `buildMonteCarloGameEnvironment` call sites | Already gated indirectly via the engine, but add a defensive guard inside the snapshot-write branch so a hand-rolled invocation cannot mutate `sim_snapshot` after first pitch. |
+| Snapshot resolve | `src/lib/forecast/resolve.ts` | Guard before calling `publishForecastIfEligible` (cheap pre-check; lifecycle still enforces). |
+| Any future write | Lint rule: a new ESLint rule `no-direct-projection-write` (custom or a README note + matcher in `tools/`) flags `.from("projections").insert/upsert/update` and `.from("forecast_runs").insert` outside `forecast/lifecycle.ts` and the guarded engine path. |
+
+Every guard rejection returns a result the caller surfaces verbatim:
+
+```ts
+{ ok: false, decision: "forecast_window_closed", gamePk, gameStatus, reason }
 ```
 
-URL params on every Lab tab: `?date=YYYY-MM-DD` (default = latest Chicago slate with any official forecast row), `?gamePk=...`, `?team=...`, `?role=hitter|pitcher`, `?status=published|locked|live|final`, `?showPreview=0|1` (admin only).
+## 3. Lock active official forecasts at first pitch
 
-## Data model in use (read-only)
+- Promote `lockForecastsForLiveGames(admin, date)` to run on a schedule
+  (already exists, just unscheduled today). Add a `/api/public/hooks/lock-live-forecasts`
+  server route guarded by the `apikey` anon-key header pattern; pg_cron
+  calls it every minute during the live-game window (e.g. `*/1 12-23 * * *`
+  Chicago, or just `*/1 * * * *` for safety since the function is cheap).
+- The handler iterates today's Chicago slate, and for every game where
+  `gameHasStartedOrPastStart` is true and an active `published` official
+  run exists for any model version: atomically `update forecast_runs set
+  status='locked', locked_at=now() where id=… and status='published'` (the
+  `where status='published'` clause makes it idempotent and atomic). Every
+  other column — `input_hash`, `simulation_seed`, `material_inputs`,
+  `version_number`, `generated_at`, `model_version`, `projection_class`,
+  `superseded_by` — is left untouched. `forecast_player_projections` rows
+  are never modified.
+- Migration adds a partial index to support the lookup:
+  `CREATE INDEX IF NOT EXISTS forecast_runs_active_official_idx ON forecast_runs (game_pk, model_version) WHERE projection_class='official' AND status='published'`.
 
-Both tabs read from these tables. Nothing else.
+After lock, no further write is permitted (lifecycle already returns
+`locked-skip`). All grading lives in `projection_results`.
 
-- `forecast_runs(id, game_pk, game_id, slate_date, model_version, version_number, status, trigger_reason, input_hash, simulation_seed, material_inputs, generated_at, locked_at, superseded_by, notes)`
-- `forecast_player_projections(forecast_run_id, player_id, mlb_id, role, diamond_score, confidence, hit/total_base/hr/rbi/sb/run_probability, pitcher_win/quality_start_probability, projected_outs, environment_agreement, distributions jsonb, inputs jsonb, created_at)`
-- Joined for display only: `games`, `players`, `teams`, `lineups.batting_order`, `projection_results` (for "actual" columns once final). No writes from any Lab loader.
+## 4. No late forecasts
 
-The Monte Carlo means / percentiles already live in `forecast_player_projections.distributions` (JSONB written by `buildHitterSnapshot` / `buildPitcherSnapshot`). The Lab reads `distributions.{hits,total_bases,hr,rbi,runs,sb}.{mean,p10,p50,p90}` and `distributions.{ks,outs,walks,win_prob,qs_prob}` for pitchers. If a field is missing on older snapshots, render `—` (do not synthesize).
+- The lifecycle already does the right thing for the official path
+  (`ineligible-for-official` if inputs invalid, `post-first-pitch-skip` if
+  closed). The legacy engine writer's new guard makes the same true
+  there.
+- Public read paths (`/forecasts`, `/diamond-scores`, `/odds`,
+  `/top-props`, `/forecasts/lab/*`) already filter to
+  `projection_class='official' AND status IN ('published','locked')`. Add
+  a small read-side helper, `formatNoOfficialForecast()`, used in each
+  empty-state card so the message is identical everywhere:
 
-## Tab 1 — Simulation Means (`/forecasts/lab/means`)
+  > No official pregame forecast published.
+  > Game began before a lineup-confirmed Diamond forecast was available.
 
-Sortable table, one row per `forecast_player_projections` row for the latest official `forecast_runs` per game on the selected date.
+- Preview rows are admin-only — public boards never fall back to them.
 
-Hitter columns:
+## 5. Admin UI behavior for live/final games
 
-- player · team · opp · batting-order slot (from `lineups.batting_order` joined by player+game; show "—" if not available in the locked snapshot)
-- status badge (`forecast_runs.status`: published / locked / live / final) — "final" is shown when the joined game is Final
-- forecast timestamp (`locked_at ?? generated_at`)
-- model version (`forecast_runs.model_version`)
-- projected PA · projected hits mean · projected TB mean · projected HR mean · projected RBI mean · projected runs mean · projected SB mean
-- p10 / p50 / p90 per stat (default shows hits; column picker reveals others) — sourced from `distributions`
+`src/routes/_authenticated/_admin/admin.tsx`:
 
-Pitcher columns (only when role=pitcher):
+- Load today's lineup status (already available via `getLineupStatus`) to
+  derive a `windowClosedByGamePk` map.
+- "Publish / Reissue Official Forecast" and "Generate Preview
+  Simulations" buttons: each game card on the slate gets a small
+  per-game state. When every eligible game on the slate is closed, the
+  whole-slate button is disabled with tooltip "Forecast window closed —
+  games are live". For per-game admin actions in
+  `src/routes/_authenticated/lineup-status.tsx`:
+  - `runEngineForGame` button → disabled + "Forecast window closed —
+    game is live" once `gameHasStartedOrPastStart` is true.
+  - Live games keep the existing "view locked forecast", "refresh live
+    actuals", and "inspect diagnostics" affordances enabled.
+- Even if a user crafts a request manually, the server guard rejects it
+  and returns the structured decision, which the UI surfaces in the
+  result row.
 
-- Ks mean · outs mean · walks mean · win prob · QS prob · p10/p50/p90
+## 6. Read path rule
 
-Footer row: total rows, distinct games, distinct model_versions present, count of rows missing `distributions` (data-integrity hint).
+- `Today`, `Forecasts`, `Projection Lab` all read
+  `forecast_player_projections` joined to a non-superseded
+  `forecast_runs` row. The locked snapshot is what they render.
+- Live-actuals polling (`useQuery` for `getActualsForDate`) keeps its
+  45-second `refetchInterval`. It refreshes a separate query key from
+  the projection query and must not invalidate
+  `["projection-lab", *]`, `["diamond-scores"]`, `["sim-leaders"]`, or
+  `["top-props"]` query keys. Audit the existing `onSettled` /
+  `invalidateQueries` calls to confirm. Any accidental invalidate of a
+  projection key for a live game is treated as a bug.
+- Add a one-line read-side comment in each list loader: "this query is
+  read-only against locked snapshots; never triggers simulate()".
 
-Advanced toggle (admin-only switch): adds `iterations` and `simulation_seed` columns and exposes raw `inputs` JSON in a side drawer.
+## 7. Server logs
 
-Visibility:
+The guard emits the canonical line on every closed result. In addition,
+each write-path caller logs its own structured wrapper:
 
-- Default filter: `forecast_runs.status IN ('published','locked','live','final')` AND no `superseded_by`. The route never queries by `projection_class='preview'`.
-- Admin `?showPreview=1`: includes preview runs and stamps each preview row with the existing amber "Preview — not an official Diamond forecast" banner row-styling.
-- Empty state per game with no official run: "Awaiting confirmed lineups" (no synthesized values).
-
-## Tab 2 — Alpha vs Diamond (`/forecasts/lab/alpha`)
-
-Comparison table that separates the three layers so Diamond Score never visually replaces probability.
-
-Columns, grouped under three header bands:
-
-```text
-| Player / Game / Status |  ALPHA ENGINE    |  MONTE CARLO     |  DIAMOND        |  ACTUAL |
-                          raw hit prob       projected hits     Diamond Score
-                          calibrated hit pr  projected PA       Diamond Rank
-                                             dist p10/p50/p90   confidence
+```
+[forecast.window.block] { gamePk, gameStatus, action: "runDiamondEngineForGames" | "publishForecast" | "refreshLineupsAndProject" | …, decision: "forecast_window_closed", actor }
 ```
 
-- "Alpha raw hit probability" = `hit_probability` from the snapshot (engine output before calibration). Source-of-truth: `forecast_player_projections.hit_probability`.
-- "Calibrated hit probability" = lookup against `calibration_summary` row matching `(model_version, stat='hit', confidence_bucket)` and applying the persisted `predicted_mean → observed_mean` mapping. If no calibration row exists for that bucket, show "raw" with a small "uncalibrated" tag — never invent a calibration.
-- "Projected hits mean" / "PA" = from `distributions.hits.mean` and `distributions.pa.mean` (or `pa` derived from snapshot inputs when stored).
-- "Diamond Score" / "Rank" = `diamond_score`, ranked within the same date+role slice.
-- "Actual hits" = `projection_results` joined when the game is final.
+so that blocks are attributable to a specific write entry, not only to
+the guard.
 
-Explanatory header inside the page (always visible, two short lines):
+## 8. Tests
 
-> Alpha Engine = raw projection inputs and baseline probability.
-> Monte Carlo = distribution and means simulated from those inputs.
-> Diamond Score = ranking/confidence layer — not a substitute for probability.
+New file `src/lib/forecast/__tests__/window.test.ts` (vitest) covering:
 
-Sort defaults: Diamond Rank ascending. Toggle to sort by calibrated hit probability descending. The page does not recompute Diamond Score from Alpha probability and does not modify probabilities for display.
+1. Live game with no prior forecast: lifecycle returns
+   `post-first-pitch-skip`; legacy engine returns
+   `forecast_window_closed`; zero rows written to `forecast_runs`,
+   `forecast_player_projections`, or `projections`.
+2. Published official run → game transitions to `In Progress` → cron
+   handler flips it to `locked` with `locked_at` set; every other
+   column unchanged (deep-equal snapshot before/after).
+3. Ten consecutive live-actuals refresh calls (simulated by invoking
+   `importResults` + read loaders) leave the locked
+   `forecast_player_projections` row byte-identical (hash compare on
+   all columns).
+4. `runEngineForGame` admin action on a live game returns
+   `forecast_window_closed`; no DB writes; emits the structured log.
+5. Pregame "Delayed Start: Rain" → eligible; same game later flagged
+   "Delayed" after first pitch → blocked.
+6. React Query refetch test (vitest + @testing-library + a stub
+   QueryClient): mounting the Projection Lab Means table during a live
+   game with `refetchInterval` and `refetchOnWindowFocus` simulated never
+   results in any call to the engine module (`simulate`,
+   `buildMonteCarloGameEnvironment`, `runDiamondEngineForGames`,
+   `publishForecastIfEligible`) — asserted via vi.mock spies.
+7. Projection Lab snapshot test: with a locked official run + a stream
+   of three actuals updates, the rendered table's "Diamond Score",
+   "Hits μ", "Alpha Hit 1+" and "p50/p90" cells are unchanged; only
+   the actuals column updates.
 
-## Tab 3 — Engine Status (`/forecasts/lab` default)
+## 9. Migration
 
-Top-of-Lab panel. All values resolved from persisted state, never hard-coded.
+```
+-- index for the per-minute lock job
+CREATE INDEX IF NOT EXISTS forecast_runs_active_official_idx
+  ON public.forecast_runs (game_pk, model_version)
+  WHERE projection_class = 'official' AND status = 'published';
 
-- **Active model version**: pulled by `SELECT version FROM model_versions WHERE active = true LIMIT 1`. If multiple actives exist, render all and flag as a warning.
-- **Most-used model version in last 7 days of official runs**: `SELECT model_version, count(*) FROM forecast_runs WHERE status IN ('published','locked','live','final') AND slate_date >= today-7 GROUP BY 1 ORDER BY 2 DESC` — shown next to "Active" so drift is visible.
-- **Calibration version**: latest `calibration_summary.computed_at` plus the distinct `model_version`s present.
-- **Current simulation iteration count**: read from latest snapshot's `distributions.iterations` (or `inputs.iterations`) — never hardcoded. Constant `SNAPSHOT_ITERATIONS = 2000` is a writer detail; the panel reports what was actually persisted.
-- **Forecast lifecycle status today**: counts of `forecast_runs` by `status` for today (Chicago).
-- **Today has official lineup-confirmed forecasts?**: yes/no based on `forecast_runs.status='published'|'locked'` count > 0 for today.
-- **Latest official publication timestamp**: `MAX(locked_at ?? generated_at)` filtered to non-preview rows.
-- **Model changelog**: table from `model_versions` ordered by `release_date DESC` showing version, active, release_date, notes. (No external link — `notes` is the canonical changelog field today.)
+-- pg_cron: every minute, hit the lock endpoint with the anon key
+SELECT cron.schedule(
+  'lock-live-forecasts',
+  '* * * * *',
+  $$ SELECT net.http_post(
+       url := 'https://diamond-spark-sim.lovable.app/api/public/hooks/lock-live-forecasts',
+       headers := '{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb,
+       body := '{}'::jsonb
+     ); $$
+);
+```
 
-## Version discipline (enforced in admin write paths, surfaced in Lab)
+(The actual URL + anon key are substituted at migration write time.)
 
-Lab is read-only, but it must make policy visible:
+## Out of scope
 
-- Engine Status renders the active version from `model_versions.active=true`. Admin tooling that introduces formula/calibration changes must insert a new `model_versions` row (e.g. `alpha-0.4`) and flip `active`; it must never UPDATE existing `forecast_player_projections` rows.
-- Add a Lab banner: "Historical forecasts are immutable — locked snapshots display original means/probabilities exactly as published."
-- Shadow-mode rule: when a non-active version exists in `model_versions` and has `forecast_runs` rows for trusted historical dates, the Engine Status panel shows a "Shadow candidates" row listing `(version, runs, oldest, newest)` and a link to a future comparison view. The Lab itself does not promote a shadow version — that's an admin migration.
-- The plan does NOT change any Alpha math or calibration. No "make Alpha more confident" change.
+- No change to Alpha math, Monte Carlo math, calibration math, Diamond
+  Score formulas, or model versioning.
+- No change to actuals ingestion, grading rules, or live polling UI.
+- No new tables. Locking uses the existing `forecast_runs.status` and
+  `locked_at` columns; legacy `projections.projection_status` retains
+  its current `active`/`superseded` semantics.
 
-## Server functions (all under `requireAppMember`)
+## Technical notes for reviewer
 
-New file `src/lib/projection-lab.functions.ts`:
-
-- `getProjectionLabMeans({ date, gamePk?, role?, team?, includePreview? })` — joins `forecast_runs` + `forecast_player_projections` + `games` + `players` + `teams` + `lineups.batting_order` + (when final) `projection_results`. Filters by official statuses unless caller is admin AND `includePreview=true`. Selects the latest non-superseded run per `game_pk`. Returns a plain DTO array.
-- `getProjectionLabAlphaCompare({ date, includePreview? })` — same join shape but limited to hitter rows; left-joins `calibration_summary` on `(model_version, stat='hit')` bucket of the row's `hit_probability` for calibrated value.
-- `getEngineStatus()` — returns active version(s), recent-version usage, calibration summary timestamps, today's lifecycle counts, latest official publication timestamp, shadow candidates, and `model_versions` changelog rows.
-
-All three are GET, no writes, use the request-scoped Supabase client. No imports from `@/lib/sim.functions` or any writer module.
-
-## Routes and components
-
-New files:
-
-- `src/routes/_authenticated/forecasts.lab.tsx` — layout route, renders `ProjectionLabTabBar` + `<Outlet />`.
-- `src/routes/_authenticated/forecasts.lab.index.tsx` — Engine Status page.
-- `src/routes/_authenticated/forecasts.lab.means.tsx` — Simulation Means.
-- `src/routes/_authenticated/forecasts.lab.alpha.tsx` — Alpha vs Diamond.
-- `src/components/projection-lab/lab-tab-bar.tsx` — three sub-tabs (Engine Status / Means / Alpha vs Diamond).
-- `src/components/projection-lab/layer-legend.tsx` — the three-layer explainer reused across tabs.
-
-Edit `src/components/forecasts-tab-bar.tsx`: append a final tab `{ to: "/forecasts/lab", label: "Projection Lab" }` and treat any pathname starting with `/forecasts/lab` as active.
-
-Edit `src/routes/_authenticated/forecasts.tsx`: keep the redirect to `/diamond-scores` for the bare `/forecasts` URL (no behavior change).
-
-Each new route defines `errorComponent` and `notFoundComponent`, uses Query + `ensureQueryData` / `useSuspenseQuery`, and puts the URL params through `validateSearch` + `loaderDeps` so date/filter changes invalidate cleanly.
-
-## Visibility rules (recap, enforced in loaders)
-
-- Public Lab views: only `forecast_runs.status IN ('published','locked','live','final')` AND `superseded_by IS NULL`.
-- Admin toggle `showPreview=1`: also includes preview rows; each preview row gets the existing amber "Preview — not an official Diamond forecast" treatment (re-use the banner styling already used elsewhere). Permission check via the existing admin role helper used by the Admin panel.
-- Historical dates: render the row exactly as persisted; never recompute, never call `simulate()`.
-- Game with no official run: render a single "Awaiting confirmed lineups" placeholder row for that game; do not show empty stat cells with zeros.
-
-## Non-goals (explicit)
-
-- No changes to Alpha 0.3 math, calibration weights, or Diamond Score formula.
-- No new write paths, no admin actions, no Edge Functions.
-- No changes to `/results` or `/model`.
-- No new database tables. `model_versions.notes` is the changelog source; if we later want a richer changelog we'll add a `model_version_changelog` table in a follow-up.
-
-## Verification
-
-- `rg "simulate\\(|buildMonteCarloGameEnvironment|publishForecastIfEligible|resolveAndPublishForecast" src/routes/_authenticated/forecasts.lab*` must return zero matches.
-- `rg "from \"@/lib/sim" src/lib/projection-lab.functions.ts` must return zero matches.
-- For a known locked date, the Means tab values for a sampled player match a direct SQL read of `forecast_player_projections.distributions` for that `forecast_run_id`.
-- Engine Status `active model version` equals the SQL `model_versions WHERE active`.
-
-Admin toggle off: preview rows are absent from the response payload (verified in network tab).
-
-Approve Projection Lab as the next build. This should be completed before card-density or further model-math work.
-
-The architecture is correct: Projection Lab must read persisted forecast snapshots only and must never call the simulator, lifecycle writer, or lineup refresh path.
-
-Required adjustments before implementation:
-
-1. Canonical naming  
-Use the actual deployed class column consistently everywhere. Current lifecycle work refers to `projection_class`, so Lab filters must use:
-
-`projection_class = 'official'`
-
-Do not introduce mixed `forecast_class` / `projection_class` references.
-
-2. Keep lifecycle status separate from game state  
-Do not query or write forecast statuses named `live` or `final`.
-
-- `forecast_runs.status`: `published | locked | superseded` as applicable
-- game display state: scheduled / live / final from the joined `games` record
-
-For display:
-
-- scheduled + published = `Lineup-confirmed`
-- live + locked = `Live`
-- final + locked = `Final`
-
-The original forecast remains locked throughout live and final states.
-
-3. Snapshot fidelity for calibration  
-Do not dynamically apply the latest `calibration_summary` mapping to historical Alpha probabilities.
-
-For Alpha vs Diamond:
-
-- raw probability = persisted snapshot value
-- calibrated probability = persisted calibrated snapshot value and calibration version, if present
-- if the historical snapshot did not persist calibration output, show:  
-`Raw · uncalibrated`
-- never invent or retroactively recalculate a calibrated historical number
-
-This is necessary to preserve the exact forecast Diamond published before first pitch.
-
-4. Use saved inputs first  
-For batting order, confirmed starters, environment, and lineup context:
-
-- source `material_inputs` from the forecast run first
-- use current `lineups` data only as a fallback display enhancement
-- if snapshot data is absent, render `—` or `Not stored in snapshot`
-- never reconstruct a supposedly locked forecast from current roster data
-
-5. Version-safe row selection  
-When selecting the latest non-superseded forecast, partition by:
-
-`game_pk + model_version`
-
-Do not silently mix Alpha versions in one table.
-
-Default to the active/public model version for the selected date. Add an optional `modelVersion` filter so historical Alpha versions and shadow candidates can be inspected intentionally.
-
-6. Date behavior
-
-- Explicit `?date=YYYY-MM-DD` must always win.
-- Default date = latest Chicago-date slate with official persisted forecast rows.
-- Never silently fall back to an older date.
-- When the selected date has no official forecasts, show:  
-`No official Diamond forecasts available for this slate`  
-`Awaiting confirmed lineups or no pregame forecast was published.`
-
-7. Preserve the strict read-only guarantee  
-Add and pass these checks:
-
-- `rg "simulate\\(|buildMonteCarloGameEnvironment|publishForecastIfEligible|resolveAndPublishForecast" src/routes/_authenticated/forecasts.lab*` returns zero matches.
-- `rg "from \"@/lib/sim" src/lib/projection-lab.functions.ts` returns zero matches.
-- Opening Means or Alpha vs Diamond ten times creates zero forecast runs and zero simulation calls.
-- A sampled locked player row matches the exact stored JSONB distribution and saved probability fields from its `forecast_run_id`.
-- Preview rows are absent from public payloads unless an authorized admin explicitly enables `showPreview=1`.
-
-Keep the three Lab tabs exactly as planned:
-
-- Engine Status
-- Simulation Means
-- Alpha vs Diamond
-
-Do not change Alpha math, calibration weights, Diamond Score formula, Results, or Model in this build.
+- `gameHasStartedOrPastStart` and `gameHasStarted` are duplicate logic
+  today (`lifecycle.ts` and `eligibility.ts`). The new `window.ts`
+  becomes the only definition; the other two re-export from it.
+- The legacy `projections` write in `ingest.functions.ts` line 649 is
+  the single biggest leak; the guard must wrap both the per-row build
+  loop AND the final `.insert(projections)`.
+- `lineups/refresh.functions.ts` calls `runDiamondEngineForGames(date,
+  changedGameIds, undefined, "official")`. The filter must happen
+  before that call so blocked games never reach the engine, and the
+  refresh job's `cron_runs.notes` should record which games were
+  blocked.
+- Lifecycle's existing supersede-then-insert pattern is preserved; the
+  guard runs before any DB mutation.

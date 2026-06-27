@@ -67,30 +67,14 @@ function lineupRowIsProjectedSource(row: EligibilityLineupRow, gls: EligibilityG
   return PROJECTED_SOURCES.has(src);
 }
 
-export function gameHasStarted(
+// Re-export the single canonical guard. All eligibility / lifecycle / write
+// paths share one definition of "has the game started" — see window.ts.
+import { gameHasStartedOrPastStart } from "./window";
+export const gameHasStarted = (
   status: string | null | undefined,
   firstPitchAt: string | null | undefined,
   now: number = Date.now(),
-): boolean {
-  const s = (status ?? "").toLowerCase();
-  if (
-    s.includes("in progress") ||
-    s.includes("live") ||
-    s.includes("final") ||
-    s.includes("game over") ||
-    s.includes("completed") ||
-    s.includes("manager challenge") ||
-    s.includes("suspended") ||
-    (s.includes("delayed") && !s.includes("delayed start"))
-  ) {
-    return true;
-  }
-  if (firstPitchAt) {
-    const t = Date.parse(firstPitchAt);
-    if (Number.isFinite(t) && now >= t) return true;
-  }
-  return false;
-}
+): boolean => gameHasStartedOrPastStart(status, firstPitchAt, now);
 
 function teamSlotsValid(
   teamId: string | null,
