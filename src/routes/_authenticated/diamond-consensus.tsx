@@ -17,6 +17,7 @@ import {
   type SimStat,
   type SimulationLeadersPayload,
 } from "@/lib/sim.functions";
+import { getActualsForDate, type ActualsPayload, type HitterActual, type PitcherActual } from "@/lib/actuals.functions";
 import {
   categoryPercentile,
   consensusScore,
@@ -27,6 +28,7 @@ import {
   type AlignmentLabel,
   type LineupStatus,
 } from "@/lib/consensus";
+import { classifyCountProjection } from "@/lib/grading/count-projection";
 
 type Group = "hitter" | "pitcher";
 type CatKey =
