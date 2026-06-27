@@ -37,6 +37,7 @@ import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
+import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
@@ -196,6 +197,12 @@ const AuthenticatedForecastsLabRoute =
     path: '/lab',
     getParentRoute: () => AuthenticatedForecastsRoute,
   } as any)
+const AuthenticatedForecastsConsensusRoute =
+  AuthenticatedForecastsConsensusRouteImport.update({
+    id: '/consensus',
+    path: '/consensus',
+    getParentRoute: () => AuthenticatedForecastsRoute,
+  } as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -261,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -295,6 +303,7 @@ export interface FileRoutesByTo {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
@@ -332,6 +341,7 @@ export interface FileRoutesById {
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/forecasts/consensus'
     | '/forecasts/lab'
     | '/matchups/$gamePk'
     | '/players/$playerId'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/forecasts/consensus'
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
@@ -439,6 +451,7 @@ export interface FileRouteTypes {
     | '/_authenticated/top-props'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
+    | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
     | '/_authenticated/matchups/$gamePk'
     | '/_authenticated/players/$playerId'
@@ -658,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsLabRouteImport
       parentRoute: typeof AuthenticatedForecastsRoute
     }
+    '/_authenticated/forecasts/consensus': {
+      id: '/_authenticated/forecasts/consensus'
+      path: '/consensus'
+      fullPath: '/forecasts/consensus'
+      preLoaderRoute: typeof AuthenticatedForecastsConsensusRouteImport
+      parentRoute: typeof AuthenticatedForecastsRoute
+    }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
       path: '/admin'
@@ -743,12 +763,14 @@ const AuthenticatedForecastsLabRouteWithChildren =
   )
 
 interface AuthenticatedForecastsRouteChildren {
+  AuthenticatedForecastsConsensusRoute: typeof AuthenticatedForecastsConsensusRoute
   AuthenticatedForecastsLabRoute: typeof AuthenticatedForecastsLabRouteWithChildren
   AuthenticatedForecastsIndexRoute: typeof AuthenticatedForecastsIndexRoute
 }
 
 const AuthenticatedForecastsRouteChildren: AuthenticatedForecastsRouteChildren =
   {
+    AuthenticatedForecastsConsensusRoute: AuthenticatedForecastsConsensusRoute,
     AuthenticatedForecastsLabRoute: AuthenticatedForecastsLabRouteWithChildren,
     AuthenticatedForecastsIndexRoute: AuthenticatedForecastsIndexRoute,
   }
