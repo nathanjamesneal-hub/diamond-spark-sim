@@ -34,10 +34,14 @@ export type MRCategoryKey =
   | "tb"
   | "rbi"
   | "runs"
+  | "hr"
+  | "sb"
   | "bk"
   | "pk"
   | "outs"
-  | "bb";
+  | "bb"
+  | "er"
+  | "ph";
 
 export type MRGrade =
   | "Beat Projection"
@@ -60,46 +64,42 @@ export type MRCategoryDef = {
 };
 
 export const MR_CATEGORIES: MRCategoryDef[] = [
-  {
-    key: "hit", label: "Hits", group: "hitter", meanLabel: "Mean H", meanDigits: 2,
+  { key: "hit", label: "Hits", group: "hitter", meanLabel: "Mean H", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).H,
-    getActual: (a) => (a as HitterActual).H ?? null,
-  },
-  {
-    key: "tb", label: "Total Bases", group: "hitter", meanLabel: "Mean TB", meanDigits: 2,
+    getActual: (a) => (a as HitterActual).H ?? null },
+  { key: "tb", label: "Total Bases", group: "hitter", meanLabel: "Mean TB", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).TB,
-    getActual: (a) => (a as HitterActual).TB ?? null,
-  },
-  {
-    key: "rbi", label: "RBI", group: "hitter", meanLabel: "Mean RBI", meanDigits: 2,
+    getActual: (a) => (a as HitterActual).TB ?? null },
+  { key: "hr", label: "Home Runs", group: "hitter", meanLabel: "Mean HR", meanDigits: 2,
+    getStat: (r) => (r as SimLeaderHitterRow).HR,
+    getActual: (a) => (a as HitterActual).HR ?? null },
+  { key: "rbi", label: "RBI", group: "hitter", meanLabel: "Mean RBI", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).RBI,
-    getActual: (a) => (a as HitterActual).RBI ?? null,
-  },
-  {
-    key: "runs", label: "Runs", group: "hitter", meanLabel: "Mean R", meanDigits: 2,
+    getActual: (a) => (a as HitterActual).RBI ?? null },
+  { key: "runs", label: "Runs", group: "hitter", meanLabel: "Mean R", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).R,
-    getActual: (a) => (a as HitterActual).R ?? null,
-  },
-  {
-    key: "bk", label: "Batter Strikeouts", group: "hitter", meanLabel: "Mean K", meanDigits: 2,
+    getActual: (a) => (a as HitterActual).R ?? null },
+  { key: "sb", label: "Stolen Bases", group: "hitter", meanLabel: "Mean SB", meanDigits: 2,
+    getStat: (r) => (r as SimLeaderHitterRow).SB,
+    getActual: (a) => (a as HitterActual).SB ?? null },
+  { key: "bk", label: "Batter Strikeouts", group: "hitter", meanLabel: "Mean K", meanDigits: 2,
     getStat: (r) => (r as SimLeaderHitterRow).K,
-    getActual: (a) => (a as HitterActual).K ?? null,
-  },
-  {
-    key: "pk", label: "Pitcher Strikeouts", group: "pitcher", meanLabel: "Mean K", meanDigits: 1,
+    getActual: (a) => (a as HitterActual).K ?? null },
+  { key: "pk", label: "Pitcher Strikeouts", group: "pitcher", meanLabel: "Mean K", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).K,
-    getActual: (a) => (a as PitcherActual).K ?? null,
-  },
-  {
-    key: "outs", label: "Pitcher Outs", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
+    getActual: (a) => (a as PitcherActual).K ?? null },
+  { key: "outs", label: "Pitcher Outs", group: "pitcher", meanLabel: "Mean Outs", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).outs,
-    getActual: (a) => (a as PitcherActual).outs ?? null,
-  },
-  {
-    key: "bb", label: "Pitcher Walks", group: "pitcher", meanLabel: "Mean BB", meanDigits: 1,
+    getActual: (a) => (a as PitcherActual).outs ?? null },
+  { key: "bb", label: "Pitcher Walks", group: "pitcher", meanLabel: "Mean BB", meanDigits: 1,
     getStat: (r) => (r as SimLeaderPitcherRow).BB,
-    getActual: (a) => (a as PitcherActual).BB ?? null,
-  },
+    getActual: (a) => (a as PitcherActual).BB ?? null },
+  { key: "er", label: "Earned Runs", group: "pitcher", meanLabel: "Mean ER", meanDigits: 1,
+    getStat: (r) => (r as SimLeaderPitcherRow).ER,
+    getActual: (a) => (a as PitcherActual).ER ?? null },
+  { key: "ph", label: "Pitcher Hits Allowed", group: "pitcher", meanLabel: "Mean H", meanDigits: 1,
+    getStat: (r) => (r as SimLeaderPitcherRow).H,
+    getActual: (a) => (a as PitcherActual).H ?? null },
 ];
 
 export type MRPlayerRow = {
