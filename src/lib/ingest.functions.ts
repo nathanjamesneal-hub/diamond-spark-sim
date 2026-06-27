@@ -335,6 +335,58 @@ export async function runDiamondEngineForGames(
     .in("game_id", targetGameIds);
   const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
 
+  // ---------------- FORECAST CLASS GATE ----------------
+  // Determine which games this run is allowed to write projections for.
+  //   intendedClass='official' → require evaluateOfficialEligibility() ok.
+  //   intendedClass='preview'  → refuse to write if an active 'official'
+  //                              row already exists for the same (game,
+  //                              model_version) — preview must never shadow
+  //                              an official forecast.
+  const { evaluateOfficialEligibility } = await import("@/lib/forecast/eligibility");
+  let gamesSkippedNotEligible = 0;
+  let gamesSkippedPreviewBlocked = 0;
+  let gamesEligible = 0;
+
+  // If preview, check which target games already have active OFFICIAL rows.
+  let activeOfficialGames = new Set<string>();
+  if (intendedClass === "preview") {
+    const { data: existingOfficial } = await supabaseAdmin
+      .from("projections")
+      .select("game_id")
+      .in("game_id", targetGameIds)
+      .eq("model_version", version)
+      .eq("projection_status", "active")
+      .eq("projection_class", "official");
+    activeOfficialGames = new Set((existingOfficial ?? []).map((r: any) => r.game_id as string));
+  }
+
+  const eligibleGameIds = new Set<string>();
+  for (const g of games as any[]) {
+    if (intendedClass === "official") {
+      const r = evaluateOfficialEligibility({
+        game: g,
+        lineups: (lineups ?? []).filter((l: any) => l.game_id === g.id) as any[],
+        starters: (sps ?? []).filter((s: any) => s.game_id === g.id) as any[],
+        gls: glsByGame.get(g.id),
+      });
+      if (r.eligible) {
+        eligibleGameIds.add(g.id);
+        gamesEligible++;
+      } else {
+        gamesSkippedNotEligible++;
+      }
+    } else {
+      // preview
+      if (activeOfficialGames.has(g.id)) {
+        gamesSkippedPreviewBlocked++;
+        continue;
+      }
+      eligibleGameIds.add(g.id);
+      gamesEligible++;
+    }
+  }
+
+
   const oppSpByKey = new Map<string, string>();
   for (const sp of sps ?? []) {
     const g = games.find((x: any) => x.id === sp.game_id);
