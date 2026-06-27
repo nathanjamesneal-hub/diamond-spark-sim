@@ -653,10 +653,6 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     ]);
 
     const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
-    const runByKey = new Map<string, any>();
-    for (const r of forecastRunRows ?? []) {
-      runByKey.set(`${r.game_id}:${r.model_version}:${r.projection_class}`, r);
-    }
     const fppDistByKey = new Map<string, PersistedDistributions>();
     const runIds = (forecastRunRows ?? []).map((r: any) => r.id).filter(Boolean);
     if (runIds.length > 0) {
@@ -689,17 +685,8 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       activeVersion ? p.model_version === activeVersion : true,
     );
 
-    // Latest projection per (player, game, role, model_version, class) —
-    // newest wins (input is DESC by created_at). Role normalized so legacy
-    // null/"batter" rows map to "hitter".
+    // Role normalized so legacy null/"batter" rows map to "hitter".
     const normRole = (r: string | null | undefined) => (r === "pitcher" ? "pitcher" : "hitter");
-    const latestOfficial = new Map<string, any>();
-    const latestPreview = new Map<string, any>();
-    for (const p of projections) {
-      const k = `${p.player_id}:${p.game_id}:${normRole(p.projection_role)}:${p.model_version}`;
-      const bucket = p.projection_class === "preview" ? latestPreview : latestOfficial;
-      if (!bucket.has(k)) bucket.set(k, p);
-    }
 
     const playerIds = new Set<string>();
     for (const l of lineups ?? []) playerIds.add(l.player_id);
@@ -843,7 +830,6 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(l.game_id);
       const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
       // Versions present in either bucket for this player/game/hitter slot.
       const versionSet = new Set<string>();
       for (const p of projections) {
@@ -928,7 +914,6 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(sp.game_id);
       const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      const gameStarted = gameHasStartedOrPastStart(g.game_status, g.first_pitch_at);
       const versionSet = new Set<string>();
       for (const p of projections) {
         if (p.player_id === sp.player_id && p.game_id === sp.game_id && normRole(p.projection_role) === "pitcher") {
