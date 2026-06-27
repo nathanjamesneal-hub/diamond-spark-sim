@@ -21,11 +21,14 @@ import { WhyTheModelLikesThis } from "@/components/diamond/why-model-likes-this"
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
 
 
+import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
+
 const hitterSorts = ["diamond", "hit", "hr", "rbi", "sb"] as const;
 const pitcherSorts = ["diamond", "k"] as const;
 
 const searchSchema = z.object({
   date: z.string().optional(),
+  view: fallback(z.enum(["board", "cards"]), "board").default("board"),
   tab: fallback(z.enum(["hitters", "pitchers"]), "hitters").default("hitters"),
   sort: fallback(z.enum(["diamond", "hit", "hr", "rbi", "sb", "k"]), "diamond").default("diamond"),
   game: z.string().optional(),
