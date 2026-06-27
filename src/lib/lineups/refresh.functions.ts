@@ -27,6 +27,7 @@ export type RefreshSummary = {
   cronRunId: string | null;
   providers: { id: string; ok: boolean; count: number; durationMs: number; error?: string }[];
   changedGameIds: string[];
+  publicationGapGameIds: string[];
   playersChanged: number;
   pitchersChanged: number;
   projectionsRegenerated: number;
@@ -65,6 +66,7 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
     cronRunId,
     providers: [],
     changedGameIds: [],
+    publicationGapGameIds: [],
     playersChanged: 0,
     pitchersChanged: 0,
     projectionsRegenerated: 0,
@@ -199,6 +201,86 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
           reason: "lineup change after first pitch ignored",
         }));
       }
+    }
+
+    // 4b. PUBLICATION-GAP RECONCILIATION.
+    //     Self-healing pass: any pregame, non-locked game on `date` that is
+    //     currently eligible for an OFFICIAL forecast but has no active
+    //     published/locked forecast_runs row gets added to the engine batch
+    //     even when its inputs did not change in this cycle. The downstream
+    //     eligibility gate, first-pitch cutoff, locked-skip, and
+    //     same-input-hash no-op in publishForecastIfEligible all still apply.
+    try {
+      const { evaluateOfficialEligibility } = await import("@/lib/forecast/eligibility");
+      const { gameHasStartedOrPastStart } = await import("@/lib/forecast/window");
+      const { data: activeVersionRow } = await supabaseAdmin
+        .from("model_versions").select("version").eq("active", true).maybeSingle();
+      const activeVersion = (activeVersionRow as any)?.version ?? null;
+
+      const { data: dayGames } = await supabaseAdmin
+        .from("games")
+        .select("id, mlb_game_id, home_team_id, away_team_id, game_status, first_pitch_at, lineups_locked_at")
+        .eq("date", date);
+
+      const candidateGames = (dayGames ?? []).filter((g: any) =>
+        !g.lineups_locked_at &&
+        g.game_status !== "Final" &&
+        g.game_status !== "Postponed" &&
+        !gameHasStartedOrPastStart(g.game_status, g.first_pitch_at),
+      );
+
+      if (candidateGames.length && activeVersion) {
+        const candidateIds = candidateGames.map((g: any) => g.id);
+        const candidatePks = candidateGames.map((g: any) => g.mlb_game_id);
+
+        const [{ data: lns }, { data: ssps }, { data: gls }, { data: runs }] = await Promise.all([
+          supabaseAdmin.from("lineups")
+            .select("game_id, player_id, team_id, batting_order, lineup_status, lineup_source, confirmed, locked_at")
+            .in("game_id", candidateIds),
+          supabaseAdmin.from("starting_pitchers")
+            .select("game_id, team_id, player_id, confirmed")
+            .in("game_id", candidateIds),
+          supabaseAdmin.from("game_lineup_status")
+            .select("game_id, status, primary_source")
+            .in("game_id", candidateIds),
+          supabaseAdmin.from("forecast_runs")
+            .select("game_pk")
+            .in("game_pk", candidatePks)
+            .eq("model_version", activeVersion)
+            .eq("projection_class", "official")
+            .in("status", ["published", "locked"]),
+        ]);
+
+        const glsByGame = new Map((gls ?? []).map((r: any) => [r.game_id, r]));
+        const publishedPks = new Set((runs ?? []).map((r: any) => r.game_pk));
+
+        for (const g of candidateGames) {
+          if (publishedPks.has(g.mlb_game_id)) continue;
+          const r = evaluateOfficialEligibility({
+            game: g,
+            lineups: (lns ?? []).filter((l: any) => l.game_id === g.id) as any[],
+            starters: (ssps ?? []).filter((s: any) => s.game_id === g.id) as any[],
+            gls: glsByGame.get(g.id),
+          });
+          if (!r.eligible) continue;
+          if (!summary.changedGameIds.includes(g.id)) summary.changedGameIds.push(g.id);
+          summary.publicationGapGameIds.push(g.id);
+          // eslint-disable-next-line no-console
+          console.log("[forecast.lifecycle]", JSON.stringify({
+            gamePk: g.mlb_game_id,
+            modelVersion: activeVersion,
+            decision: "publication_gap_reconciliation",
+            triggerReason: "publication_gap_reconciliation",
+            message: "eligible game has no active official forecast; adding to engine batch",
+          }));
+        }
+      }
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.log("[forecast.lifecycle]", JSON.stringify({
+        decision: "publication_gap_reconciliation_error",
+        error: e?.message ?? String(e),
+      }));
     }
 
     // 5. If nothing changed, finish run
