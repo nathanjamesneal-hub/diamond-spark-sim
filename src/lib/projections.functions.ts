@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
+import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
 
 function todayIso(): string {
   // App is pinned to America/Chicago — "today" must match what the user sees.
