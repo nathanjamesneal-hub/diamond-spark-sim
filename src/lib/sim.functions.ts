@@ -321,6 +321,15 @@ export type SimStat = {
   probAtLeast2: number | null;
 };
 
+export type SimLeaderLifecycle = {
+  /** Pulled from the underlying Diamond card. */
+  projection_class: "official" | "preview";
+  forecast_status: "no_official" | "published" | "locked" | "live" | "final" | "preview" | "in_game_add";
+  game_display_state: "upcoming" | "live" | "final" | "other";
+  forecast_run_id: string | null;
+  forecast_locked_at: string | null;
+};
+
 export type SimLeaderHitterRow = {
   player_name: string;
   mlb_id: number | null;
@@ -348,7 +357,7 @@ export type SimLeaderHitterRow = {
     run: number | null;
     sb: number | null;
   };
-};
+} & SimLeaderLifecycle;
 
 export type SimLeaderPitcherRow = {
   player_name: string;
@@ -370,7 +379,8 @@ export type SimLeaderPitcherRow = {
   win_probability: number | null;
   quality_start_probability: number | null;
   extra_probabilities: Record<string, number | null>;
-};
+} & SimLeaderLifecycle;
+
 
 export type SimulationLeadersPayload = {
   date: string;
