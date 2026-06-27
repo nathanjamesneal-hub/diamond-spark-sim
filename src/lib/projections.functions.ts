@@ -914,6 +914,54 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           projected_pa: mPA.mean,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
           actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
+          is_post_lock_addition: false,
+        });
+      }
+      // Post-first-pitch roster addition (pinch hitter / defensive sub):
+      // player is in the live lineup but has no pregame snapshot. Emit one
+      // synthetic card so the Forecast Board explains the absence instead
+      // of silently dropping the row.
+      const startedAndNoCard =
+        (gs === "live" || gs === "final") &&
+        !hitters.some((h) => h.player_id === l.player_id && h.game_id === l.game_id);
+      if (startedAndNoCard) {
+        const v = activeVersion ?? (versionList[0] ?? "alpha-0.3");
+        hitters.push({
+          player_id: l.player_id,
+          mlb_id: playerMlbId.get(l.player_id) ?? null,
+          player_name: playerName.get(l.player_id) ?? "Unknown",
+          team_abbrev: teamAbbrev.get(l.team_id ?? "") ?? "",
+          opp_abbrev: oppTeamId ? teamAbbrev.get(oppTeamId) ?? "" : "",
+          game_id: l.game_id,
+          mlb_game_id: g.mlb_game_id ?? null,
+          game_status: g.game_status ?? null,
+          game_display_state: gs,
+          first_pitch_at: g.first_pitch_at ?? null,
+          batting_order: l.batting_order ?? null,
+          lineup_status: l.locked_at ? "locked" : l.confirmed ? "verified" : "waiting",
+          lineup_source: l.lineup_source ?? gls?.primary_source ?? null,
+          lineup_confidence: gls?.confidence ?? null,
+          badge: badgeFor(gls?.confidence ?? null, !!l.locked_at),
+          last_refresh_at: gls?.last_refresh_at ?? null,
+          source_count: gls?.source_count ?? null,
+          model_version: v,
+          projection_class: "official",
+          forecast_run_id: null,
+          forecast_status: "in_game_add",
+          forecast_locked_at: null,
+          forecast_published_at: null,
+          diamond_score: null, contact_score: null, power_score: null, speed_score: null,
+          pitcher_grade: null, matchup_grade: null, confidence: null,
+          hit_probability: null, total_base_probability: null, hr_probability: null,
+          rbi_probability: null, run_probability: null, sb_probability: null,
+          hit_mean: null, hr_mean: null, tb_mean: null, rbi_mean: null,
+          distributions: null, distributions_source: null,
+          selected_forecast: { forecastRunId: null, projectionClass: "official", fppDistributions: null, projectionSimSnapshot: null },
+          sim_metrics: {},
+          projected_pa: null,
+          inputs_narrative: null,
+          actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
+          is_post_lock_addition: true,
         });
       }
     }
