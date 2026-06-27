@@ -409,11 +409,12 @@ export type DiamondHitterCard = {
    * passthrough so the UI / consensus can extract market means without
    * crossing snapshots from different runs.
    */
-  distributions: Record<string, unknown> | null;
+  distributions: PersistedDistributions | null;
   /** Source of `distributions`: 'sim_snapshot' (projections row) or null. */
   distributions_source: "sim_snapshot" | null;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
+
 
 };
 
