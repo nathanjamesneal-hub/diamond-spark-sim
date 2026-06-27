@@ -60,17 +60,22 @@ export const Route = createFileRoute("/_authenticated/results")({
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
   loader: async ({ context, deps }) => {
+    // IMPORTANT: an explicit ?date= URL param ALWAYS wins over the default.
+    // Do not reintroduce a fallback that overrides deps.date — that path is
+    // how /results used to silently jump back to legacy dates.
     let date = deps.date;
+    let reason: "trusted_terminal" | "trusted_partial" | "no_trusted_forecasts_yet" | "explicit" = "explicit";
     if (!date) {
       const def = await getDefaultModelResultsDate();
       date = def.date;
+      reason = def.reason;
     }
     await Promise.all([
       context.queryClient.ensureQueryData(leadersQ(date)),
       context.queryClient.ensureQueryData(actualsQ(date)),
       context.queryClient.ensureQueryData(statusQ(date)),
     ]);
-    return { date };
+    return { date, reason };
   },
   component: ResultsPage,
   errorComponent: ({ error }) => (
@@ -80,7 +85,7 @@ export const Route = createFileRoute("/_authenticated/results")({
 });
 
 function ResultsPage() {
-  const { date } = Route.useLoaderData();
+  const { date, reason } = Route.useLoaderData();
   const navigate = useNavigate({ from: Route.fullPath });
   const { data: leaders } = useSuspenseQuery(leadersQ(date));
   const { data: actuals } = useSuspenseQuery(actualsQ(date));
