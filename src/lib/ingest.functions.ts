@@ -580,12 +580,43 @@ export async function runDiamondEngineForGames(
     const { error } = await supabaseAdmin.from("projections").insert(projections);
     if (error) throw new Error(error.message);
   }
+
+  // Forecast Snapshot Lifecycle: dual-write a persisted, immutable forecast run
+  // per game. The lifecycle hashes material inputs and skips already-published
+  // games unless inputs changed. Read paths (boards, /odds) consume these.
+  let forecastsPublished = 0;
+  try {
+    const { resolveAndPublishForecast } = await import("@/lib/forecast/resolve");
+    const { data: gameRowsForForecast } = await supabaseAdmin
+      .from("games")
+      .select("id, mlb_game_id, date, game_status, first_pitch_at, home_team_id, away_team_id")
+      .in("id", targetGameIds);
+    for (const g of gameRowsForForecast ?? []) {
+      try {
+        const res = await resolveAndPublishForecast({
+          admin: supabaseAdmin,
+          game: g as any,
+          modelVersion: version,
+          triggerReason: "engine_run",
+        });
+        if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
+      }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn("[forecast.lifecycle] resolver import failed:", (e as Error).message);
+  }
+
   return {
     projectionsInserted: projections.length,
     version,
     environmentFailures,
     gamesProcessed: games.length,
-  };
+    forecastsPublished,
+  } as any;
 }
 
 export const runDiamondEngine = createServerFn({ method: "POST" })
@@ -860,6 +891,16 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
         out.cards.games_pending = allGameIds.length - gamesWith.size;
       }
     } catch { /* non-fatal */ }
+
+    // Step 7 — first-pitch lock pass: lock any published forecast whose game
+    // is now live/final so live polling cannot overwrite it.
+    try {
+      const { lockForecastsForLiveGames } = await import("@/lib/forecast/lifecycle");
+      const locked = await lockForecastsForLiveGames(supabaseAdmin, date);
+      (out as any).forecast_locks = { locked };
+    } catch (e: any) {
+      (out as any).forecast_locks = { error: e?.message ?? String(e) };
+    }
 
     out.duration_ms = Date.now() - t0;
     out.ok = !out.schedule.error && !out.engine.error;

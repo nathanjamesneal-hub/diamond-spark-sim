@@ -202,6 +202,173 @@ export type Database = {
         }
         Relationships: []
       }
+      forecast_player_projections: {
+        Row: {
+          confidence: number | null
+          contact_score: number | null
+          created_at: string
+          diamond_score: number | null
+          distributions: Json | null
+          environment_agreement: number | null
+          forecast_run_id: string
+          hit_probability: number | null
+          hr_probability: number | null
+          inputs: Json | null
+          matchup_grade: number | null
+          mlb_id: number | null
+          pitcher_grade: number | null
+          pitcher_win_probability: number | null
+          player_id: string
+          power_score: number | null
+          projected_outs: number | null
+          quality_start_probability: number | null
+          rbi_probability: number | null
+          role: string
+          run_probability: number | null
+          sb_probability: number | null
+          speed_score: number | null
+          total_base_probability: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          contact_score?: number | null
+          created_at?: string
+          diamond_score?: number | null
+          distributions?: Json | null
+          environment_agreement?: number | null
+          forecast_run_id: string
+          hit_probability?: number | null
+          hr_probability?: number | null
+          inputs?: Json | null
+          matchup_grade?: number | null
+          mlb_id?: number | null
+          pitcher_grade?: number | null
+          pitcher_win_probability?: number | null
+          player_id: string
+          power_score?: number | null
+          projected_outs?: number | null
+          quality_start_probability?: number | null
+          rbi_probability?: number | null
+          role: string
+          run_probability?: number | null
+          sb_probability?: number | null
+          speed_score?: number | null
+          total_base_probability?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          contact_score?: number | null
+          created_at?: string
+          diamond_score?: number | null
+          distributions?: Json | null
+          environment_agreement?: number | null
+          forecast_run_id?: string
+          hit_probability?: number | null
+          hr_probability?: number | null
+          inputs?: Json | null
+          matchup_grade?: number | null
+          mlb_id?: number | null
+          pitcher_grade?: number | null
+          pitcher_win_probability?: number | null
+          player_id?: string
+          power_score?: number | null
+          projected_outs?: number | null
+          quality_start_probability?: number | null
+          rbi_probability?: number | null
+          role?: string
+          run_probability?: number | null
+          sb_probability?: number | null
+          speed_score?: number | null
+          total_base_probability?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_player_projections_forecast_run_id_fkey"
+            columns: ["forecast_run_id"]
+            isOneToOne: false
+            referencedRelation: "forecast_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          game_id: string
+          game_pk: number
+          generated_at: string
+          id: string
+          input_hash: string | null
+          locked_at: string | null
+          material_inputs: Json | null
+          model_version: string
+          notes: string | null
+          simulation_seed: string | null
+          slate_date: string
+          status: string
+          superseded_by: string | null
+          trigger_reason: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          game_id: string
+          game_pk: number
+          generated_at?: string
+          id?: string
+          input_hash?: string | null
+          locked_at?: string | null
+          material_inputs?: Json | null
+          model_version: string
+          notes?: string | null
+          simulation_seed?: string | null
+          slate_date: string
+          status: string
+          superseded_by?: string | null
+          trigger_reason: string
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          game_id?: string
+          game_pk?: number
+          generated_at?: string
+          id?: string
+          input_hash?: string | null
+          locked_at?: string | null
+          material_inputs?: Json | null
+          model_version?: string
+          notes?: string | null
+          simulation_seed?: string | null
+          slate_date?: string
+          status?: string
+          superseded_by?: string | null
+          trigger_reason?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_runs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forecast_runs_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "forecast_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_lineup_status: {
         Row: {
           confidence: number
