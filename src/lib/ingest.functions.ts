@@ -314,7 +314,7 @@ export async function runDiamondEngineForGames(
     .eq("date", date);
   if (gameIds && gameIds.length) gamesQuery = gamesQuery.in("id", gameIds);
   const { data: games } = await gamesQuery;
-  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0 };
+  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0, gamesEligible: 0, gamesSkippedPreviewBlocked: 0, gamesSkippedNotEligible: 0, forecastsPublished: 0, forecastClass: intendedClass };
 
   const targetGameIds = games.map((g: any) => g.id);
 
