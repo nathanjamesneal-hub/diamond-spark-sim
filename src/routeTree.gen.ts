@@ -16,6 +16,7 @@ import { Route as AuthenticatedTopPropsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedStandingsRouteImport } from './routes/_authenticated/standings'
 import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/slate'
 import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
+import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
@@ -64,6 +65,11 @@ const AuthenticatedSlateRoute = AuthenticatedSlateRouteImport.update({
 const AuthenticatedScoresRoute = AuthenticatedScoresRouteImport.update({
   id: '/scores',
   path: '/scores',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedResultsRoute = AuthenticatedResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
+  '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/scores': typeof AuthenticatedScoresRoute
   '/_authenticated/slate': typeof AuthenticatedSlateRoute
   '/_authenticated/standings': typeof AuthenticatedStandingsRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/leaderboards'
     | '/lineup-status'
     | '/odds'
+    | '/results'
     | '/scores'
     | '/slate'
     | '/standings'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/leaderboards'
     | '/lineup-status'
     | '/odds'
+    | '/results'
     | '/scores'
     | '/slate'
     | '/standings'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leaderboards'
     | '/_authenticated/lineup-status'
     | '/_authenticated/odds'
+    | '/_authenticated/results'
     | '/_authenticated/scores'
     | '/_authenticated/slate'
     | '/_authenticated/standings'
@@ -348,6 +360,13 @@ declare module '@tanstack/react-router' {
       path: '/scores'
       fullPath: '/scores'
       preLoaderRoute: typeof AuthenticatedScoresRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/results': {
+      id: '/_authenticated/results'
+      path: '/results'
+      fullPath: '/results'
+      preLoaderRoute: typeof AuthenticatedResultsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/odds': {
@@ -482,6 +501,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
+  AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
   AuthenticatedSlateRoute: typeof AuthenticatedSlateRoute
   AuthenticatedStandingsRoute: typeof AuthenticatedStandingsRoute
@@ -502,6 +522,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
+  AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedScoresRoute: AuthenticatedScoresRoute,
   AuthenticatedSlateRoute: AuthenticatedSlateRoute,
   AuthenticatedStandingsRoute: AuthenticatedStandingsRoute,
