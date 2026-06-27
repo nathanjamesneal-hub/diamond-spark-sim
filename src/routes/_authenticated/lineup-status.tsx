@@ -211,7 +211,12 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
           v={row.latest_projection_at ? formatDateTimeInAppTz(row.latest_projection_at) : "—"}
         />
         <KV k="Model version" v={row.projection_model_version ?? "—"} />
-        <KV k="Active projections" v={String(row.active_projection_count)} />
+        <KV k="Official rows" v={String(row.active_official_count)} />
+        <KV k="Preview rows (admin)" v={String(row.active_preview_count)} />
+        {row.active_legacy_unverified_count > 0 && (
+          <KV k="Legacy unverified" v={String(row.active_legacy_unverified_count)} />
+        )}
+
       </div>
     </div>
   );
