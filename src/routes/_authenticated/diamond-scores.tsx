@@ -125,6 +125,26 @@ function DiamondScoresPage() {
       </div>
 
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">View</span>
+        {(["board", "cards"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setSearch({ view: v })}
+            className={`mono rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+              search.view === v
+                ? "border-primary/60 bg-primary/15 text-primary"
+                : "border-border/60 bg-card/50 text-muted-foreground hover:text-foreground"
+            }`}
+          >{v === "board" ? "Forecast Board" : "Cards"}</button>
+        ))}
+      </div>
+
+      {search.view === "board" ? (
+        <ForecastBoard payload={data} />
+      ) : (
+      <>
       <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <FilterSelect
           label="Sort"
@@ -201,6 +221,8 @@ function DiamondScoresPage() {
           <MissingFields title="Pitcher fields not yet stored in database" fields={data.missingPitcherFields} />
         </TabsContent>
       </Tabs>
+      </>
+      )}
     </div>
     </>
   );
