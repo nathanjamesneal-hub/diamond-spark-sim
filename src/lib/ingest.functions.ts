@@ -468,11 +468,13 @@ export async function runDiamondEngineForGames(
 
   const projections: any[] = [];
   for (const l of lineups ?? []) {
+    if (!eligibleGameIds.has(l.game_id)) continue;
     const game = games.find((x: any) => x.id === l.game_id);
     if (!game) continue;
     const dna = dnaByPlayer.get(l.player_id) ?? {
       contact: 50, power: 50, speed: 50, discipline: 50, consistency: 50,
     };
+
     const oppSpId = oppSpByKey.get(`${l.game_id}:${l.team_id}`);
     const oppDna = oppSpId ? dnaByPlayer.get(oppSpId) : null;
     const pitcherQuality = oppDna ? 100 - (Number(oppDna.contact) || 50) : 50;
