@@ -36,6 +36,7 @@ import { Route as AuthenticatedForecastsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams.$teamId'
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
+import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
@@ -185,6 +186,12 @@ const AuthenticatedMatchupsGamePkRoute =
     path: '/matchups/$gamePk',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedForecastsLabRoute =
+  AuthenticatedForecastsLabRouteImport.update({
+    id: '/lab',
+    path: '/lab',
+    getParentRoute: () => AuthenticatedForecastsRoute,
+  } as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -226,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/forecasts/lab': typeof AuthenticatedForecastsLabRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
@@ -255,6 +263,7 @@ export interface FileRoutesByTo {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/forecasts/lab': typeof AuthenticatedForecastsLabRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
@@ -288,6 +297,7 @@ export interface FileRoutesById {
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRoute
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/forecasts/lab'
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/forecasts/lab'
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
@@ -381,6 +393,7 @@ export interface FileRouteTypes {
     | '/_authenticated/top-props'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
+    | '/_authenticated/forecasts/lab'
     | '/_authenticated/matchups/$gamePk'
     | '/_authenticated/players/$playerId'
     | '/_authenticated/teams/$teamId'
@@ -587,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMatchupsGamePkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/forecasts/lab': {
+      id: '/_authenticated/forecasts/lab'
+      path: '/lab'
+      fullPath: '/forecasts/lab'
+      preLoaderRoute: typeof AuthenticatedForecastsLabRouteImport
+      parentRoute: typeof AuthenticatedForecastsRoute
+    }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
       path: '/admin'
@@ -626,11 +646,13 @@ const AuthenticatedAdminRouteRouteWithChildren =
   )
 
 interface AuthenticatedForecastsRouteChildren {
+  AuthenticatedForecastsLabRoute: typeof AuthenticatedForecastsLabRoute
   AuthenticatedForecastsIndexRoute: typeof AuthenticatedForecastsIndexRoute
 }
 
 const AuthenticatedForecastsRouteChildren: AuthenticatedForecastsRouteChildren =
   {
+    AuthenticatedForecastsLabRoute: AuthenticatedForecastsLabRoute,
     AuthenticatedForecastsIndexRoute: AuthenticatedForecastsIndexRoute,
   }
 
