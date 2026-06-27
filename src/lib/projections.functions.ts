@@ -396,6 +396,7 @@ export type DiamondHitterCard = {
   last_refresh_at: string | null;
   source_count: number | null;
   model_version: string;
+  projection_class: "official" | "preview";
   forecast_run_id: string | null;
   forecast_status: ForecastBoardStatus;
   forecast_locked_at: string | null;
@@ -413,12 +414,12 @@ export type DiamondHitterCard = {
   rbi_probability: number | null;
   run_probability: number | null;
   sb_probability: number | null;
-  /** Means pulled from sim_snapshot.distributions (no live sim). */
+  /** Means pulled by getMarketSimulationMetrics from the selected snapshot (no live sim). */
   hit_mean: number | null;
   hr_mean: number | null;
   tb_mean: number | null;
   rbi_mean: number | null;
-  /** PA isn't directly persisted yet; null when unavailable. */
+  /** PA from getMarketSimulationMetrics when persisted; null when unavailable. */
   projected_pa: number | null;
   /**
    * Persisted Monte Carlo distributions from the SELECTED snapshot
@@ -427,8 +428,16 @@ export type DiamondHitterCard = {
    * crossing snapshots from different runs.
    */
   distributions: PersistedDistributions | null;
-  /** Source of `distributions`: 'sim_snapshot' (projections row) or null. */
-  distributions_source: "sim_snapshot" | null;
+  /** Source of `distributions`: selected FPP first, then selected projections.sim_snapshot. */
+  distributions_source: "fpp" | "sim_snapshot" | null;
+  /** Exact selected forecast inputs for the shared read-only normalizer. */
+  selected_forecast: {
+    forecastRunId: string | null;
+    projectionClass: "official" | "preview";
+    fppDistributions: PersistedDistributions | null;
+    projectionSimSnapshot: unknown;
+  };
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
 
@@ -456,6 +465,7 @@ export type DiamondPitcherCard = {
   game_display_state: GameDisplayState;
   first_pitch_at: string | null;
   model_version: string;
+  projection_class: "official" | "preview";
   forecast_run_id: string | null;
   forecast_status: ForecastBoardStatus;
   forecast_locked_at: string | null;
@@ -463,16 +473,23 @@ export type DiamondPitcherCard = {
   diamond_score: number | null;
   confidence: number | null;
   projected_outs: number | null;
-  /** Means from sim_snapshot.distributions. */
+  /** Means from getMarketSimulationMetrics. */
   k_mean: number | null;
   bb_mean: number | null;
   er_mean: number | null;
   h_mean: number | null;
-  /** Batters Faced isn't directly persisted yet; null when unavailable. */
+  /** Batters Faced from getMarketSimulationMetrics when persisted; null when unavailable. */
   projected_bf: number | null;
   /** Persisted Monte Carlo distributions from the SELECTED snapshot. */
   distributions: PersistedDistributions | null;
-  distributions_source: "sim_snapshot" | null;
+  distributions_source: "fpp" | "sim_snapshot" | null;
+  selected_forecast: {
+    forecastRunId: string | null;
+    projectionClass: "official" | "preview";
+    fppDistributions: PersistedDistributions | null;
+    projectionSimSnapshot: unknown;
+  };
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
 
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
