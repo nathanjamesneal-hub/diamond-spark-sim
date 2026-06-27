@@ -151,6 +151,17 @@ export type PublishArgs = {
   notes?: string | null;
   /** Admin override: bypass hash-equality check (still respects first-pitch lock). */
   force?: boolean;
+  /**
+   * Intended forecast class. Default 'official'. The lifecycle does its own
+   * eligibility verification — 'official' is only honored when the candidate
+   * inputs validate (9-deep lineups + both starters). Otherwise it short-circuits
+   * to `ineligible-for-official` and writes nothing.
+   *
+   * 'preview' may be created from partial/projected inputs (still requires the
+   * sim to be runnable). Preview NEVER supersedes or overwrites an active
+   * official/locked run for the same (game_pk, model_version).
+   */
+  forecastClass?: ForecastClass;
   /** Resolved material inputs. If null, the lifecycle records "awaiting_lineups". */
   candidateInputs: Partial<MaterialInputs>;
   /** Game DB row (must include id, date, game_status, first_pitch_at). */
@@ -162,6 +173,43 @@ export type PublishArgs = {
     first_pitch_at: string | null;
   };
 };
+
+async function fetchLatestRun(
+  admin: SupabaseClient<any>,
+  gamePk: number,
+  modelVersion: string,
+  forecastClass: ForecastClass,
+): Promise<RunRow | null> {
+  const { data } = await admin
+    .from("forecast_runs")
+    .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
+    .eq("game_pk", gamePk)
+    .eq("model_version", modelVersion)
+    .eq("forecast_class", forecastClass)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as RunRow | null) ?? null;
+}
+
+async function fetchActiveRun(
+  admin: SupabaseClient<any>,
+  gamePk: number,
+  modelVersion: string,
+  forecastClass: ForecastClass,
+): Promise<RunRow | null> {
+  const { data } = await admin
+    .from("forecast_runs")
+    .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
+    .eq("game_pk", gamePk)
+    .eq("model_version", modelVersion)
+    .eq("forecast_class", forecastClass)
+    .in("status", ["published", "locked"])
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as RunRow | null) ?? null;
+}
 
 async function fetchLatestRun(
   admin: SupabaseClient<any>,
