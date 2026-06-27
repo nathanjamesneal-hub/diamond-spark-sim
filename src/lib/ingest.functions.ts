@@ -892,6 +892,16 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
       }
     } catch { /* non-fatal */ }
 
+    // Step 7 — first-pitch lock pass: lock any published forecast whose game
+    // is now live/final so live polling cannot overwrite it.
+    try {
+      const { lockForecastsForLiveGames } = await import("@/lib/forecast/lifecycle");
+      const locked = await lockForecastsForLiveGames(supabaseAdmin, date);
+      (out as any).forecast_locks = { locked };
+    } catch (e: any) {
+      (out as any).forecast_locks = { error: e?.message ?? String(e) };
+    }
+
     out.duration_ms = Date.now() - t0;
     out.ok = !out.schedule.error && !out.engine.error;
     return out;
