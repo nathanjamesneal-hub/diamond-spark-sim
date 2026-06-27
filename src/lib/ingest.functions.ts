@@ -300,7 +300,7 @@ export async function runDiamondEngineForGames(
   gameIds?: string[],
   explicitVersion?: string,
   intendedClass: "official" | "preview" = "official",
-): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number; gamesEligible: number; gamesSkippedPreviewBlocked: number; gamesSkippedNotEligible: number; forecastsPublished: number; forecastClass: "official" | "preview" }> {
+): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number; gamesEligible: number; gamesSkippedPreviewBlocked: number; gamesSkippedNotEligible: number; gamesSkippedWindowClosed: number; forecastsPublished: number; forecastClass: "official" | "preview" }> {
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -310,11 +310,24 @@ export async function runDiamondEngineForGames(
 
   let gamesQuery = supabaseAdmin
     .from("games")
-    .select("id, mlb_game_id, home_team_id, away_team_id, game_status")
+    .select("id, mlb_game_id, home_team_id, away_team_id, game_status, first_pitch_at")
     .eq("date", date);
   if (gameIds && gameIds.length) gamesQuery = gamesQuery.in("id", gameIds);
-  const { data: games } = await gamesQuery;
-  if (!games?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0, gamesEligible: 0, gamesSkippedPreviewBlocked: 0, gamesSkippedNotEligible: 0, forecastsPublished: 0, forecastClass: intendedClass };
+  const { data: gamesAll } = await gamesQuery;
+  if (!gamesAll?.length) return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0, gamesEligible: 0, gamesSkippedPreviewBlocked: 0, gamesSkippedNotEligible: 0, gamesSkippedWindowClosed: 0, forecastsPublished: 0, forecastClass: intendedClass };
+
+  // FIRST-PITCH HARD CUTOFF — drop any live/final/started game BEFORE we
+  // load lineups, build the environment, or call simulate(). Applies to
+  // both `official` and `preview` write paths. See src/lib/forecast/window.ts.
+  const { partitionOpenGames } = await import("@/lib/forecast/window");
+  const { open: games, blocked: windowBlocked } = partitionOpenGames(
+    gamesAll as any[],
+    `runDiamondEngineForGames:${intendedClass}`,
+  );
+  const gamesSkippedWindowClosed = windowBlocked.length;
+  if (!games.length) {
+    return { projectionsInserted: 0, version, environmentFailures: 0, gamesProcessed: 0, gamesEligible: 0, gamesSkippedPreviewBlocked: 0, gamesSkippedNotEligible: 0, gamesSkippedWindowClosed, forecastsPublished: 0, forecastClass: intendedClass };
+  }
 
   const targetGameIds = games.map((g: any) => g.id);
 
