@@ -101,7 +101,7 @@ function TopForecasts() {
   const data = q.data;
   if (!data) return null;
   const hasOfficial = [...data.hitters, ...data.pitchers].some((r) =>
-    ["published", "locked", "live", "final"].includes(r.forecast_status)
+    ["published", "locked", "live", "final", "preview"].includes(r.forecast_status)
   );
   if (!hasOfficial) return null;
   return (
