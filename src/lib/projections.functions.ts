@@ -941,7 +941,13 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         const mH = metric(selected, "pitcher", "H");
         const mBF = metric(selected, "pitcher", "BF");
         const mOUTS = metric(selected, "pitcher", "OUTS");
-        const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
+        const fStatus: ForecastBoardStatus =
+          chosenClass === "preview"
+            ? (run?.status === "locked" && (gs === "live" || gs === "final")
+                ? (gs === "final" ? "final" : "live")
+                : "preview")
+            : forecastStatusOf(run, gs);
+
         pitcherCards.push({
           player_id: sp.player_id,
           mlb_id: playerMlbId.get(sp.player_id) ?? null,
