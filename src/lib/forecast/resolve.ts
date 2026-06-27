@@ -11,6 +11,7 @@ import {
   publishForecastIfEligible,
   type LifecycleContext,
   type LifecycleResult,
+  type ForecastClass,
 } from "./lifecycle";
 import type { MaterialInputs } from "./material-hash";
 import { projectForModelVersion } from "@/lib/engines/registry";
@@ -34,8 +35,10 @@ export async function resolveAndPublishForecast(args: {
   actor?: string | null;
   notes?: string | null;
   force?: boolean;
+  forecastClass?: ForecastClass;
 }): Promise<LifecycleResult> {
-  const { admin, game, modelVersion, triggerReason, actor, notes, force } = args;
+  const { admin, game, modelVersion, triggerReason, actor, notes, force, forecastClass } = args;
+
 
   // ----- Resolve material inputs from DB -----
   const [{ data: lineups }, { data: sps }, { data: glsRows }] = await Promise.all([
@@ -267,6 +270,7 @@ export async function resolveAndPublishForecast(args: {
     actor: actor ?? null,
     notes: notes ?? null,
     force: force ?? false,
+    forecastClass: forecastClass ?? "official",
     candidateInputs,
     game: {
       id: game.id,
@@ -277,3 +281,4 @@ export async function resolveAndPublishForecast(args: {
     },
   });
 }
+
