@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getSchedule, type GameSummary } from "@/lib/mlb.functions";
+import { getDiamondScores } from "@/lib/projections.functions";
 import { ScoreCard } from "@/components/score-card";
+import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
 
 const scheduleQuery = queryOptions({
   queryKey: ["schedule", "today"],
