@@ -78,6 +78,10 @@ function statValue(d: DistStat): number {
   return d?.mean ?? -Infinity;
 }
 
+function metricValue(m: LabRow["sim_metrics"][keyof LabRow["sim_metrics"]]): number {
+  return m?.mean ?? -Infinity;
+}
+
 function fmt(n: number | null | undefined, digits = 2): string {
   if (n == null || !isFinite(n)) return "—";
   return n.toFixed(digits);
@@ -215,21 +219,21 @@ function pickSort(r: LabRow, key: SortKey): number {
     case "diamond_score":
       return r.diamond_score ?? -Infinity;
     case "hits_mean":
-      return statValue(r.distributions.H);
+      return metricValue(r.sim_metrics.H);
     case "tb_mean":
-      return statValue(r.distributions.TB);
+      return metricValue(r.sim_metrics.TB);
     case "hr_mean":
-      return statValue(r.distributions.HR);
+      return metricValue(r.sim_metrics.HR);
     case "rbi_mean":
-      return statValue(r.distributions.RBI);
+      return metricValue(r.sim_metrics.RBI);
     case "r_mean":
-      return statValue(r.distributions.R);
+      return metricValue(r.sim_metrics.R);
     case "k_mean":
-      return statValue(r.distributions.K);
+      return metricValue(r.sim_metrics.K);
     case "bb_mean":
-      return statValue(r.distributions.BB);
+      return metricValue(r.sim_metrics.BB);
     case "outs_mean":
-      return statValue(r.distributions.outs);
+      return metricValue(r.sim_metrics.OUTS);
   }
 }
 
