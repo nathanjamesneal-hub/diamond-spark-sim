@@ -195,15 +195,35 @@ export const getLineupStatus = createServerFn({ method: "GET" })
     const spByGameTeam = new Map<string, any>();
     for (const sp of sps ?? []) spByGameTeam.set(`${sp.game_id}:${sp.team_id}`, sp);
 
-    const latestProjByGame = new Map<string, { created_at: string; model_version: string; count: number }>();
+    // Bucket projections per game by class so dashboard counters can
+    // report honest separate totals for OFFICIAL vs PREVIEW. Public
+    // pages must never conflate the two.
+    type ProjBucket = {
+      created_at: string;
+      model_version: string;
+      official: number;
+      preview: number;
+      legacy_unverified: number;
+    };
+    const latestProjByGame = new Map<string, ProjBucket>();
     for (const p of projections ?? []) {
+      const cls = (p as any).projection_class ?? "legacy_unverified";
       const cur = latestProjByGame.get(p.game_id);
       if (!cur) {
-        latestProjByGame.set(p.game_id, { created_at: p.created_at, model_version: p.model_version, count: 1 });
+        latestProjByGame.set(p.game_id, {
+          created_at: p.created_at,
+          model_version: p.model_version,
+          official: cls === "official" ? 1 : 0,
+          preview: cls === "preview" ? 1 : 0,
+          legacy_unverified: cls === "legacy_unverified" ? 1 : 0,
+        });
       } else {
-        cur.count += 1;
+        if (cls === "official") cur.official += 1;
+        else if (cls === "preview") cur.preview += 1;
+        else cur.legacy_unverified += 1;
       }
     }
+
 
     const rows: LineupStatusRow[] = games.map((g) => {
       const homeLineup = lineupsByGameTeam.get(`${g.id}:${g.home_team_id ?? ""}`) ?? [];
