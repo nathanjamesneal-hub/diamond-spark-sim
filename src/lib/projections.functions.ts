@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz } from "@/lib/timezone";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
+import { selectBestPublicForecast } from "@/lib/forecast/select-public";
 import {
   getMarketSimulationMetrics,
   type MarketKey,
@@ -818,20 +819,21 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       gameId: string,
       role: "hitter" | "pitcher",
       version: string,
-      gs: GameDisplayState,
-      gameStarted: boolean,
-    ): { proj: any | null; chosenClass: "official" | "preview" | null } => {
-      const k = `${playerId}:${gameId}:${role}:${version}`;
-      const official = latestOfficial.get(k);
-      if (official) return { proj: official, chosenClass: "official" };
-      if (gameStarted) return { proj: null, chosenClass: null };
-      const preview = latestPreview.get(k);
-      if (preview) return { proj: preview, chosenClass: "preview" };
-      // Game not started + no active forecast in either class. Mirror prior
-      // behavior of rendering a placeholder row for confirmed lineup spots,
-      // but only when at least one official exists for some version (rare).
-      void gs;
-      return { proj: null, chosenClass: null };
+      gameStatus: string | null | undefined,
+      firstPitchAt: string | null | undefined,
+    ): { proj: any | null; run: any | null; chosenClass: "official" | "preview" | null } => {
+      const selected = selectBestPublicForecast({
+        playerId,
+        gameId,
+        role,
+        modelVersion: version,
+        gameStatus,
+        firstPitchAt,
+        runs: (forecastRunRows ?? []) as any[],
+        projections: projections as any[],
+      });
+      if (!selected) return { proj: null, run: null, chosenClass: null };
+      return { proj: selected.projection, run: selected.run, chosenClass: selected.projectionClass };
     };
 
     const hitters: DiamondHitterCard[] = [];
@@ -851,12 +853,11 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       }
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const { proj, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, gs, gameStarted);
+        const { proj, run, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, g.game_status, g.first_pitch_at);
         // Skip rendering rows with no resolvable forecast (post-cutoff with no official).
         if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = runByKey.get(`${l.game_id}:${v}:${chosenClass}`);
         const snap = proj?.sim_snapshot ?? null;
         const selected = selectedSnapshot(l.player_id, "hitter", chosenClass, run, snap);
         const distSource = sourceDistributions(selected);
@@ -936,11 +937,10 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       }
       const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
       for (const v of versionList) {
-        const { proj, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, gs, gameStarted);
+        const { proj, run, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, g.game_status, g.first_pitch_at);
         if (!proj || !chosenClass) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = runByKey.get(`${sp.game_id}:${v}:${chosenClass}`);
         const snap = proj?.sim_snapshot ?? null;
         const selected = selectedSnapshot(sp.player_id, "pitcher", chosenClass, run, snap);
         const distSource = sourceDistributions(selected);
