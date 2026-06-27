@@ -209,6 +209,11 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     if (prob == null) continue;
     const meta = PROP_META[propType];
     const mean = meanForProp(h.selected_forecast, propType);
+    // Pregame-eligibility gate: a hitter prop ranks only when the SAME selected
+    // snapshot persists a finite positive Monte Carlo mean for that market.
+    // Probability without a same-run mean (e.g. preview rows where sim_snapshot
+    // wasn't persisted) must NOT appear on ranked boards.
+    if (PROP_MARKET[propType] && !(mean.value != null && isFinite(mean.value) && mean.value > 0)) continue;
     rows.push({
       ...base,
       key: `${h.player_id}:${h.game_id}:${h.model_version}:${propType}`,
