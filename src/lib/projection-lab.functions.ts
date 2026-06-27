@@ -350,6 +350,25 @@ async function loadLab(
     (actualsData ?? []).map((a: any) => [`${a.game_id}::${a.player_id}`, a]),
   );
 
+  // Same selected-run snapshot fallback used by public forecast surfaces. This
+  // is read-only and keyed to the exact selected run's game/version/class so a
+  // preview snapshot can never fill an official row (or vice versa).
+  const { data: projectionSnapshotsData } = gameIds.length && playerIds.length
+    ? await supabase
+        .from("projections")
+        .select("game_id, player_id, projection_role, model_version, projection_class, sim_snapshot, created_at")
+        .in("game_id", gameIds)
+        .in("player_id", playerIds)
+        .eq("projection_status", "active")
+        .order("created_at", { ascending: false })
+    : { data: [] as any[] };
+  const projectionSnapshotByKey = new Map<string, any>();
+  for (const pr of projectionSnapshotsData ?? []) {
+    const role = (pr as any).projection_role === "pitcher" ? "pitcher" : "hitter";
+    const k = `${(pr as any).game_id}::${(pr as any).player_id}::${role}::${(pr as any).model_version}::${(pr as any).projection_class}`;
+    if (!projectionSnapshotByKey.has(k)) projectionSnapshotByKey.set(k, (pr as any).sim_snapshot ?? null);
+  }
+
   const runsByRunId = new Map(selectedRuns.map((r) => [r.id, r]));
 
   function readBattingOrderFromSnapshot(
@@ -405,7 +424,7 @@ async function loadLab(
       forecastRunId: p.forecast_run_id,
       projectionClass: run.projection_class,
       fppDistributions: p.distributions ?? null,
-      projectionSimSnapshot: null,
+      projectionSimSnapshot: projectionSnapshotByKey.get(`${run.game_id}::${p.player_id}::${p.role}::${run.model_version}::${run.projection_class}`) ?? null,
     };
     if (!p.distributions) missingDist += 1;
     const ds = (market: Parameters<typeof getMarketSimulationMetrics>[0]["market"]): DistStat => metricsToSimStat(getMarketSimulationMetrics({
