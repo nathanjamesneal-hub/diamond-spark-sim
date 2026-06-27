@@ -66,6 +66,11 @@ export type LineupStatusRow = {
   last_refresh_at: string | null;
   latest_projection_at: string | null;
   active_projection_count: number;
+  /** Honest per-class breakdown of active projection rows for this game. */
+  active_official_count: number;
+  active_preview_count: number;
+  active_legacy_unverified_count: number;
+
   projection_model_version: string | null;
   badges: PipelineBadge[];
 };
