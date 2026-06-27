@@ -80,11 +80,15 @@ export type LineupStatusSummary = {
   games_with_lineups: number;
   games_with_confirmed_lineups: number;
   games_with_starting_pitchers: number;
+  /** @deprecated Use `games_with_official_published` for honest counters. */
   games_with_projections: number;
+  games_with_official_published: number;
+  games_with_preview_only: number;
   games_locked: number;
   last_refresh_at: string | null;
   last_engine_run_at: string | null;
 };
+
 
 export type LineupStatusPayload = {
   date: string;
