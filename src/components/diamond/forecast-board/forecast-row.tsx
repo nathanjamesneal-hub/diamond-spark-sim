@@ -45,9 +45,10 @@ function num(n: number | null | undefined, digits = 2): string {
   return n.toFixed(digits);
 }
 
-function statusPill(s: ForecastBoardStatus) {
+function statusPill(s: ForecastBoardStatus): { label: string; cls: string; title?: string } {
   switch (s) {
     case "no_official": return { label: "Awaiting", cls: "text-muted-foreground/80" };
+    case "preview":     return { label: "Preview",  cls: "text-amber-500", title: "Projected lineups — not an official Diamond forecast" };
     case "published":   return { label: "Published", cls: "text-muted-foreground" };
     case "locked":      return { label: "Locked",   cls: "text-foreground/80" };
     case "live":        return { label: "Live",     cls: "text-live" };
