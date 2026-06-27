@@ -9,6 +9,8 @@ import { getActualsForDate } from "@/lib/actuals.functions";
 import {
   getDefaultModelResultsDate,
   getModelResultsDateStatus,
+  getModelResultsDiagnostics,
+  getTrustedDateRange,
 } from "@/lib/model-results.functions";
 import {
   MR_CATEGORIES,
@@ -49,6 +51,19 @@ const statusQ = (date: string) =>
     staleTime: 60_000,
   });
 
+const trustedRangeQ = queryOptions({
+  queryKey: ["mr-trusted-range"],
+  queryFn: () => getTrustedDateRange(),
+  staleTime: 5 * 60 * 1000,
+});
+
+const diagnosticsQ = (days: number) =>
+  queryOptions({
+    queryKey: ["mr-diagnostics", days],
+    queryFn: () => getModelResultsDiagnostics({ data: { days } }),
+    staleTime: 60_000,
+  });
+
 const searchSchema = z.object({
   date: fallback(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), undefined),
 });
@@ -83,18 +98,23 @@ export const Route = createFileRoute("/_authenticated/model")({
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
   loader: async ({ context, deps }) => {
+    // Explicit ?date= always wins over default-pick. Never override it.
     let date = deps.date;
+    let reason: "trusted_terminal" | "trusted_partial" | "no_trusted_forecasts_yet" | "explicit" = "explicit";
     if (!date) {
       const def = await getDefaultModelResultsDate();
       date = def.date;
+      reason = def.reason;
     }
     await Promise.all([
       context.queryClient.ensureQueryData(calibrationQ),
       context.queryClient.ensureQueryData(leadersQ(date)),
       context.queryClient.ensureQueryData(actualsQ(date)),
       context.queryClient.ensureQueryData(statusQ(date)),
+      context.queryClient.ensureQueryData(trustedRangeQ),
+      context.queryClient.ensureQueryData(diagnosticsQ(7)),
     ]);
-    return { date };
+    return { date, reason };
   },
   component: ModelResultsPage,
   errorComponent: ({ error }) => (
@@ -106,13 +126,16 @@ export const Route = createFileRoute("/_authenticated/model")({
 });
 
 function ModelResultsPage() {
-  const { date } = Route.useLoaderData();
+  const { date, reason } = Route.useLoaderData();
   const navigate = useNavigate({ from: Route.fullPath });
 
   const { data: calibration } = useSuspenseQuery(calibrationQ);
   const { data: leaders } = useSuspenseQuery(leadersQ(date));
   const { data: actuals } = useSuspenseQuery(actualsQ(date));
   const { data: status } = useSuspenseQuery(statusQ(date));
+  const { data: trustedRange } = useSuspenseQuery(trustedRangeQ);
+  const [diagDays, setDiagDays] = useState(7);
+  const { data: diagnostics } = useSuspenseQuery(diagnosticsQ(diagDays));
 
   const [scope, setScope] = useState<MRScope>("all");
 
@@ -227,7 +250,109 @@ function ModelResultsPage() {
             {banner.text}
           </div>
         ) : null}
+
+        {reason === "no_trusted_forecasts_yet" ? (
+          <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            No trusted locked forecasts exist anywhere yet. Diamond began trusted tracking after the
+            write-once forecast lifecycle was introduced — preview and legacy projections are
+            excluded from all performance metrics on this page.
+          </div>
+        ) : null}
       </header>
+
+      {/* Trusted Coverage panel */}
+      <section className="rounded-lg border border-border/60 bg-card/40 p-4">
+        <div className="mono text-[10px] uppercase tracking-[0.25em] text-primary">Trusted coverage</div>
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <CoverageStat label="Locked forecasts graded" value={trustedRange.graded_locked_count.toLocaleString()} />
+          <CoverageStat label="First trusted date" value={trustedRange.first_trusted_date ?? "—"} />
+          <CoverageStat label="Most recent graded" value={trustedRange.last_graded_date ?? "—"} />
+          <CoverageStat label="Model versions" value={trustedRange.model_versions.length === 0 ? "—" : trustedRange.model_versions.join(", ")} />
+          <CoverageStat label="Excluded (preview / legacy)" value={`${trustedRange.excluded_preview_count.toLocaleString()} / ${trustedRange.excluded_legacy_count.toLocaleString()}`} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Range</span>
+          <RangePreset label="Since trusted began"
+            onClick={() => trustedRange.first_trusted_date && goToDate(trustedRange.first_trusted_date)}
+            disabled={!trustedRange.first_trusted_date}
+          />
+          <RangePreset label="Last 7 graded slates" active={diagDays === 7} onClick={() => setDiagDays(7)} />
+          <RangePreset label="Last 30 graded slates" active={diagDays === 30} onClick={() => setDiagDays(30)} />
+          <span className="mono ml-auto text-[10px] uppercase tracking-widest text-muted-foreground">
+            Performance sections below reflect the currently selected date.
+          </span>
+        </div>
+        {trustedRange.graded_locked_count < 10 ? (
+          <p className="mono mt-3 text-[11px] uppercase tracking-widest text-amber-300">
+            Small sample — only {trustedRange.graded_locked_count} trusted graded forecasts. Metrics on
+            this page should be treated as preliminary.
+          </p>
+        ) : null}
+      </section>
+
+      {/* Per-date diagnostics */}
+      <section className="rounded-lg border border-border/60 bg-card/40 p-4">
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="mono text-[10px] uppercase tracking-[0.25em] text-primary">Diagnostics</div>
+            <h3 className="font-display mt-1 text-lg tracking-tight">Per-date snapshot coverage</h3>
+            <p className="text-xs text-muted-foreground">
+              Today (Chicago): <span className="text-foreground">{todayInAppTz()}</span> · Requested:{" "}
+              <span className="text-foreground">{date}</span> · Default reason:{" "}
+              <span className="text-foreground">{reason}</span>
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-border/40">
+                <th className="px-2 py-2">Date</th>
+                <th className="px-2 py-2 text-right">Scheduled</th>
+                <th className="px-2 py-2 text-right">Final</th>
+                <th className="px-2 py-2 text-right">Official rows</th>
+                <th className="px-2 py-2 text-right">Locked official</th>
+                <th className="px-2 py-2 text-right">Games w/ actuals</th>
+                <th className="px-2 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diagnostics.map((row) => {
+                const trusted = row.snapshotCoverage.locked > 0;
+                const graded = trusted && row.terminal && row.hasActuals;
+                const status = graded
+                  ? "trusted · graded"
+                  : trusted
+                  ? "trusted · partial"
+                  : row.snapshotCoverage.eligible > 0
+                  ? "official unlocked"
+                  : row.scheduled > 0
+                  ? "no official forecasts"
+                  : "no games";
+                return (
+                  <tr key={row.date} className={`border-t border-border/30 ${row.date === date ? "bg-primary/5" : ""}`}>
+                    <td className="px-2 py-2 mono">
+                      <button type="button" className="underline-offset-2 hover:underline" onClick={() => goToDate(row.date)}>
+                        {row.date}
+                      </button>
+                    </td>
+                    <td className="px-2 py-2 text-right mono tabular-nums">{row.scheduled}</td>
+                    <td className="px-2 py-2 text-right mono tabular-nums">{row.final}</td>
+                    <td className="px-2 py-2 text-right mono tabular-nums">{row.snapshotCoverage.eligible}</td>
+                    <td className={`px-2 py-2 text-right mono tabular-nums ${trusted ? "text-emerald-300" : "text-muted-foreground"}`}>
+                      {row.snapshotCoverage.locked}
+                    </td>
+                    <td className="px-2 py-2 text-right mono tabular-nums">{row.actualsGameCount}</td>
+                    <td className={`px-2 py-2 text-[10px] mono uppercase tracking-widest ${
+                      graded ? "text-emerald-300" : trusted ? "text-amber-300" : "text-muted-foreground"
+                    }`}>{status}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <DiagnosticGroup label="Event Probability Accuracy"
         sub="Does a stated probability hit at its stated rate?">
@@ -1060,4 +1185,41 @@ function HomeRunEventReview({
     </section>
   );
 }
+
+function CoverageStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card/60 p-3">
+      <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="font-display mt-1 text-sm font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function RangePreset({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`mono rounded-md border px-2.5 py-1 text-[10px] uppercase tracking-widest transition ${
+        active
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-border/60 bg-card text-foreground hover:bg-card/80"
+      } disabled:cursor-not-allowed disabled:opacity-40`}
+    >
+      {label}
+    </button>
+  );
+}
+
 

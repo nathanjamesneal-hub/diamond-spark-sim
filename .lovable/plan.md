@@ -1,128 +1,115 @@
-## Phase 1.5 — Smoke Test + Terminology Lock
 
-### A. Canonical column name audit (pre-test)
-Pick one canonical name and eliminate mixed references. Recommendation: **`projection_class`** (matches the current migration + DB column; cheaper than a rename migration).
+## Problem (verified against the live DB)
 
-Audit + normalize in this order:
-1. `psql` confirm actual column on `forecast_player_projections` and `projections`.
-2. Grep repo for both `forecast_class` and `projection_class` across:
-   - migrations
-   - `src/lib/forecast/lifecycle.ts`, `eligibility.ts`, `resolve.ts`, `material-hash.ts`
-   - public readers: `projections.functions.ts`, `sim.functions.ts`, `actuals.functions.ts`, `model-results.functions.ts`, `lineup-status.functions.ts`, `consensus.ts`, `results-helpers.ts`
-   - admin queries + `_admin/admin.tsx`
-   - RLS policies on `forecast_player_projections` / `forecast_runs`
-   - tests under `src/lib/engines/**`
-3. Rewrite all stragglers to `projection_class`. Add a one-line comment in `lifecycle.ts` declaring it canonical.
-4. Add a unit assertion in `engine.test.ts` (or new `forecast/lifecycle.test.ts`) that the published row has `projection_class === 'official'`.
+Chicago today = **2026-06-27**. Per-date snapshot:
 
-### B. Four-case production smoke test
-Run against current Chicago-date slate, record results in `.lovable/smoke-2026-06-27.md`.
-
-**Case 1 — Game without confirmed full lineups**
-- Pick a scheduled game where `game_lineup_status` < confirmed_9 for either side.
-- Verify Today / Top Props / Consensus / Scores / Sim Leaders show no probability rows for those players.
-- Verify game card shows: "Awaiting confirmed lineups" + "No official Diamond forecast published yet."
-
-**Case 2 — Generate Preview Simulations**
-- From Admin → Generate Preview Simulations on an ineligible game.
-- Confirm preview rows appear only in Admin with amber "Preview — not an official Diamond forecast" banner.
-- Re-check every public surface (Today, Top Props, Consensus, Forecasts, Results, Calibration) — diff must be zero.
-
-**Case 3 — Publish one eligible official forecast**
-- Find a game with 2 confirmed SPs + both 9-deep confirmed orders.
-- Admin → Publish Official Forecast.
-- Confirm `forecast_runs.status='published'`, `projection_class='official'` on rows.
-- Record in smoke doc: `run_id`, `published_at`, `model_version`, one player's `hit_prob` and `H.mean`.
-
-**Case 4 — Lock / live behavior**
-- After first pitch, verify `forecast_runs.status='locked'`.
-- Refresh app; re-run preview generation.
-- Re-query the same player row; assert every official field (hit_prob, H.mean, HR.mean, model_version, published_at, locked_at, material_hash) is byte-identical to Case 3.
-- Verify live actuals update on the public card while forecast numbers do not.
-
-Gate: all four cases must pass before Phase 2 ships.
-
----
-
-## Phase 2 — Public UI Consolidation
-
-### 1. Collapse top navigation to 5 items
-Replace `src/components/site-header.tsx` nav array with exactly:
-`Today` · `Forecasts` · `Results` · `Model` · `Admin (role-gated)`.
-
-### 2. Route redirects (preserve all loaders + URLs)
-Add thin redirect route files. Each renders nothing and calls `throw redirect(...)` in `beforeLoad`:
-
-| Old route | New destination |
-|---|---|
-| `/odds` | `/forecasts?tab=rankings` |
-| `/diamond-scores` | `/forecasts?tab=board` |
-| `/top-props` | `/forecasts?tab=rankings` |
-| `/diamond-consensus` | `/forecasts?tab=consensus` |
-| `/projections` (`/slate`) | `/forecasts?tab=all` |
-| `/leaders` (`/leaderboards`) | `/forecasts?tab=rankings` |
-| `/sim-leaders` | `/forecasts?tab=rankings` |
-| `/calibration-lab` | `/model` |
-| `/model-results` | `/model` |
-| `/lineup-status` | `/admin` (pipeline tab) |
-
-Underlying loader files (`projections.functions.ts`, `sim.functions.ts`, etc.) stay; only route shells move.
-
-### 3. Build `/forecasts` with page-level tabs
-New file `src/routes/_authenticated/forecasts.tsx` with query-param tabs:
-- **Board** (default): concise list of official lineup-confirmed forecasts only, one card per player, hit-market primary.
-- **All Forecasts**: existing slate/projections table, filtered to `projection_class='official'`.
-- **Rankings**: existing Sim Leaders, official-only.
-- **Consensus**: existing Diamond Consensus board, official-only.
-- **Player Search**: lightweight search → `/players/$playerId`.
-
-No "Safest Hit" label anywhere.
-
-### 4. New public ForecastCard component
-`src/components/diamond/forecast-card.tsx` replaces the overloaded Diamond Score card on Today + Forecasts Board.
-
-Default face:
-```
-Aaron Judge                          NYY @ BOS · #2 · 6:42 PM CT
-─────────────────────────────────────────────────────────────
-PRIMARY FORECAST
-At Least 1 Hit            64%
-1.24 projected hits · 4.4 projected PA
-─────────────────────────────────────────────────────────────
-Lineup-confirmed forecast · alpha-0.3 · 6:42 PM
-                                Diamond Rank #3   [Why ▾]
+```text
+date         sched  final  terminal  hasActuals  official  locked
+2026-06-27    15      0      no         no          0        0
+2026-06-26    15     10      no         yes         0        0
+2026-06-25     9      8      YES        yes         0        0
+2026-06-24    16      0      no         yes         0        0
+2026-06-23    15     14      no         yes         0        0
+2026-06-22    12     12      YES        yes         0        0
 ```
 
-State variants (driven by `forecast_runs.status` + game state):
-- No official → "Awaiting confirmed lineups" / "No official Diamond forecast published yet." (no numbers).
-- Published → "Lineup-confirmed forecast".
-- Locked → "Forecast locked at first pitch".
-- Live → preserve original locked numbers; append `Live · 1-for-2 through 5`.
-- Final → preserve forecast; append `Final · 2-for-4`.
+Two stacked causes:
 
-Removed from default face: contact/power/speed ratings, secondary market probabilities, raw sim internals, confidence pills, "low confidence" tags, debug input grids. Admin keeps an expanded variant `ForecastCard variant="admin"` showing raw inputs + sim detail.
+1. **Zero official locked forecasts exist anywhere.** `forecast_runs` is empty; `projections` only has `legacy_unverified` + `preview` rows. The lifecycle publisher (`publishForecastIfEligible`) is never being invoked by the daily pipeline, so the trusted track has no source data.
+2. **`getDefaultModelResultsDate` is allowed to silently walk backwards.** Tier-1 (terminal + actuals + locked > 0) can never match while (1) is true, so it falls through to tier-2 (terminal + actuals) and lands on an older date (June 22 / 24 / 25 depending on which build was hit) with no banner explaining the jump.
 
-### 5. Today + Results integrity
-- `/` (Today): swap player cards for `<ForecastCard>`. Games without official forecasts stay visible with the empty-state copy above. Remove any probability/rank/Top-Prop affordances when no official forecast exists.
-- `/results`: when no eligible locked-official forecasts exist for the date, render: "No trusted locked forecasts available for this slate" + one-line explanation. Never fall back to preview / legacy / published-only / moving historical projections (enforce in `results.tsx` query filters: `projection_class='official' AND status='locked' AND finalized=true`).
+## Scope
 
-### 6. Acceptance checklist (must all pass)
-- Top nav has exactly 5 items.
-- Every old URL in the redirect table 302s/route-redirects to its mapped target.
-- A new user reads one ForecastCard in <5s and identifies the primary market + probability.
-- No public surface renders a preview row (grep readers for `projection_class !== 'official'` access paths).
-- Games without official forecasts show empty state, not fake numbers.
-- `/results` + `/model` queries filter on locked official snapshots + final actuals only.
-- Diamond Score appears only as secondary rank chip on the card.
+Frontend + the two server-fn modules that drive `/results` and `/model`. No engine math changes, no forecast-snapshot schema changes — only the date selector, the empty-state behavior, the diagnostic surface, and the `/model` range control. A separate follow-up will wire `publishForecastIfEligible` into the daily pipeline so trusted rows actually start landing; that is called out at the end.
 
-### Out of scope (explicit)
-- No model-formula changes.
-- No Results page redesign beyond empty-state copy + filter tightening.
-- No Model page redesign (Phase 3).
-- No new probability markets or calibration math.
+## Changes
 
-### Technical notes
-- Tabs in `/forecasts` use `useSearch()` + `navigate({ search })` so deep links and redirects preserve tab state.
-- Redirect routes use TanStack `beforeLoad: () => { throw redirect({ to: '/forecasts', search: { tab: 'rankings' } }) }`.
-- `ForecastCard` is presentational; data shape comes from existing `getDiamondScores` / forecast resolver output — no new server fn needed for Phase 2.
-- Admin pipeline/lineups/previews/lifecycle become tabs inside `/admin` rather than separate top-nav entries; existing routes can stay as `/admin/lineups` etc. under the admin layout.
+### 1. `src/lib/model-results.functions.ts`
+
+- Rewrite `getDefaultModelResultsDate` to use trusted-only logic:
+  - Tier 1: most recent Chicago date where `final == scheduled > 0` AND `snapshotCoverage.locked > 0` AND `hasActuals`.
+  - Tier 2: most recent date where `final > 0` AND `locked > 0` (partial slates with trusted snapshots).
+  - Tier 3: yesterday in Chicago, *flagged* as `reason: "no_trusted_forecasts_yet"`. Never silently pick a random older terminal-with-actuals date.
+- Return `{ date, info, reason }` so the UI can show the "no trusted locked forecasts" empty state.
+- `fetchDateInfo` already counts `official` + `locked` correctly — keep it, but also expose `final_count`, `pending_count`, `actuals_game_count` so the diagnostic table can reuse it.
+- Add `getModelResultsDiagnostics({ days = 7 })`: returns an array of `ModelResultsDateInfo` for the last N Chicago dates (descending). One round-trip per date is fine at this size; reuses `fetchDateInfo`.
+- Add `getTrustedDateRange()`: returns `{ first_trusted_date, last_graded_date, model_versions[], excluded_preview_count, excluded_legacy_count }` for the `/model` coverage header.
+- All date enumeration uses `todayInAppTz()` and `lte('date', today)` with `order desc`. No `LIMIT 1` on the ranking query — we paginate the candidate list (top 30 days) and pick by predicate.
+
+### 2. `src/routes/_authenticated/results.tsx`
+
+- Loader passes the new `reason` through to the component.
+- When `info.snapshotCoverage.locked === 0` OR `reason === "no_trusted_forecasts_yet"`, render the explicit empty state in place of the scorecard:
+  - "No trusted locked forecasts available for {long date}."
+  - "Diamond began trusted tracking after the write-once forecast lifecycle was introduced."
+  - "Historical preview and legacy projections are excluded from official grading."
+  - Mini counts row: `games X/Y final · official published Z · forecasts locked L · forecasts graded G`.
+  - "Pick an earlier audited date" button that opens the date picker / jumps to the most-recent date with `locked > 0` if one exists.
+- Partial-slate behavior unchanged in shape, but message becomes "Partial slate — X of Y games final." Grading list filters to `game_status IN (Final, Game Over, Completed Early)` only.
+- URL `?date=YYYY-MM-DD` always wins: loader passes `deps.date` straight through, never overwritten. Add an assertion comment so future edits don't reintroduce the fallback.
+- React Query keys already include the date — leave as-is, but confirm `staleTime` is short enough that switching dates refetches.
+
+### 3. `src/routes/_authenticated/model.tsx`
+
+- Add visible range control above the diagnostics grid:
+  - `Since trusted tracking began` (default)
+  - `Last 7 graded slates`
+  - `Last 30 graded slates`
+  - `Custom range` (two date inputs)
+- Range state lives in URL search params: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (omit both for "since tracking began"). Existing `?date=` continues to scope a single date; presence of `from` switches the page into range mode.
+- Coverage header card (always rendered): trusted locked forecasts graded · first trusted date · most recent graded date · model versions included · excluded preview count · excluded legacy count. Sourced from `getTrustedDateRange()`.
+- Small-sample guard: if total graded < 25 in the selected range, show an amber banner "Sample size too small for reliable diagnostics — N graded forecasts in range" instead of silently rendering legacy June 24 rows.
+- Diagnostic counts table (new section "Date Coverage Diagnostics"): last 7 Chicago dates with `sched / final / official / locked / graded`. Drives directly from `getModelResultsDiagnostics`.
+
+### 4. Data integrity (already aligned, re-asserted)
+
+`getSimulationLeaders`, `getActualsForDate`, and `model-results.functions.ts` queries must all carry, together:
+
+- `projection_class = 'official'`
+- `projection_status = 'active'`
+- `sim_snapshot IS NOT NULL`
+- Join only to `projection_results` rows with finalized box score.
+- Never include `legacy_unverified` or `preview`.
+
+Add a short header comment in each file calling this rule out so future edits don't loosen it.
+
+### 5. Tests
+
+Add `src/lib/__tests__/model-results.default-date.test.ts` (vitest) with mocked supabase responses:
+
+- Eligible dates June 24 (locked > 0) and June 26 (locked > 0): default = **June 26**.
+- Eligible June 26 (locked = 0), eligible June 24 (locked > 0): default = **June 24**, `reason: "trusted_older_date"`.
+- No locked anywhere: default = **yesterday Chicago**, `reason: "no_trusted_forecasts_yet"`.
+- Explicit `?date=2026-06-26` overrides default even when `locked = 0`.
+- Chicago midnight: a UTC timestamp at `2026-06-27T03:00:00Z` (still 2026-06-26 CT) resolves `todayInAppTz()` to `2026-06-26`.
+
+### 6. Follow-up (called out, not built here)
+
+Trusted rows don't exist yet because `publishForecastIfEligible` is not wired into `runDailyPipeline`. Without that, `/results` and `/model` will keep showing the new empty state correctly but never light up. A separate change should:
+
+- Invoke `publishForecastIfEligible` per game inside `runDailyPipeline` once lineups confirm.
+- Invoke `lockForecast(...)` on first pitch (cron tick or game-start hook).
+- Backfill a single test slate to confirm the new defaulter promotes it.
+
+I'll flag this at the top of the PR description and we can do it as the next ticket.
+
+## Verification after the change
+
+Re-run the diagnostic counts for **2026-06-22 through 2026-06-27** and post:
+
+```text
+date         sched  final  official  locked  graded   default-tier
+```
+
+Expected, given current data: every date `official=0, locked=0`, default lands on `2026-06-26` (yesterday CT) with `reason: "no_trusted_forecasts_yet"` and the explicit empty state is shown — no silent jump to June 24.
+
+## Technical details
+
+- New server fn signatures:
+  - `getDefaultModelResultsDate(): { date, info, reason: "trusted_terminal" | "trusted_partial" | "no_trusted_forecasts_yet" }`
+  - `getModelResultsDiagnostics({ days: number }): ModelResultsDateInfo[]`
+  - `getTrustedDateRange(): { first_trusted_date, last_graded_date, model_versions, excluded_preview_count, excluded_legacy_count }`
+- All three: `.middleware([requireAppMember])`, no admin client.
+- `staleTime: 60_000` to match existing query options.
+- Date math stays inside `todayInAppTz()` / `isoDateInAppTz()` from `src/lib/timezone.ts` — no `new Date(dateStr)` parsing anywhere new.
+- Range control on `/model` uses `validateSearch` + `zodValidator` + `fallback`, matching the existing `?date=` pattern.

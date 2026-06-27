@@ -1,17 +1,24 @@
 /**
- * Model Results — date-selection helpers.
+ * Model Results — date-selection + diagnostic helpers.
  *
- * Pure date/discovery server fns so the /calibration-lab page can default to
- * the most recent finalized slate (Chicago game-day) and step through
- * completed days. No simulation, scoring, or probability math here.
+ * Strict integrity rules these helpers MUST enforce:
+ *   - projection_class = 'official'
+ *   - projection_status = 'active'
+ *   - sim_snapshot IS NOT NULL  (locked pregame Monte Carlo snapshot)
+ *   - never include 'preview' or 'legacy_unverified' rows
+ *
+ * Defaulting must NEVER silently jump backwards to an older date. If no
+ * trusted locked forecasts exist, return yesterday in Chicago with an
+ * explicit reason so the UI can render the "no trusted forecasts" empty
+ * state instead of pretending a stale legacy date is the latest result.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
-import { todayInAppTz } from "@/lib/timezone";
+import { todayInAppTz, shiftIsoDate } from "@/lib/timezone";
 
 export type SnapshotCoverage = {
-  eligible: number; // active projection rows whose game went terminal
-  locked: number;   // active projection rows with a non-null sim_snapshot
+  eligible: number; // active OFFICIAL projection rows for the slate
+  locked: number;   // active OFFICIAL projection rows with sim_snapshot
 };
 
 export type ModelResultsDateInfo = {
@@ -21,7 +28,22 @@ export type ModelResultsDateInfo = {
   pending: number;
   terminal: boolean; // every game is Final/Postponed/Cancelled/Suspended
   hasActuals: boolean;
+  actualsGameCount: number;
   snapshotCoverage: SnapshotCoverage;
+};
+
+export type DefaultDateReason =
+  | "trusted_terminal"   // tier 1: all final + locked snapshots + actuals
+  | "trusted_partial"    // tier 2: partial slate but trusted snapshots exist
+  | "no_trusted_forecasts_yet"; // tier 3: nothing trusted to grade
+
+export type TrustedDateRange = {
+  first_trusted_date: string | null;
+  last_graded_date: string | null;
+  graded_locked_count: number;
+  model_versions: string[];
+  excluded_preview_count: number;
+  excluded_legacy_count: number;
 };
 
 const TERMINAL_STATUSES = new Set([
@@ -52,22 +74,22 @@ async function fetchDateInfo(
     if (TERMINAL_STATUSES.has(s)) terminalCount += 1;
   }
 
-  let hasActuals = false;
+  let actualsGameCount = 0;
   const coverage: SnapshotCoverage = { eligible: 0, locked: 0 };
   if (scheduled > 0) {
     const ids = (games ?? []).map((g: any) => g.id);
-    const { count } = await supabase
+
+    const { data: actualsRows } = await supabase
       .from("projection_results")
-      .select("id", { count: "exact", head: true })
+      .select("game_id")
       .in("game_id", ids);
-    hasActuals = (count ?? 0) > 0;
+    actualsGameCount = new Set((actualsRows ?? []).map((r: any) => r.game_id)).size;
 
     const { count: eligibleCount } = await supabase
       .from("projections")
       .select("id", { count: "exact", head: true })
       .in("game_id", ids)
       .eq("projection_status", "active")
-      // Model Results counters reflect OFFICIAL forecasts only.
       .eq("projection_class", "official");
     coverage.eligible = eligibleCount ?? 0;
 
@@ -79,7 +101,6 @@ async function fetchDateInfo(
       .eq("projection_class", "official")
       .not("sim_snapshot", "is", null);
     coverage.locked = lockedCount ?? 0;
-
   }
 
   return {
@@ -88,63 +109,165 @@ async function fetchDateInfo(
     final,
     pending: Math.max(0, scheduled - final),
     terminal: scheduled > 0 && terminalCount === scheduled,
-    hasActuals,
+    hasActuals: actualsGameCount > 0,
+    actualsGameCount,
     snapshotCoverage: coverage,
   };
 }
 
+async function listRecentSlateDates(
+  supabase: any,
+  today: string,
+  limit: number,
+): Promise<string[]> {
+  const { data: dates } = await supabase
+    .from("games")
+    .select("date")
+    .lte("date", today)
+    .order("date", { ascending: false })
+    .limit(limit * 4); // duplicates per game; dedupe below
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const r of dates ?? []) {
+    const d = String((r as any).date);
+    if (!seen.has(d)) {
+      seen.add(d);
+      unique.push(d);
+      if (unique.length >= limit) break;
+    }
+  }
+  return unique;
+}
+
 /**
- * Most recent game date suitable for Model Results review.
- * Preference order (snapshot-aware):
- *   1. Latest date that is terminal AND has actuals AND has >=1 locked snapshot.
- *   2. Latest date that is terminal AND has actuals (snapshot-unavailable banner).
- *   3. Latest date with any final game.
- *   4. Latest date with scheduled games.
- *   5. Chicago today as a last resort.
+ * Most recent Chicago game date that we can TRUST for Model Results.
+ *
+ * Tier 1: terminal slate + actuals + locked snapshots > 0.
+ * Tier 2: partial slate + locked snapshots > 0 (still trusted, just incomplete).
+ * Tier 3: no trusted data exists yet. Return YESTERDAY (Chicago) with a
+ *   `no_trusted_forecasts_yet` reason. We deliberately do NOT silently jump
+ *   to an older legacy date — that was the old broken behavior that landed
+ *   users on stale "June 24" recaps.
  */
 export const getDefaultModelResultsDate = createServerFn({ method: "GET" })
   .middleware([requireAppMember])
-  .handler(async ({ context }): Promise<{ date: string; info: ModelResultsDateInfo | null }> => {
+  .handler(async ({ context }): Promise<{
+    date: string;
+    info: ModelResultsDateInfo | null;
+    reason: DefaultDateReason;
+  }> => {
     const { supabase } = context;
     const today = todayInAppTz();
+    const candidates = await listRecentSlateDates(supabase, today, 30);
 
-    const { data: dates } = await supabase
-      .from("games")
-      .select("date")
-      .lte("date", today)
-      .order("date", { ascending: false })
-      .limit(120);
-
-    const unique: string[] = [];
-    const seen = new Set<string>();
-    for (const r of dates ?? []) {
-      const d = String((r as any).date);
-      if (!seen.has(d)) {
-        seen.add(d);
-        unique.push(d);
-      }
-    }
-
-    let firstTerminalWithActuals: { date: string; info: ModelResultsDateInfo } | null = null;
-    let firstWithFinal: ModelResultsDateInfo | null = null;
-    let firstWithGames: ModelResultsDateInfo | null = null;
-
-    for (const d of unique.slice(0, 14)) {
+    let trustedPartial: { date: string; info: ModelResultsDateInfo } | null = null;
+    for (const d of candidates) {
       const info = await fetchDateInfo(supabase, d);
-      if (!firstWithGames && info.scheduled > 0) firstWithGames = info;
-      if (!firstWithFinal && info.final > 0) firstWithFinal = info;
-      if (info.terminal && info.hasActuals) {
-        if (info.snapshotCoverage.locked > 0) {
-          return { date: d, info };
+      if (info.snapshotCoverage.locked > 0) {
+        if (info.terminal && info.hasActuals) {
+          return { date: d, info, reason: "trusted_terminal" };
         }
-        if (!firstTerminalWithActuals) firstTerminalWithActuals = { date: d, info };
+        if (!trustedPartial) trustedPartial = { date: d, info };
       }
     }
+    if (trustedPartial) {
+      return { date: trustedPartial.date, info: trustedPartial.info, reason: "trusted_partial" };
+    }
 
-    if (firstTerminalWithActuals) return firstTerminalWithActuals;
-    if (firstWithFinal) return { date: firstWithFinal.date, info: firstWithFinal };
-    if (firstWithGames) return { date: firstWithGames.date, info: firstWithGames };
-    return { date: today, info: null };
+    // Tier 3 — no trusted data anywhere. Anchor to yesterday Chicago so the
+    // empty state references a meaningful slate, not "today, no games final".
+    const yesterday = shiftIsoDate(today, -1);
+    const info = await fetchDateInfo(supabase, yesterday);
+    return { date: yesterday, info, reason: "no_trusted_forecasts_yet" };
+  });
+
+/**
+ * Per-date diagnostic counts for the Model page debug surface.
+ * Last N Chicago game dates, descending.
+ */
+export const getModelResultsDiagnostics = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .inputValidator((data: { days?: number } | undefined) => {
+    const days = Math.min(Math.max(Number(data?.days ?? 7), 1), 30);
+    return { days };
+  })
+  .handler(async ({ data, context }): Promise<ModelResultsDateInfo[]> => {
+    const { supabase } = context;
+    const today = todayInAppTz();
+    const dates = await listRecentSlateDates(supabase, today, data.days);
+    const rows: ModelResultsDateInfo[] = [];
+    for (const d of dates) {
+      rows.push(await fetchDateInfo(supabase, d));
+    }
+    return rows;
+  });
+
+/**
+ * Coverage summary for the /model header. Reports how much trusted data
+ * exists in total and what is intentionally excluded.
+ */
+export const getTrustedDateRange = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .handler(async ({ context }): Promise<TrustedDateRange> => {
+    const { supabase } = context;
+
+    const { data: trustedRows } = await supabase
+      .from("projections")
+      .select("game_id, model_version")
+      .eq("projection_status", "active")
+      .eq("projection_class", "official")
+      .not("sim_snapshot", "is", null);
+
+    const trustedGameIds = Array.from(
+      new Set((trustedRows ?? []).map((r: any) => r.game_id).filter(Boolean)),
+    );
+    const modelVersions = Array.from(
+      new Set((trustedRows ?? []).map((r: any) => String(r.model_version)).filter(Boolean)),
+    ).sort();
+
+    let firstDate: string | null = null;
+    let lastDate: string | null = null;
+    let gradedCount = 0;
+
+    if (trustedGameIds.length > 0) {
+      const { data: gameDates } = await supabase
+        .from("games")
+        .select("id, date")
+        .in("id", trustedGameIds);
+      const dates = (gameDates ?? []).map((g: any) => String(g.date)).sort();
+      firstDate = dates[0] ?? null;
+
+      // last graded = most recent date where trusted rows AND actuals exist
+      const { data: actualGameIds } = await supabase
+        .from("projection_results")
+        .select("game_id")
+        .in("game_id", trustedGameIds);
+      const actualSet = new Set((actualGameIds ?? []).map((r: any) => r.game_id));
+      const gradedDates = (gameDates ?? [])
+        .filter((g: any) => actualSet.has(g.id))
+        .map((g: any) => String(g.date))
+        .sort();
+      lastDate = gradedDates[gradedDates.length - 1] ?? null;
+      gradedCount = (trustedRows ?? []).filter((r: any) => actualSet.has(r.game_id)).length;
+    }
+
+    const { count: previewCount } = await supabase
+      .from("projections")
+      .select("id", { count: "exact", head: true })
+      .eq("projection_class", "preview");
+    const { count: legacyCount } = await supabase
+      .from("projections")
+      .select("id", { count: "exact", head: true })
+      .eq("projection_class", "legacy_unverified");
+
+    return {
+      first_trusted_date: firstDate,
+      last_graded_date: lastDate,
+      graded_locked_count: gradedCount,
+      model_versions: modelVersions,
+      excluded_preview_count: previewCount ?? 0,
+      excluded_legacy_count: legacyCount ?? 0,
+    };
   });
 
 /**
@@ -168,6 +291,7 @@ export const getModelResultsDateStatus = createServerFn({ method: "GET" })
       prevDate: string | null;
       nextDate: string | null;
       latestFinalizedDate: string | null;
+      latestTrustedDate: string | null;
     }> => {
       const { supabase } = context;
       const info = await fetchDateInfo(supabase, data.date);
@@ -194,11 +318,35 @@ export const getModelResultsDateStatus = createServerFn({ method: "GET" })
         .order("date", { ascending: false })
         .limit(1);
 
+      // Latest date that has any trusted locked official projection row.
+      const { data: trusted } = await supabase
+        .from("projections")
+        .select("game_id")
+        .eq("projection_status", "active")
+        .eq("projection_class", "official")
+        .not("sim_snapshot", "is", null)
+        .limit(2000);
+      let latestTrustedDate: string | null = null;
+      const trustedGameIds = Array.from(
+        new Set((trusted ?? []).map((r: any) => r.game_id).filter(Boolean)),
+      );
+      if (trustedGameIds.length > 0) {
+        const { data: tg } = await supabase
+          .from("games")
+          .select("date")
+          .in("id", trustedGameIds)
+          .lte("date", today)
+          .order("date", { ascending: false })
+          .limit(1);
+        latestTrustedDate = tg?.[0] ? String((tg[0] as any).date) : null;
+      }
+
       return {
         info,
         prevDate: prev?.[0] ? String((prev[0] as any).date) : null,
         nextDate: next?.[0] ? String((next[0] as any).date) : null,
         latestFinalizedDate: finals?.[0] ? String((finals[0] as any).date) : null,
+        latestTrustedDate,
       };
     },
   );
