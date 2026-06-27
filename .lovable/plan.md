@@ -1,79 +1,66 @@
-# Preview Projections — Implementation Plan
+## Preview Projections — Pregame Automation
 
-Goal: Diamond runs pregame Monte Carlo previews from projected lineups + probable starters, persists them as `projection_class='preview'` forecast runs, and keeps them strictly out of Results / Model / public Forecast Board. The existing official lifecycle is untouched.
+### Goal
+Diamond runs early projected-lineup Monte Carlo previews before lineups confirm. Previews are clearly labeled, never lock, never grade, and never replace official forecasts. Confirmed lineups still publish a separate `official` snapshot through the existing pipeline.
 
-Most of the lifecycle plumbing already exists (`forecast_runs.projection_class`, `publishForecastIfEligible` with `forecastClass: "preview"`, `official-exists-preview-blocked` guard, first-pitch cutoff). The work is wiring it up end-to-end and surfacing it in the UI.
+### Already in place (verified)
+- `projection_class = 'preview'` column exists on `projections` and is honored by `runDiamondEngineForGames` (`src/lib/ingest.functions.ts`).
+- Lifecycle guards already block preview writes when an active `official` forecast exists, and block both classes after first pitch via `partitionOpenGames` (`src/lib/forecast/window.ts`).
+- All public read paths (Forecast Board, Sim Leaders, Consensus, Results, Model Diagnostics, calibration) already filter `projection_class = 'official'`.
 
-## 1. Preview-class resolver (new: `src/lib/forecast/resolve-preview.ts`)
+### What to build
 
-Sibling to `resolve.ts`. Same `simulateAndBuild` callback, but:
+1. **Preview lineup resolver** — new `src/lib/forecast/resolve-preview.ts`
+   - Build a 9-deep batter set per side by merging confirmed → projected (Rotowire) → likely-starter fallbacks.
+   - Resolve probable starters with a `starter_confidence` tag (`probable | likely | tbd`).
+   - Compute `lineup_source` per side: `confirmed | partial | projected` and an `input_completeness` score.
+   - Compute a dedicated `preview_input_hash` (independent of the official material hash) so projected-lineup updates create new preview versions without touching official versions.
 
-- Builds lineups from **any** lineup rows (projected + confirmed), not just confirmed.
-- Falls back to probable starter rows (`confirmed=false` allowed) when confirmed SP missing.
-- Requires the same minimum to sim (both SPs known, both lineups 9-deep — projected or confirmed).
-- Computes a **separate preview input hash** by including a `previewSourceMix` field in `MaterialInputs.parkFactors`-like sidecar so a confirmed-lineup change produces a different hash than the projected version. (Implemented as a `previewInputs` discriminator merged into `candidateInputs.gameEnvironment`.)
-- Calls `publishForecastIfEligible(..., { forecastClass: 'preview' })`.
+2. **Orchestrator preview pass** — extend `src/lib/automation/orchestrator.ts`
+   - New step between refresh and lock: `runPreviewPass(date)`.
+   - For each pregame game with no active `official` forecast:
+     - Resolve preview inputs; skip if `input_completeness` is below the minimum required to simulate (e.g. both starters known + ≥6 projected batters per side).
+     - Compare `preview_input_hash` to the most recent stored preview; no-op when unchanged.
+     - Call `runDiamondEngineForGames([gamePk], { intendedClass: 'preview' })`.
+   - Skip silently if the game has started (`gameHasStartedOrPastStart`).
+   - Log a single `automation_log` row per pass with counts (`candidate`, `regenerated`, `skipped_hash_match`, `skipped_window_closed`, `skipped_official_active`).
 
-Lineup-source metadata captured into `material_inputs.preview_meta`:
+3. **Persist preview metadata** — extend the preview snapshot write in `ingest.functions.ts`
+   - Store on the projection row's `sim_snapshot` (or new `preview_meta` JSON column if needed): `lineup_source_home`, `lineup_source_away`, `home_lineup_count`, `away_lineup_count`, `starter_confidence_home`, `starter_confidence_away`, `input_completeness`, `preview_input_hash`, `generated_at`.
+   - Keep the existing snapshot fields (model version, seed, means, distributions, probabilities, Diamond Score, material inputs) identical to official runs.
 
-```
-{ lineup_source: 'projected'|'partial'|'confirmed',
-  home_lineup_count, away_lineup_count,
-  starter_confidence: 'confirmed'|'probable'|'mixed',
-  input_completeness: 0..1 }
-```
+4. **Official handoff (no change to mechanics, just verification)**
+   - When confirmed lineups arrive, the existing `runRefresh` pass detects publication gaps and runs `intendedClass = 'official'` through `publishForecastIfEligible`. Preview rows remain untouched; they are never mutated into official.
 
-## 2. Orchestrator preview pass (`src/lib/automation/orchestrator.ts`)
+5. **First-pitch enforcement (already present, add assertions)**
+   - `partitionOpenGames` already blocks both classes once a game starts; add explicit test coverage (see Tests below).
 
-After step 1 (refresh) and before step 2 (lock), add:
+6. **UI — Early Slate tab**
+   - New route `src/routes/_authenticated/forecasts/early-slate.tsx` with amber preview banner.
+   - New read fn `getEarlySlatePreviews(date)` in `src/lib/forecasts/preview.functions.ts` that selects only `projection_class = 'preview'` rows where the game is still pregame and no active official forecast exists.
+   - Reuse the dense Forecast Board components, but render an amber "PREVIEW" badge in place of the official status pill and show: projected mean, sim probability, Diamond Score, lineup source per side, starter confidence, input completeness, generated timestamp.
+   - Add an "Early Slate" tab to `src/components/forecasts-tab-bar.tsx`.
+   - When a game has only previews and first pitch has passed without an official publication, render the empty-state copy: "No official pregame forecast published — projected-lineup preview was available but confirmed lineups did not publish in time."
 
-```text
-3) For each pregame, non-locked, not-started game on `date`
-   that has NO active official forecast and ≥ minimum preview inputs:
-       resolveAndPublishPreview(game)
-   Same-hash no-op handled by publishForecastIfEligible.
-```
+7. **Audit existing read paths (read-only sweep)**
+   - Confirm every consumer (`getDiamondScores`, `getSimulationLeaders`, `getForecastBoardDetail`, `getConsensus*`, Results, Model Diagnostics, calibration grader, Top Props) filters `projection_class = 'official'`. Add the filter explicitly anywhere it is implicit so previews can never leak in.
 
-Counts surface in `OrchestrateResult.preview = { evaluated, published, noop, blocked, error }` and `automation_log.details.preview`. Never runs once `gameHasStartedOrPastStart(...)` is true (the lifecycle's `post-first-pitch-skip` is the backstop).
+### Tests (`src/lib/forecast/__tests__/preview.test.ts`)
+- Preview snapshot is created for a projected-lineup-only game pregame.
+- Re-running with identical `preview_input_hash` is a no-op (no duplicate row/version).
+- Confirmed lineups trigger a separate `official` row; the preview row is untouched.
+- Attempting a preview write while an active `official` forecast exists is rejected.
+- Preview and official writes are both rejected after `gameHasStartedOrPastStart === true`.
+- Results/Model/Consensus query helpers exclude preview rows even when present in the table.
 
-## 3. Refresh pipeline — leave official path alone
+### Acceptance criteria
+- Pregame slate auto-runs previews every orchestrator tick for games missing official forecasts.
+- Previews stop generating at first pitch; official forecasts lock at first pitch.
+- Previews never appear in Results, Model, calibration, public Consensus, official Top Forecasts, or the official Board.
+- Early Slate tab clearly shows preview projections with amber labeling and per-side lineup source.
 
-`runRefresh` keeps publishing **official** only. No preview side-effects, no preview supersede. (Previews are owned by the orchestrator preview pass — same module, separate write path.)
-
-## 4. Reads
-
-New read: `src/lib/forecasts/preview.functions.ts` → `getPreviewForecasts(date)`. Member-gated. Joins `forecast_runs` where `projection_class='preview'`, `status='published'`, with player projections + preview_meta. Used only by the new UI tab.
-
-All existing reads (`getDiamondScores`, Consensus v1/v2, Results, Model, Calibration, Top Forecasts, public board) already filter to `projection_class='official'` (or to `projections.projection_class='official'`); audit each to make doubly sure and add explicit filters where implicit.
-
-## 5. UI — Early Slate · Preview Projections
-
-New route `src/routes/_authenticated/forecasts/early-slate.tsx`. Linked from Forecasts nav as a separate tab.
-
-- Amber banner: "Preview — projected lineups, not an official Diamond forecast."
-- Per-game card: projected means, MC probabilities, Diamond Score, projected lineup status, starter status, generated_at, input completeness chip.
-- Public Forecast Board, `/results`, `/calibration-lab`, `/forecasts/consensus`, `/odds`, "/" home: no preview rows.
-
-## 6. Tests (`src/lib/forecast/__tests__/preview.test.ts`)
-
-Pure-function tests using a fake `LifecycleContext.admin`:
-
-1. Projected-only inputs → `published` preview run, hash recorded.
-2. Same projected inputs replayed → `noop`.
-3. Confirmed lineups arrive → resolver builds official, `publishForecastIfEligible` returns `published` for 'official'; a follow-up preview call returns `official-exists-preview-blocked`.
-4. Preview write after first-pitch → `post-first-pitch-skip`; no projection rows written.
-5. `runDiamondEngineForGames(..., 'preview')` cannot mutate an active official row (separate class filter).
-6. Results / Model / Consensus selectors filter out `projection_class='preview'` (selector unit test).
-
-## Out of scope
-
-- No new tables, no schema migration (uses existing `projection_class`).
-- No change to Diamond Engine math, calibration, or Monte Carlo math.
-- No change to official locking, official supersede, or first-pitch guard.
-
-## Files touched
-
-- New: `src/lib/forecast/resolve-preview.ts`, `src/lib/forecasts/preview.functions.ts`, `src/routes/_authenticated/forecasts/early-slate.tsx`, `src/lib/forecast/__tests__/preview.test.ts`.
-- Edit: `src/lib/automation/orchestrator.ts` (preview pass + telemetry), nav link in forecasts layout, defensive `projection_class='official'` filter audit in read paths.
-
-Approve and I'll implement.
+### Technical notes
+- Files added: `src/lib/forecast/resolve-preview.ts`, `src/lib/forecasts/preview.functions.ts`, `src/routes/_authenticated/forecasts/early-slate.tsx`, `src/lib/forecast/__tests__/preview.test.ts`.
+- Files edited: `src/lib/automation/orchestrator.ts` (preview pass + result shape), `src/lib/ingest.functions.ts` (write preview metadata), `src/components/forecasts-tab-bar.tsx` (new tab).
+- No DB schema change required if preview metadata fits inside `sim_snapshot` JSON. If we prefer a typed column, add `preview_meta jsonb` via migration before the code change.
+- Hashing: `preview_input_hash = sha256(model_version + probable_starters + projected_lineups_ordered + env_inputs)`. Distinct from the official `material_hash` so the two lifecycles never collide.
