@@ -473,6 +473,11 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         win_probability: p.pitcher_win_probability,
         quality_start_probability: p.quality_start_probability,
         extra_probabilities: {},
+        projection_class: p.projection_class,
+        forecast_status: p.forecast_status,
+        game_display_state: p.game_display_state,
+        forecast_run_id: p.forecast_run_id,
+        forecast_locked_at: p.forecast_locked_at,
       };
     });
 
