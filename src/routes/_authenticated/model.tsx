@@ -70,7 +70,7 @@ export const Route = createFileRoute("/_authenticated/model")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Model Results · Diamond" },
+      { title: "Model Diagnostics · Diamond" },
       {
         name: "description",
         content:
