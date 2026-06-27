@@ -401,7 +401,7 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
   .inputValidator((data: { date?: string } | undefined) => data ?? {})
   .handler(async ({ data, context }): Promise<SimulationLeadersPayload> => {
     const warnings: string[] = [];
-    const scores = await getDiamondScores({ data: data.date ? { date } : {} } as any) as Awaited<ReturnType<typeof getDiamondScores>>;
+    const scores = await getDiamondScores({ data: data.date ? { date: data.date } : {} } as any) as Awaited<ReturnType<typeof getDiamondScores>>;
 
     type SnapStat = import("./sim-snapshot").StoredStatDist;
     type DistMap = Record<string, SnapStat | undefined>;
