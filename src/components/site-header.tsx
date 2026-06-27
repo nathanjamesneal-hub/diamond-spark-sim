@@ -5,20 +5,9 @@ import type { User } from "@supabase/supabase-js";
 
 const nav = [
   { to: "/", label: "Today" },
-  { to: "/scores", label: "Scores" },
-  { to: "/odds", label: "Sim Leaders" },
-  { to: "/standings", label: "Standings" },
-  { to: "/slate", label: "Projections" },
-  { to: "/diamond-scores", label: "Diamond" },
-  { to: "/top-props", label: "Top Props" },
-  { to: "/diamond-consensus", label: "Consensus" },
-  { to: "/lineup-status", label: "Pipeline" },
-
-  { to: "/calibration", label: "Calibration" },
+  { to: "/forecasts", label: "Forecasts" },
   { to: "/results", label: "Results" },
   { to: "/model", label: "Model" },
-  { to: "/leaderboards", label: "Leaders" },
-
 ] as const;
 
 export function SiteHeader() {
