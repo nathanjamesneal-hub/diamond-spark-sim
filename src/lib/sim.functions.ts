@@ -537,12 +537,14 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
       };
     });
 
-    if (isHistorical) {
+    {
       const lockedHitters = hitterSnapByPlayer.size;
       const lockedPitchers = pitcherSnapByPlayer.size;
       if (lockedHitters === 0 && lockedPitchers === 0) {
         warnings.push(
-          "No locked pregame snapshots exist for this date — Mean Projection Accuracy is unavailable.",
+          isHistorical
+            ? "No locked pregame snapshots exist for this date — Mean Projection Accuracy is unavailable."
+            : "No published forecasts yet — Awaiting confirmed lineups.",
         );
       }
     }
