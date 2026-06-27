@@ -129,6 +129,17 @@ function leadersQuery(date: string | undefined) {
   });
 }
 
+function actualsQuery(date: string | undefined) {
+  return queryOptions({
+    queryKey: ["sim-actuals", date ?? "today"],
+    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
 export const Route = createFileRoute("/_authenticated/diamond-consensus")({
   beforeLoad: () => {
     throw redirect({ to: "/forecasts/consensus" });
