@@ -704,6 +704,7 @@ export async function runDiamondEngineForGames(
     gamesEligible,
     gamesSkippedPreviewBlocked,
     gamesSkippedNotEligible,
+    gamesSkippedWindowClosed,
     forecastsPublished,
     forecastClass: intendedClass,
   };
