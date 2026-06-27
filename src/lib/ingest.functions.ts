@@ -1108,18 +1108,24 @@ export const forceRunDiamondEngine = createServerFn({ method: "POST" })
       summary.games_skipped = summary.games_found - runnable.length;
 
       if (runnable.length) {
-        const r = await runDiamondEngineForGames(date, runnable.map((g: any) => g.id));
+        // forceRunDiamondEngine is now the "Generate Preview Simulations"
+        // admin action — it runs every game with at least one player but
+        // writes them as projection_class='preview'. Public read paths
+        // ignore preview rows entirely; admins must read them explicitly.
+        const r = await runDiamondEngineForGames(date, runnable.map((g: any) => g.id), undefined, "preview");
         summary.version = r.version;
         summary.games_processed = r.gamesProcessed;
         summary.environment_failures = r.environmentFailures;
 
-        // Per-role counts via projections query (active rows only).
+        // Per-role counts via projections query (active preview rows only).
         const { data: proj } = await supabaseAdmin
           .from("projections")
           .select("game_id, projection_role")
           .in("game_id", runnable.map((g: any) => g.id))
           .eq("model_version", r.version)
-          .eq("projection_status", "active");
+          .eq("projection_status", "active")
+          .eq("projection_class", "preview");
+
         const hitterByGame = new Map<string, number>();
         const pitcherByGame = new Map<string, number>();
         for (const p of proj ?? []) {
