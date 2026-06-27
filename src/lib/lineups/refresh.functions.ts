@@ -200,16 +200,19 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
       return summary;
     }
 
-    // 6. Supersede prior active projections for affected games
+    // 6. Class-scoped supersede: only retire prior OFFICIAL active rows.
+    //    Preview/legacy rows are immutable from the refresh pipeline.
     await supabaseAdmin
       .from("projections")
       .update({ projection_status: "superseded" })
       .in("game_id", summary.changedGameIds)
-      .eq("projection_status", "active");
+      .eq("projection_status", "active")
+      .eq("projection_class", "official");
 
-    // 7. Run engine for affected games only
+    // 7. Run engine for affected games only — always OFFICIAL from refresh.
     const { runDiamondEngineForGames } = await import("@/lib/ingest.functions");
-    const engineResult = await runDiamondEngineForGames(date, summary.changedGameIds);
+    const engineResult = await runDiamondEngineForGames(date, summary.changedGameIds, undefined, "official");
+
     summary.engineRan = true;
     summary.projectionsRegenerated = engineResult.projectionsInserted;
 
