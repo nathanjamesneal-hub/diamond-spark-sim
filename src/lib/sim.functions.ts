@@ -401,88 +401,75 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
   .inputValidator((data: { date?: string } | undefined) => data ?? {})
   .handler(async ({ data, context }): Promise<SimulationLeadersPayload> => {
     const warnings: string[] = [];
-    const scores = await getDiamondScores({ data: data.date ? { date: data.date } : {} });
+    const scores = await getDiamondScores({ data: data.date ? { date } : {} } as any) as Awaited<ReturnType<typeof getDiamondScores>>;
 
-    const { todayInAppTz } = await import("@/lib/timezone");
-    const today = todayInAppTz();
-    const requestedDate = data.date ?? scores.date;
-    const isHistorical = requestedDate < today;
-
-    const batterDistByMlbId = new Map<number, BatterDist>();
-    const pitcherDistByMlbId = new Map<number, PitcherDist>();
-
-    // Snapshot-backed maps for historical reads.
     type SnapStat = import("./sim-snapshot").StoredStatDist;
-    const hitterSnapByPlayer = new Map<string, Record<string, SnapStat | undefined>>();
-    const pitcherSnapByPlayer = new Map<string, Record<string, SnapStat | undefined>>();
+    type DistMap = Record<string, SnapStat | undefined>;
 
-    let gamesSimulated = 0;
-    const gamePks = scores.games.map((g) => g.mlb_game_id).filter((x): x is number => x != null);
-    const gameIds = scores.games.map((g) => g.id);
+    // ------------------------------------------------------------------
+    // Read-side selector: for each card, the SELECTED snapshot must be used
+    // intact. Priority within the SAME selected forecast/run:
+    //   1) matching forecast_player_projections.distributions
+    //      (only valid for OFFICIAL rows with a forecast_run_id)
+    //   2) matching projections.sim_snapshot.distributions
+    //      (already attached on the card as `distributions`)
+    //   3) null / unavailable
+    // We NEVER mix an official FPP row from one run with a preview snapshot
+    // from a different run.
+    // ------------------------------------------------------------------
 
-    if (isHistorical) {
-      // HISTORICAL: read locked pregame snapshots from projections.sim_snapshot.
-      // Never re-run the live simulator and never call MLB lineup APIs.
-      const { supabase } = context;
-      const { data: snapRows } = gameIds.length
-        ? await supabase
-            .from("projections")
-            .select("player_id, game_id, projection_role, sim_snapshot, projection_status, created_at")
-            .in("game_id", gameIds)
-            // Sim Leaders/calibration are public — historical reads must
-            // only consider OFFICIAL snapshots. Never expose preview or
-            // legacy_unverified pregame snapshots as model history.
-            .eq("projection_class", "official")
-            .not("sim_snapshot", "is", null)
-            .order("created_at", { ascending: false })
-        : { data: [] as any[] };
+    const { supabase } = context;
 
+    // Collect official run ids actually selected by the public selector so we
+    // only fetch FPP rows that belong to those exact runs.
+    const officialRunIds = new Set<string>();
+    for (const h of scores.hitters) {
+      if (h.forecast_status !== "preview" && h.forecast_run_id) officialRunIds.add(h.forecast_run_id);
+    }
+    for (const p of scores.pitchers) {
+      if (p.forecast_status !== "preview" && p.forecast_run_id) officialRunIds.add(p.forecast_run_id);
+    }
 
-      const seen = new Set<string>();
-      for (const r of snapRows ?? []) {
-        const key = `${r.game_id}:${r.player_id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const snap = (r as any).sim_snapshot;
-        if (!snap || typeof snap !== "object") continue;
-        const dists = (snap.distributions ?? {}) as Record<string, SnapStat>;
-        if (snap.projection_role === "pitcher") {
-          pitcherSnapByPlayer.set(r.player_id, dists);
-        } else {
-          hitterSnapByPlayer.set(r.player_id, dists);
-        }
+    // Map keyed by (forecast_run_id, player_id, role) → distributions
+    const fppDistByKey = new Map<string, DistMap>();
+    if (officialRunIds.size > 0) {
+      const { data: fppRows } = await supabase
+        .from("forecast_player_projections")
+        .select("player_id, role, distributions, forecast_run_id")
+        .in("forecast_run_id", Array.from(officialRunIds));
+      for (const r of fppRows ?? []) {
+        const role = (r as any).role === "pitcher" ? "pitcher" : "hitter";
+        const key = `${(r as any).forecast_run_id}:${(r as any).player_id}:${role}`;
+        const dists = ((r as any).distributions ?? {}) as DistMap;
+        fppDistByKey.set(key, dists);
       }
-    } else {
-      // TODAY: read published/locked forecast snapshots only. Do NOT call the
-      // simulator from the read path — the Forecast Snapshot Lifecycle owns
-      // all writes via `publishForecastIfEligible`.
-      const { supabase } = context;
-      const { data: liveSnapRows } = gameIds.length
-        ? await supabase
-            .from("forecast_player_projections")
-            .select("player_id, role, distributions, forecast_run_id, forecast_runs!inner(game_id, status)")
-            .in("forecast_runs.game_id", gameIds)
-            .in("forecast_runs.status", ["published", "locked"])
-        : { data: [] as any[] };
-      for (const r of liveSnapRows ?? []) {
-        const dists = ((r as any).distributions ?? {}) as Record<string, SnapStat>;
-        if ((r as any).role === "pitcher") {
-          pitcherSnapByPlayer.set((r as any).player_id, dists);
-        } else {
-          hitterSnapByPlayer.set((r as any).player_id, dists);
-        }
-      }
-      gamesSimulated = 0; // read-only path
     }
 
     const { reshapeStoredToSimStat } = await import("./sim-snapshot");
 
+    function pickDistMap(
+      role: "hitter" | "pitcher",
+      card: { player_id: string; forecast_run_id: string | null; forecast_status: string; distributions: any },
+    ): { dists: DistMap | null; source: "fpp" | "sim_snapshot" | null } {
+      // Official chosen → prefer FPP for the exact run; fall back to attached
+      // projections.sim_snapshot.distributions for the SAME selected row.
+      if (card.forecast_status !== "preview" && card.forecast_run_id) {
+        const fpp = fppDistByKey.get(`${card.forecast_run_id}:${card.player_id}:${role}`);
+        if (fpp) return { dists: fpp, source: "fpp" };
+      }
+      const snap = (card.distributions ?? null) as DistMap | null;
+      if (snap && Object.keys(snap).length > 0) return { dists: snap, source: "sim_snapshot" };
+      return { dists: null, source: null };
+    }
+
+    let hitterMeanCount = 0;
+    let pitcherMeanCount = 0;
+
     const hitters: SimLeaderHitterRow[] = scores.hitters.map((h) => {
-      const snap = hitterSnapByPlayer.get(h.player_id);
-      const pick = (k: string): SimStat | null => {
-        if (snap) return reshapeStoredToSimStat(snap[k]);
-        return null;
-      };
+      const { dists } = pickDistMap("hitter", h);
+      const pick = (k: string): SimStat | null => (dists ? reshapeStoredToSimStat(dists[k]) : null);
+      const H = pick("H");
+      if (H?.mean != null) hitterMeanCount += 1;
       return {
         player_name: h.player_name,
         mlb_id: h.mlb_id,
@@ -495,12 +482,12 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         badge: h.badge,
         diamond_score: h.diamond_score,
         confidence: h.confidence,
-        H: pick("H"),
+        H,
         HR: pick("HR"),
         RBI: pick("RBI"),
         R: pick("R"),
         TB: pick("TB"),
-        SB: null,
+        SB: pick("SB"),
         K: pick("K"),
         card_probabilities: {
           hit: h.hit_probability,
@@ -514,11 +501,14 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
     });
 
     const pitchers: SimLeaderPitcherRow[] = scores.pitchers.map((p) => {
-      const snap = pitcherSnapByPlayer.get(p.player_id);
+      const { dists } = pickDistMap("pitcher", p);
+      // Alias-safe pitcher outs: OUTS or outs.
       const pick = (k: string): SimStat | null => {
-        if (snap) return reshapeStoredToSimStat(snap[k]);
-        return null;
+        if (!dists) return null;
+        return reshapeStoredToSimStat(dists[k] ?? dists[k.toLowerCase()] ?? dists[k.toUpperCase()]);
       };
+      const K = pick("K");
+      if (K?.mean != null) pitcherMeanCount += 1;
       return {
         player_name: p.player_name,
         mlb_id: p.mlb_id,
@@ -532,7 +522,7 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
         confidence: p.confidence,
         projected_outs: p.projected_outs,
         outs: pick("outs"),
-        K: pick("K"),
+        K,
         BB: pick("BB"),
         ER: pick("ER"),
         H: pick("H"),
@@ -542,25 +532,24 @@ export const getSimulationLeaders = createServerFn({ method: "GET" })
       };
     });
 
-    {
-      const lockedHitters = hitterSnapByPlayer.size;
-      const lockedPitchers = pitcherSnapByPlayer.size;
-      if (lockedHitters === 0 && lockedPitchers === 0) {
-        warnings.push(
-          isHistorical
-            ? "No locked pregame snapshots exist for this date — Mean Projection Accuracy is unavailable."
-            : "No published forecasts yet — Awaiting confirmed lineups.",
-        );
-      }
+    if (hitters.length === 0 && pitchers.length === 0) {
+      warnings.push("No public forecast rows available for this date.");
+    } else if (hitterMeanCount === 0 && pitcherMeanCount === 0) {
+      warnings.push("No persisted Monte Carlo means available in selected snapshots.");
     }
+
+    console.info(
+      `[getSimulationLeaders] date=${scores.date} hitters=${hitters.length} (mean=${hitterMeanCount}) pitchers=${pitchers.length} (mean=${pitcherMeanCount}) officialRuns=${officialRunIds.size}`,
+    );
 
     return {
       date: scores.date,
       generated_at: new Date().toISOString(),
       game_count: scores.games.length,
-      games_simulated: gamesSimulated,
+      games_simulated: 0,
       hitters,
       pitchers,
       warnings,
     };
   });
+
