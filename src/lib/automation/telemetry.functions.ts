@@ -13,7 +13,7 @@ export type AutomationRow = {
   slate_date: string | null;
   game_pk: number | null;
   decision: string | null;
-  details: Record<string, unknown>;
+  details: unknown;
   error: string | null;
   started_at: string;
   finished_at: string | null;
