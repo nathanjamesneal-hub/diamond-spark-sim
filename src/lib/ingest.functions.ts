@@ -992,7 +992,10 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
         const { data: projs } = await supabaseAdmin.from("projections")
           .select("game_id, projection_role")
           .in("game_id", allGameIds)
-          .eq("projection_status", "active");
+          .eq("projection_status", "active")
+          // Daily pipeline summary reports OFFICIAL coverage only — preview
+          // rows must never count as "games with projections".
+          .eq("projection_class", "official");
         const gamesWith = new Set<string>();
         let h = 0, p = 0;
         for (const r of projs ?? []) {
@@ -1003,6 +1006,7 @@ export const runDailyPipeline = createServerFn({ method: "POST" })
         out.cards.pitchers = p;
         out.cards.games_with_projections = gamesWith.size;
         out.cards.games_pending = allGameIds.length - gamesWith.size;
+
       }
     } catch { /* non-fatal */ }
 
