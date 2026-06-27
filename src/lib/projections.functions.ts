@@ -344,7 +344,7 @@ export type GameDisplayState = "upcoming" | "live" | "final" | "other";
  *   live        — official forecast locked, game in progress
  *   final       — official forecast locked, game ended
  */
-export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final";
+export type ForecastBoardStatus = "no_official" | "published" | "locked" | "live" | "final" | "preview";
 
 export type ForecastActuals = {
   hits: number | null;
