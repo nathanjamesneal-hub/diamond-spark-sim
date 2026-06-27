@@ -170,8 +170,12 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
             <ActionBtn disabled={busy != null} onClick={() => call("refresh", () => refresh({ data: { gameId: row.game_id } }))}>
               {busy === "refresh" ? "…" : "Refresh lineups"}
             </ActionBtn>
-            <ActionBtn disabled={busy != null} onClick={() => call("engine", () => runEngine({ data: { gameId: row.game_id } }))}>
-              {busy === "engine" ? "…" : "Run engine"}
+            <ActionBtn
+              disabled={busy != null || windowClosed(row)}
+              title={windowClosed(row) ? "Forecast window closed — game is live" : undefined}
+              onClick={() => call("engine", () => runEngine({ data: { gameId: row.game_id } }))}
+            >
+              {busy === "engine" ? "…" : windowClosed(row) ? "Window closed" : "Run engine"}
             </ActionBtn>
             <ActionBtn
               disabled={busy != null || row.locked_at != null}
@@ -190,6 +194,12 @@ function GameRow({ row, isAdmin }: { row: LineupStatusRow; isAdmin: boolean }) {
           </div>
         ) : null}
       </div>
+
+      {windowClosed(row) ? (
+        <div className="mono mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-widest text-amber-300">
+          Forecast window closed — game is live or final. Only live actuals refresh.
+        </div>
+      ) : null}
 
       {msg ? (
         <div className={`mono mt-2 text-[11px] ${msg.ok ? "text-edge" : "text-destructive"}`}>{msg.text}</div>
