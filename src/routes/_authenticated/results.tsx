@@ -101,6 +101,7 @@ function ResultsPage() {
     () => MR_CATEGORIES.map((c) => buildCategorySummary(c, leaders, actuals, "all")),
     [leaders, actuals],
   );
+  const audit = useMemo(() => buildFullProjectionAudit(leaders, actuals, "final"), [leaders, actuals]);
 
   const goToDate = (d: string | null) => { if (d) navigate({ search: { date: d } }); };
   const goLatest = () => navigate({ search: { date: undefined } });
