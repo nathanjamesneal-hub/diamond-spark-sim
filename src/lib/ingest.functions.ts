@@ -299,7 +299,9 @@ export async function runDiamondEngineForGames(
   date: string,
   gameIds?: string[],
   explicitVersion?: string,
-): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number }> {
+  intendedClass: "official" | "preview" = "official",
+): Promise<{ projectionsInserted: number; version: string; environmentFailures: number; gamesProcessed: number; gamesEligible: number; gamesSkippedPreviewBlocked: number; gamesSkippedNotEligible: number; forecastsPublished: number; forecastClass: "official" | "preview" }> {
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const { data: activeVersion } = await supabaseAdmin
