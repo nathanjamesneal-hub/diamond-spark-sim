@@ -15,7 +15,7 @@ import { strict as assert } from "node:assert";
 import {
   gameHasStartedOrPastStart,
   partitionOpenGames,
-} from "../window";
+} from "../window.ts";
 
 describe("gameHasStartedOrPastStart", () => {
   const future = new Date(Date.now() + 60 * 60_000).toISOString();
