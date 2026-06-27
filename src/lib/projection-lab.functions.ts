@@ -26,6 +26,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz, shiftIsoDate } from "@/lib/timezone";
+import { getMarketSimulationMetrics, metricsToSimStat } from "@/lib/forecast/sim-metrics";
 
 const OFFICIAL_RUN_STATUSES = ["published", "locked"] as const;
 type OfficialStatus = (typeof OFFICIAL_RUN_STATUSES)[number];
@@ -400,9 +401,18 @@ async function loadLab(
       }
     }
 
-    const dist = (p.distributions ?? null) as Record<string, DistStat> | null;
-    if (!dist) missingDist += 1;
-    const ds = (k: string): DistStat => (dist && dist[k]) ? (dist[k] as DistStat) : null;
+    const selectedForecast = {
+      forecastRunId: p.forecast_run_id,
+      projectionClass: run.projection_class,
+      fppDistributions: p.distributions ?? null,
+      projectionSimSnapshot: null,
+    };
+    if (!p.distributions) missingDist += 1;
+    const ds = (market: Parameters<typeof getMarketSimulationMetrics>[0]["market"]): DistStat => metricsToSimStat(getMarketSimulationMetrics({
+      selectedForecast,
+      role: p.role,
+      market,
+    })) as DistStat;
 
     const actual = game ? (actualsByKey.get(`${game.id}::${p.player_id}`) ?? null) : null;
 
@@ -468,7 +478,7 @@ async function loadLab(
         R: ds("R"),
         K: ds("K"),
         BB: ds("BB"),
-        outs: ds("outs"),
+        outs: ds("OUTS"),
         ER: ds("ER"),
       },
       actual,
