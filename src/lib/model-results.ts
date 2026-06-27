@@ -49,7 +49,9 @@ export type MRGrade =
   | "Close"
   | "Missed"
   | "Low Projection / No Event"
-  | "Unexpected Event";
+  | "Unexpected Event"
+  | "N/A";
+
 
 export type MRTone = "strong" | "good" | "warn" | "bad" | "muted";
 
@@ -147,6 +149,11 @@ export type MRHero = {
 export type MRScope = "all" | "top25";
 
 function gradeCount(mean: number, actual: number): { grade: MRGrade; tone: MRTone; qualified: boolean } {
+  // Hard rule: a non-positive persisted Monte Carlo mean is never a success,
+  // even when actual is also 0. Excluded from accuracy denominators.
+  if (!isFinite(mean) || mean <= 0) {
+    return { grade: "N/A", tone: "muted", qualified: false };
+  }
   if (mean < 0.5) {
     if (actual === 0) return { grade: "Low Projection / No Event", tone: "muted", qualified: false };
     return { grade: "Unexpected Event", tone: "warn", qualified: false };
@@ -159,6 +166,7 @@ function gradeCount(mean: number, actual: number): { grade: MRGrade; tone: MRTon
   if (actual === target - 1 && actual > 0) return { grade: "Close", tone: "warn", qualified: true };
   return { grade: "Missed", tone: "bad", qualified: true };
 }
+
 
 /** Top-25 selection for a category, matching /odds leaderboard ordering. */
 function top25Keys(

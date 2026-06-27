@@ -273,7 +273,12 @@ function liveHitterStatus(
   const isFinal = actuals.finalGames.includes(h.mlb_game_id);
   const isLive = actuals.liveGames.includes(h.mlb_game_id);
   if (!isFinal && !isLive) return { label: "Pre", tone: "text-muted-foreground" };
-  const mean = h.H?.mean ?? 0;
+  const rawMean = h.H?.mean;
+  // Hard rule: non-positive persisted mean must not render as Beat/Met/Hit Event.
+  if (rawMean == null || !isFinite(rawMean) || rawMean <= 0) {
+    return { label: "N/A", tone: "text-muted-foreground" };
+  }
+  const mean = rawMean;
   const actH = act?.H ?? 0;
   if (isFinal) {
     if (actH >= Math.max(1, Math.round(mean)) + 1) return { label: "Beat", tone: "text-emerald-300" };
@@ -296,7 +301,13 @@ function livePitcherStatus(
   const isFinal = actuals.finalGames.includes(p.mlb_game_id);
   const isLive = actuals.liveGames.includes(p.mlb_game_id);
   if (!isFinal && !isLive) return { label: "Pre", tone: "text-muted-foreground" };
-  const meanK = p.K?.mean ?? 0;
+  const rawMeanK = p.K?.mean;
+  // Hard rule: non-positive persisted mean must not render as Beat/Met/Hit Event.
+  // (Fixes the zero-K mean vs zero-K actual = "Met" false success.)
+  if (rawMeanK == null || !isFinite(rawMeanK) || rawMeanK <= 0) {
+    return { label: "N/A", tone: "text-muted-foreground" };
+  }
+  const meanK = rawMeanK;
   const actK = act?.K ?? 0;
   if (isFinal) {
     if (actK >= meanK + 1) return { label: "Beat", tone: "text-emerald-300" };
@@ -307,6 +318,7 @@ function livePitcherStatus(
   if (actK >= meanK * 0.6) return { label: "On Pace", tone: "text-sky-300" };
   return { label: "Behind", tone: "text-amber-300" };
 }
+
 
 // Silence unused import warning while keeping the helper available for
 // possible future audit drawer expansions.
