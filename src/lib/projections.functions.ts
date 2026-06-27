@@ -1029,10 +1029,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
 
 export type ForecastDetailDistribution = {
   mean: number | null;
+  p10: number | null;
   p50: number | null;
   p90: number | null;
+  eventProbability: number | null;
   probAtLeast1: number | null;
   probAtLeast2: number | null;
+  sourcePath: string | null;
+  available: boolean;
+  unavailableReason: string | null;
 };
 
 export type ForecastBoardDetail = {
@@ -1042,6 +1047,7 @@ export type ForecastBoardDetail = {
     run_id: string | null;
     status: ForecastBoardStatus;
     model_version: string;
+    projection_class: "official" | "preview";
     locked_at: string | null;
     published_at: string | null;
     projection_role: "hitter" | "pitcher";
@@ -1054,6 +1060,7 @@ export type ForecastBoardDetail = {
   };
   /** Reshaped sim_snapshot.distributions. Unavailable keys are undefined. */
   distributions: Record<string, ForecastDetailDistribution>;
+  sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   diamond: {
     score: number | null;
     confidence: number | null;
@@ -1086,19 +1093,38 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
     const { data: active } = await sb.from("model_versions").select("version").eq("active", true).maybeSingle();
     const modelVersion = data.modelVersion ?? active?.version ?? null;
 
-    let projQ = sb.from("projections")
-      .select("player_id, game_id, model_version, projection_role, diamond_score, confidence, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, sim_snapshot, inputs, created_at")
-      .eq("player_id", data.playerId).eq("game_id", data.gameId)
-      .eq("projection_status", "active").eq("projection_class", "official");
-    if (modelVersion) projQ = projQ.eq("model_version", modelVersion);
-    const { data: projRows } = await projQ.order("created_at", { ascending: false }).limit(1);
-    const proj: any = projRows?.[0];
-    if (!proj) return null;
+    const { data: gRow } = await sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle();
+    const gameStarted = gameHasStartedOrPastStart((gRow as any)?.game_status, (gRow as any)?.first_pitch_at);
 
-    const [{ data: gRow }, { data: pRow }, { data: runRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
-      sb.from("games").select("id, mlb_game_id, first_pitch_at, ballpark, weather, game_status, home_team_id, away_team_id").eq("id", data.gameId).maybeSingle(),
+    let projQ = sb.from("projections")
+      .select("player_id, game_id, model_version, projection_role, projection_class, diamond_score, confidence, contact_score, power_score, speed_score, pitcher_grade, matchup_grade, hit_probability, total_base_probability, hr_probability, rbi_probability, run_probability, sb_probability, pitcher_win_probability, quality_start_probability, projected_outs, sim_snapshot, inputs, created_at")
+      .eq("player_id", data.playerId).eq("game_id", data.gameId)
+      .eq("projection_status", "active")
+      .in("projection_class", ["official", "preview"]);
+    if (modelVersion) projQ = projQ.eq("model_version", modelVersion);
+    const { data: projRows } = await projQ.order("created_at", { ascending: false });
+    const projectionModelVersion = modelVersion ?? (projRows?.[0] as any)?.model_version ?? null;
+    if (!projectionModelVersion) return null;
+
+    const { data: runRows } = await sb.from("forecast_runs")
+      .select("id, status, locked_at, generated_at, model_version, projection_class")
+      .eq("game_id", data.gameId)
+      .eq("model_version", projectionModelVersion)
+      .in("projection_class", ["official", "preview"])
+      .in("status", ["published", "locked"])
+      .is("superseded_by", null)
+      .order("generated_at", { ascending: false });
+    const officialRun = (runRows ?? []).find((r: any) => r.projection_class === "official");
+    const previewRun = (runRows ?? []).find((r: any) => r.projection_class === "preview");
+    const officialProj = (projRows ?? []).find((p: any) => p.projection_class === "official" && p.model_version === projectionModelVersion);
+    const previewProj = (projRows ?? []).find((p: any) => p.projection_class === "preview" && p.model_version === projectionModelVersion);
+    const chosenClass: "official" | "preview" | null = officialProj && officialRun ? "official" : (!gameStarted && previewProj && previewRun ? "preview" : null);
+    if (!chosenClass) return null;
+    const proj: any = chosenClass === "official" ? officialProj : previewProj;
+    const runRow: any = chosenClass === "official" ? officialRun : previewRun;
+
+    const [{ data: pRow }, { data: actualRow }, { data: lineupRow }, { data: spRows }] = await Promise.all([
       sb.from("players").select("id, name, mlb_id, team_id").eq("id", data.playerId).maybeSingle(),
-      sb.from("forecast_runs").select("id, status, locked_at, generated_at, model_version").eq("game_id", data.gameId).eq("model_version", proj.model_version).eq("projection_class", "official").is("superseded_by", null).order("generated_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("projection_results").select("hits, total_bases, home_runs, rbis, stolen_bases, walks, strikeouts, plate_appearances, runs").eq("player_id", data.playerId).eq("game_id", data.gameId).maybeSingle(),
       sb.from("lineups").select("batting_order, team_id").eq("game_id", data.gameId).eq("player_id", data.playerId).maybeSingle(),
       sb.from("starting_pitchers").select("game_id, player_id, team_id").eq("game_id", data.gameId),
@@ -1117,22 +1143,45 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
       opposingStarterName = (spPlayer as any)?.name ?? null;
     }
 
-    const dist: Record<string, ForecastDetailDistribution> = {};
-    const distRaw = proj.sim_snapshot?.distributions ?? {};
-    for (const k of Object.keys(distRaw)) {
-      const d = distRaw[k] ?? {};
-      dist[k] = {
-        mean: typeof d.mean === "number" ? d.mean : null,
-        p50: typeof d.p50 === "number" ? d.p50 : null,
-        p90: typeof d.p90 === "number" ? d.p90 : null,
-        probAtLeast1: typeof d.probAtLeast1 === "number" ? d.probAtLeast1 : null,
-        probAtLeast2: typeof d.probAtLeast2 === "number" ? d.probAtLeast2 : null,
-      };
-    }
-
     const inputs = (proj.inputs ?? {}) as Record<string, any>;
     const pc = pitcherComponentsFromInputs(inputs);
     const role: "hitter" | "pitcher" = proj.projection_role === "pitcher" ? "pitcher" : "hitter";
+    const { data: fppRows } = await sb
+      .from("forecast_player_projections")
+      .select("distributions")
+      .eq("forecast_run_id", runRow.id)
+      .eq("player_id", data.playerId)
+      .eq("role", role)
+      .limit(1);
+    const selectedForecast = {
+      forecastRunId: runRow.id ?? null,
+      projectionClass: chosenClass,
+      fppDistributions: ((fppRows?.[0] as any)?.distributions ?? null) as PersistedDistributions | null,
+      projectionSimSnapshot: (proj.sim_snapshot ?? null) as Record<string, any> | null,
+    };
+    const markets: MarketKey[] = role === "hitter"
+      ? ["H", "HR", "TB", "RBI", "R", "SB", "BB", "K", "PA"]
+      : ["K", "OUTS", "BF", "BB", "ER", "H"];
+    const simMetrics: Partial<Record<MarketKey, SimulationMetrics>> = {};
+    const dist: Record<string, ForecastDetailDistribution> = {};
+    for (const market of markets) {
+      const m = getMarketSimulationMetrics({ selectedForecast, role, market });
+      simMetrics[market] = m;
+      if (m.available || m.p10 != null || m.p50 != null || m.p90 != null || m.eventProbability != null || m.probAtLeast1 != null || m.probAtLeast2 != null) {
+        dist[market] = {
+          mean: m.mean,
+          p10: m.p10,
+          p50: m.p50,
+          p90: m.p90,
+          eventProbability: m.eventProbability,
+          probAtLeast1: m.probAtLeast1,
+          probAtLeast2: m.probAtLeast2,
+          sourcePath: m.sourcePath,
+          available: m.available,
+          unavailableReason: m.unavailableReason,
+        };
+      }
+    }
 
     const gameStateOf = (status: string | null | undefined): GameDisplayState => {
       const s = (status ?? "").toLowerCase();
@@ -1142,7 +1191,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
     };
     const gs = gameStateOf(gRow?.game_status);
     const status: ForecastBoardStatus =
-      !runRow ? "no_official"
+      chosenClass === "preview" ? "preview"
       : gs === "final" ? "final"
       : gs === "live" ? "live"
       : runRow.status === "locked" ? "locked"
@@ -1173,6 +1222,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
         run_id: (runRow as any)?.id ?? null,
         status,
         model_version: proj.model_version,
+        projection_class: chosenClass,
         locked_at: (runRow as any)?.locked_at ?? null,
         published_at: (runRow as any)?.generated_at ?? null,
         projection_role: role,
@@ -1183,6 +1233,7 @@ export const getForecastBoardDetail = createServerFn({ method: "GET" })
         calibration_version: typeof inputs.calibration_version === "string" ? inputs.calibration_version : null,
       },
       distributions: dist,
+      sim_metrics: simMetrics,
       diamond: {
         score: proj.diamond_score ?? null,
         confidence: proj.confidence ?? null,
