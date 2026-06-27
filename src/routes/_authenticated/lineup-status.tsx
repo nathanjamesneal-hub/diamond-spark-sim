@@ -333,11 +333,39 @@ function DateBtn({ children, onClick }: { children: React.ReactNode; onClick: ()
 }
 
 function ActionBtn({
-  children, onClick, disabled,
-}: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  children, onClick, disabled, title,
+}: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="mono rounded-md border border-border/60 bg-secondary/40 px-2.5 py-1 text-[10px] uppercase tracking-widest text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Pure first-pitch cutoff check for the admin UI. Mirrors the server-side
+ * guard in src/lib/forecast/window.ts. The server enforces the rule; this
+ * is purely for UX (disable buttons, show "window closed" badge).
+ */
+function windowClosed(row: LineupStatusRow): boolean {
+  const s = (row.game_status ?? "").toLowerCase();
+  if (
+    s.includes("in progress") || s.includes("live") || s.includes("final") ||
+    s.includes("game over") || s.includes("completed") ||
+    s.includes("manager challenge") || s.includes("suspended") ||
+    (s.includes("delayed") && !s.includes("delayed start"))
+  ) return true;
+  if (row.first_pitch_at) {
+    const t = Date.parse(row.first_pitch_at);
+    if (Number.isFinite(t) && Date.now() >= t) return true;
+  }
+  return false;
+}
       disabled={disabled}
       className="mono rounded-md border border-border/60 bg-background px-2 py-1 text-[10px] font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-40"
     >
