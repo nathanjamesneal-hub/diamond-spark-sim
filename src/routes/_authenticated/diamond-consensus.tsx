@@ -17,6 +17,7 @@ import {
   type SimStat,
   type SimulationLeadersPayload,
 } from "@/lib/sim.functions";
+import { getActualsForDate, type ActualsPayload, type HitterActual, type PitcherActual } from "@/lib/actuals.functions";
 import {
   categoryPercentile,
   consensusScore,
@@ -27,6 +28,7 @@ import {
   type AlignmentLabel,
   type LineupStatus,
 } from "@/lib/consensus";
+import { classifyCountProjection } from "@/lib/grading/count-projection";
 
 type Group = "hitter" | "pitcher";
 type CatKey =
@@ -112,12 +114,29 @@ type ConsensusRow = {
   contributions: { ds: number; mean: number; prob: number; confidence: number };
   probAvailable: boolean;
   alignment: AlignmentLabel;
+  // Lifecycle (frozen from selected pregame snapshot)
+  projection_class: "official" | "preview";
+  forecast_status: SimLeaderHitterRow["forecast_status"];
+  game_display_state: SimLeaderHitterRow["game_display_state"];
+  forecast_run_id: string | null;
+  forecast_locked_at: string | null;
 };
 
 function leadersQuery(date: string | undefined) {
   return queryOptions({
     queryKey: ["sim-leaders", date ?? null],
     queryFn: () => getSimulationLeaders({ data: date ? { date } : {} }),
+  });
+}
+
+function actualsQuery(date: string | undefined) {
+  return queryOptions({
+    queryKey: ["sim-actuals", date ?? "today"],
+    queryFn: () => getActualsForDate({ data: date ? { date } : {} }),
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    refetchIntervalInBackground: false,
+    retry: 1,
   });
 }
 
@@ -234,6 +253,11 @@ function buildRows(payload: SimulationLeadersPayload): ConsensusRow[] {
         contributions: score.contributions,
         probAvailable: score.probAvailable,
         alignment: alignmentLabel({ dsPct, meanPct, probPct, lineupStatus }),
+        projection_class: r.projection_class,
+        forecast_status: r.forecast_status,
+        game_display_state: r.game_display_state,
+        forecast_run_id: r.forecast_run_id,
+        forecast_locked_at: r.forecast_locked_at,
       });
     }
   }
@@ -274,11 +298,152 @@ function consensusTone(score: number) {
 }
 
 type ScopeMode = "balanced" | "top25" | "high-prob" | "all";
+type ViewMode = "pregame" | "live" | "final";
+
+/** Per-category market definition used by the Live Consensus Tracker.
+ *  Display-only. Reads frozen pregame Sim Mean / Prob already on the row,
+ *  plus actuals from getActualsForDate. Never alters rank/order. */
+type MarketKind = "count_threshold" | "count_raw_mean" | "binary_event";
+type MarketDef = {
+  unit: string;
+  threshold: number | null; // for count_threshold only
+  kind: MarketKind;
+  actualCount: (h?: HitterActual, p?: PitcherActual) => number | null;
+  /** For binary_event markets only. */
+  actualBinary?: (h?: HitterActual, p?: PitcherActual) => boolean | null;
+};
+
+const MARKETS: Record<CatKey, MarketDef> = {
+  hit:  { unit: "H",    threshold: 1, kind: "count_threshold", actualCount: (h) => h?.H ?? null },
+  hr:   { unit: "HR",   threshold: 1, kind: "count_threshold", actualCount: (h) => h?.HR ?? null },
+  rbi:  { unit: "RBI",  threshold: 1, kind: "count_threshold", actualCount: (h) => h?.RBI ?? null },
+  runs: { unit: "R",    threshold: 1, kind: "count_threshold", actualCount: (h) => h?.R ?? null },
+  tb:   { unit: "TB",   threshold: 2, kind: "count_threshold", actualCount: (h) => h?.TB ?? null },
+  sb:   { unit: "SB",   threshold: 1, kind: "count_threshold", actualCount: (h) => h?.SB ?? null },
+  pk:   { unit: "K",    threshold: null, kind: "count_raw_mean", actualCount: (_h, p) => p?.K ?? null },
+  outs: { unit: "outs", threshold: null, kind: "count_raw_mean", actualCount: (_h, p) => p?.outs ?? null },
+  qs:   { unit: "QS",   threshold: null, kind: "binary_event",
+          actualCount: (_h, p) => p?.outs ?? null,
+          actualBinary: (_h, p) => (p == null ? null : p.qualityStart) },
+  win:  { unit: "W",    threshold: null, kind: "binary_event",
+          actualCount: (_h, p) => null,
+          actualBinary: (_h, p) => (p == null ? null : p.win) },
+};
+
+type LiveStatus = "Pending" | "In Play" | "Met" | "Behind" | "Missed" | "N/A" | "Final";
+
+function deriveLiveOverlay(args: {
+  row: ConsensusRow;
+  hitterActual?: HitterActual;
+  pitcherActual?: PitcherActual;
+  gameState: "upcoming" | "live" | "final" | "other";
+}) {
+  const market = MARKETS[args.row.catKey];
+  const meanCls = classifyCountProjection({
+    rawMean: args.row.simMean,
+    hasPersistedMetric: args.row.simMean != null,
+  });
+  // N/A guard: missing/non-positive mean → never grade.
+  if (market.kind !== "binary_event" && meanCls.excludeFromAccuracy) {
+    return {
+      market,
+      actual: null as number | null,
+      actualBinary: null as boolean | null,
+      threshold: market.threshold,
+      progress: null as string | null,
+      status: "N/A" as LiveStatus,
+      final: args.gameState === "final" ? ("N/A" as LiveStatus) : null,
+      tooltip: "No meaningful persisted pregame projection for this market",
+    };
+  }
+  const actualCount = market.actualCount(args.hitterActual, args.pitcherActual);
+  const actualBinary = market.actualBinary ? market.actualBinary(args.hitterActual, args.pitcherActual) : null;
+
+  let status: LiveStatus = "Pending";
+  let finalResult: LiveStatus | null = null;
+
+  if (args.gameState === "upcoming") {
+    status = "Pending";
+  } else if (market.kind === "count_threshold" && market.threshold != null) {
+    if (actualCount == null) status = args.gameState === "final" ? "Missed" : "In Play";
+    else if (actualCount >= market.threshold) status = "Met";
+    else status = args.gameState === "final" ? "Missed" : "Behind";
+    if (args.gameState === "final") finalResult = status;
+  } else if (market.kind === "binary_event") {
+    if (actualBinary == null) status = args.gameState === "final" ? "Missed" : "In Play";
+    else status = actualBinary ? "Met" : args.gameState === "final" ? "Missed" : "Behind";
+    if (args.gameState === "final") finalResult = status;
+  } else {
+    // count_raw_mean — no threshold; just show actual vs mean.
+    status = args.gameState === "final" ? "Final" : "In Play";
+    if (args.gameState === "final") finalResult = "Final";
+  }
+
+  // Progress string per market.
+  let progress: string | null = null;
+  const a = actualCount;
+  if (market.kind === "count_threshold" && market.threshold != null) {
+    progress = `${a ?? 0} ${market.unit} / target ${market.threshold}`;
+  } else if (market.kind === "binary_event") {
+    if (args.row.catKey === "qs") {
+      progress = `${a ?? 0} outs · ${actualBinary == null ? "—" : actualBinary ? "QS ✓" : "no QS"}`;
+    } else {
+      progress = actualBinary == null ? "—" : actualBinary ? "Win ✓" : "no decision";
+    }
+  } else {
+    // raw mean
+    const meanStr = args.row.simMean != null ? args.row.simMean.toFixed(args.row.meanDigits) : "—";
+    const delta = a != null && args.row.simMean != null ? a - args.row.simMean : null;
+    const deltaStr = delta == null ? "" : ` · ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
+    progress = `${a ?? "—"} ${market.unit} / Sim Mean ${meanStr}${deltaStr}`;
+  }
+
+  return {
+    market,
+    actual: actualCount,
+    actualBinary,
+    threshold: market.threshold,
+    progress,
+    status,
+    final: finalResult,
+    tooltip: null,
+  };
+}
+
+function statusTone(s: LiveStatus): "strong" | "good" | "warn" | "muted" {
+  if (s === "Met") return "strong";
+  if (s === "In Play" || s === "Behind") return "warn";
+  if (s === "Missed" || s === "N/A") return "muted";
+  return "muted";
+}
+
 
 function DiamondConsensusPage() {
-  const { data: payload } = useSuspenseQuery(leadersQuery(undefined));
+  // Date selector — defaults to today (slate the leaders function picks).
+  const [date, setDate] = useState<string | undefined>(undefined);
+  const [view, setView] = useState<ViewMode>("pregame");
+
+  const { data: payload } = useSuspenseQuery(leadersQuery(date));
+  const { data: actuals } = useSuspenseQuery(actualsQuery(date ?? payload.date));
 
   const rows = useMemo(() => buildRows(payload), [payload]);
+
+  // FROZEN pregame overall + per-category ranks. Computed once from the full
+  // row set sorted by Consensus desc. Never updated by live actuals.
+  const frozenRank = useMemo(() => {
+    const overall = new Map<string, number>();
+    const perCat = new Map<string, number>();
+    const sortedAll = [...rows].sort((a, b) => b.consensus - a.consensus);
+    sortedAll.forEach((r, i) => overall.set(r.key, i + 1));
+    const byCat = new Map<CatKey, ConsensusRow[]>();
+    for (const r of sortedAll) {
+      const arr = byCat.get(r.catKey) ?? [];
+      arr.push(r);
+      byCat.set(r.catKey, arr);
+    }
+    for (const [, arr] of byCat) arr.forEach((r, i) => perCat.set(r.key, i + 1));
+    return { overall, perCat };
+  }, [rows]);
 
   // Filter UI state
   const [category, setCategory] = useState<CatKey | "all">("all");
@@ -288,6 +453,9 @@ function DiamondConsensusPage() {
   const [minProbOn, setMinProbOn] = useState<boolean>(false);
   const [minProbPct, setMinProbPct] = useState<number>(20);
   const [expanded, setExpanded] = useState<string | null>(null);
+  type LiveSort = "rank" | "status" | "actual" | "delta";
+  const [liveSort, setLiveSort] = useState<LiveSort>("rank");
+
 
   const teams = useMemo(() => {
     const set = new Set<string>();
@@ -370,7 +538,49 @@ function DiamondConsensusPage() {
         <p className="text-[11px] text-muted-foreground">{scopeBlurb}</p>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+        <Filter label="Mode">
+          <Pill on={view === "pregame"} onClick={() => setView("pregame")}>Pregame Consensus</Pill>
+          <Pill on={view === "live"} onClick={() => setView("live")}>Live Consensus Tracker</Pill>
+          <Pill on={view === "final"} onClick={() => setView("final")}>Final Consensus Results</Pill>
+        </Filter>
+        <Filter label="Date">
+          <input
+            type="date"
+            value={date ?? payload.date}
+            onChange={(e) => setDate(e.target.value || undefined)}
+            className="mono rounded border border-border/60 bg-background px-2 py-1 text-xs"
+          />
+          {date && (
+            <button
+              type="button"
+              onClick={() => setDate(undefined)}
+              className="mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            >
+              Today
+            </button>
+          )}
+        </Filter>
+        <p className="mono ml-auto text-[10px] uppercase tracking-widest text-amber-300/90">
+          Live status only — rankings are frozen from pregame.
+        </p>
+      </div>
+
+      {view !== "pregame" && (
+        <LiveTrackerSection
+          rows={rows}
+          frozenRank={frozenRank}
+          actuals={actuals}
+          view={view}
+          liveSort={liveSort}
+          setLiveSort={setLiveSort}
+        />
+      )}
+
+      {view === "pregame" && (<>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+
+
         <Filter label="View">
           <Pill on={scope === "balanced"} onClick={() => setScope("balanced")}>Balanced Board</Pill>
           <Pill on={scope === "top25"} onClick={() => setScope("top25")}>Top 25 Overall Agreement</Pill>
@@ -541,7 +751,10 @@ function DiamondConsensusPage() {
         A high consensus score means the signals agree within that category, not that the event is the most likely to happen on the slate.
         For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
+      </>)}
+
     </section>
+
     </>
   );
 }
@@ -580,3 +793,234 @@ function Drawer({ label, value, sub }: { label: string; value: string; sub?: str
     </div>
   );
 }
+
+// ─── Live Consensus Tracker ────────────────────────────────────────────────
+
+const STATUS_CLASS: Record<ReturnType<typeof statusTone>, string> = {
+  strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
+  good:   "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  warn:   "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  muted:  "bg-zinc-500/10 text-muted-foreground border-border/40",
+};
+
+function LiveTrackerSection({
+  rows,
+  frozenRank,
+  actuals,
+  view,
+  liveSort,
+  setLiveSort,
+}: {
+  rows: ConsensusRow[];
+  frozenRank: { overall: Map<string, number>; perCat: Map<string, number> };
+  actuals: ActualsPayload;
+  view: "live" | "final";
+  liveSort: "rank" | "status" | "actual" | "delta";
+  setLiveSort: (s: "rank" | "status" | "actual" | "delta") => void;
+}) {
+  // Eligibility: official + locked-class forecast only. Preview rows are
+  // explicitly excluded from Live / Final views per the lock-at-first-pitch
+  // rule. Game state must match the view.
+  const eligible = useMemo(() => {
+    return rows.filter((r) => {
+      if (r.projection_class !== "official") return false;
+      if (!(r.forecast_status === "locked" || r.forecast_status === "live" || r.forecast_status === "final")) return false;
+      if (view === "live") return r.game_display_state === "live" || r.game_display_state === "final";
+      if (view === "final") return r.game_display_state === "final";
+      return false;
+    });
+  }, [rows, view]);
+
+  type OverlayRow = ConsensusRow & {
+    overlay: ReturnType<typeof deriveLiveOverlay>;
+    rankOverall: number;
+    rankCat: number;
+  };
+
+  const overlayRows: OverlayRow[] = useMemo(() => {
+    return eligible.map((r) => {
+      const h = r.mlb_id != null ? actuals.hitters[String(r.mlb_id)] : undefined;
+      const p = r.mlb_id != null ? actuals.pitchers[String(r.mlb_id)] : undefined;
+      const overlay = deriveLiveOverlay({ row: r, hitterActual: h, pitcherActual: p, gameState: r.game_display_state });
+      return {
+        ...r,
+        overlay,
+        rankOverall: frozenRank.overall.get(r.key) ?? 9999,
+        rankCat: frozenRank.perCat.get(r.key) ?? 9999,
+      };
+    });
+  }, [eligible, actuals, frozenRank]);
+
+  const sortedRows = useMemo(() => {
+    const arr = [...overlayRows];
+    if (liveSort === "rank") arr.sort((a, b) => a.rankOverall - b.rankOverall);
+    else if (liveSort === "status") {
+      const order: Record<LiveStatus, number> = { Met: 0, "In Play": 1, Behind: 2, Pending: 3, Missed: 4, "N/A": 5, Final: 6 };
+      arr.sort((a, b) => (order[a.overlay.status] ?? 9) - (order[b.overlay.status] ?? 9));
+    } else if (liveSort === "actual") {
+      arr.sort((a, b) => (b.overlay.actual ?? -1) - (a.overlay.actual ?? -1));
+    } else if (liveSort === "delta") {
+      const dv = (r: OverlayRow) => (r.overlay.actual != null && r.simMean != null ? r.overlay.actual - r.simMean : -Infinity);
+      arr.sort((a, b) => dv(b) - dv(a));
+    }
+    return arr;
+  }, [overlayRows, liveSort]);
+
+  // Summary counts
+  const summary = useMemo(() => {
+    const gamePks = new Set<number>();
+    const liveGames = new Set<number>();
+    const finalGames = new Set<number>();
+    let met = 0, missed = 0, na = 0;
+    for (const r of overlayRows) {
+      if (r.gamePk != null) gamePks.add(r.gamePk);
+      if (r.game_display_state === "live" && r.gamePk != null) liveGames.add(r.gamePk);
+      if (r.game_display_state === "final" && r.gamePk != null) finalGames.add(r.gamePk);
+      if (r.overlay.status === "Met") met += 1;
+      else if (r.overlay.status === "Missed") missed += 1;
+      else if (r.overlay.status === "N/A") na += 1;
+    }
+    return {
+      lockedRows: overlayRows.length,
+      gamesLive: liveGames.size,
+      gamesFinal: finalGames.size,
+      met,
+      missed,
+      na,
+    };
+  }, [overlayRows]);
+
+  const top10 = useMemo(() => [...overlayRows].sort((a, b) => a.rankOverall - b.rankOverall).slice(0, 10), [overlayRows]);
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 rounded-md border border-border/60 bg-card/40 p-3 text-xs md:grid-cols-6">
+        <Summary label="Locked rows" value={String(summary.lockedRows)} />
+        <Summary label="Games live" value={String(summary.gamesLive)} />
+        <Summary label="Games final" value={String(summary.gamesFinal)} />
+        <Summary label="Met" value={String(summary.met)} tone="strong" />
+        <Summary label="Missed" value={String(summary.missed)} tone="warn" />
+        <Summary label="N/A" value={String(summary.na)} tone="muted" />
+      </div>
+
+      {top10.length > 0 && (
+        <div className="rounded-md border border-border/60 bg-card/30 p-3">
+          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Top 10 frozen consensus picks · live status</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {top10.map((r) => (
+              <span key={r.key} className={`mono inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] ${STATUS_CLASS[statusTone(r.overlay.status)]}`}>
+                <span className="text-muted-foreground">#{r.rankOverall}</span>
+                <span className="text-foreground">{r.player_name}</span>
+                <span className="opacity-70">{r.catLabel}</span>
+                <span>· {r.overlay.status}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+        <Filter label="Sort">
+          <Pill on={liveSort === "rank"} onClick={() => setLiveSort("rank")}>Frozen Rank</Pill>
+          <Pill on={liveSort === "status"} onClick={() => setLiveSort("status")}>Live Status</Pill>
+          <Pill on={liveSort === "actual"} onClick={() => setLiveSort("actual")}>Actual</Pill>
+          <Pill on={liveSort === "delta"} onClick={() => setLiveSort("delta")}>Δ vs Sim Mean</Pill>
+        </Filter>
+        <span className="mono ml-auto text-[10px] uppercase tracking-widest text-muted-foreground">
+          Sort changes order only — rank, score, mean, prob remain frozen.
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-md border border-border/60 bg-card/30">
+        <table className="w-full min-w-[1100px] text-xs">
+          <thead className="bg-card/60 text-[10px] uppercase tracking-widest text-muted-foreground">
+            <tr>
+              <th className="px-2 py-2 text-right">Rank</th>
+              <th className="px-2 py-2 text-right">Cat #</th>
+              <th className="px-2 py-2 text-left">Player</th>
+              <th className="px-2 py-2 text-left">Team</th>
+              <th className="px-2 py-2 text-left">Opp</th>
+              <th className="px-2 py-2 text-left">Category</th>
+              <th className="px-2 py-2 text-right">Sim Mean</th>
+              <th className="px-2 py-2 text-right">Sim Prob</th>
+              <th className="px-2 py-2 text-right">Diamond</th>
+              <th className="px-2 py-2 text-right">Consensus</th>
+              <th className="px-2 py-2 text-left">Game</th>
+              <th className="px-2 py-2 text-left">Progress</th>
+              <th className="px-2 py-2 text-left">{view === "final" ? "Final Result" : "Live Status"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRows.map((r) => {
+              const isNa = r.overlay.status === "N/A";
+              const status = view === "final" ? (r.overlay.final ?? r.overlay.status) : r.overlay.status;
+              const tone = statusTone(status);
+              return (
+                <tr key={r.key} className="border-t border-border/30">
+                  <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{r.rankOverall}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">#{r.rankCat}</td>
+                  <td className="px-2 py-1">
+                    {r.mlb_id ? (
+                      <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-semibold hover:underline">{r.player_name}</Link>
+                    ) : (<span className="font-semibold">{r.player_name}</span>)}
+                  </td>
+                  <td className="px-2 py-1 mono text-muted-foreground">{r.team_abbrev}</td>
+                  <td className="px-2 py-1 mono text-muted-foreground">{r.opp_abbrev}</td>
+                  <td className="px-2 py-1 text-foreground">{r.catLabel}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums text-edge">{fmtMean(r.simMean, r.meanDigits)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{fmtPct(r.simProb)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{fmtInt(r.diamondScore)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{r.consensus.toFixed(0)}</td>
+                  <td className="px-2 py-1 mono uppercase tracking-widest text-[10px] text-muted-foreground">
+                    {r.game_display_state === "live" ? "Live" : r.game_display_state === "final" ? "Final" : "Upcoming"}
+                  </td>
+                  <td className="px-2 py-1 mono text-foreground" title={r.overlay.tooltip ?? undefined}>
+                    {isNa ? "—" : r.overlay.progress ?? "—"}
+                  </td>
+                  <td className="px-2 py-1">
+                    <span
+                      className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${STATUS_CLASS[tone]}`}
+                      title={r.overlay.tooltip ?? undefined}
+                    >
+                      {status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={13} className="px-4 py-8 text-center text-muted-foreground">
+                  {view === "final"
+                    ? "No final locked-official consensus rows for this date yet."
+                    : "No live locked-official consensus rows right now. Once games start, locked official rows will appear here."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Rank, Consensus, Sim Mean, Sim Probability, and Diamond Score above are frozen from the original
+        pregame locked official forecast for each row. Only Game / Progress / Status update from live actuals.
+        Pinch hitters and post-first-pitch additions never enter this tracker.
+      </p>
+    </>
+  );
+}
+
+function Summary({ label, value, tone }: { label: string; value: string; tone?: "strong" | "warn" | "muted" }) {
+  const cls =
+    tone === "strong" ? "text-emerald-300" :
+    tone === "warn" ? "text-amber-300" :
+    tone === "muted" ? "text-muted-foreground" :
+    "text-foreground";
+  return (
+    <div className="rounded border border-border/40 bg-background/40 px-3 py-2">
+      <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className={`mono text-lg tabular-nums ${cls}`}>{value}</div>
+    </div>
+  );
+}
+
