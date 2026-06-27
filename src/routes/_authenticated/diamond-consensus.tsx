@@ -793,3 +793,234 @@ function Drawer({ label, value, sub }: { label: string; value: string; sub?: str
     </div>
   );
 }
+
+// ─── Live Consensus Tracker ────────────────────────────────────────────────
+
+const STATUS_CLASS: Record<ReturnType<typeof statusTone>, string> = {
+  strong: "bg-emerald-500/25 text-emerald-200 border-emerald-400/50",
+  good:   "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  warn:   "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  muted:  "bg-zinc-500/10 text-muted-foreground border-border/40",
+};
+
+function LiveTrackerSection({
+  rows,
+  frozenRank,
+  actuals,
+  view,
+  liveSort,
+  setLiveSort,
+}: {
+  rows: ConsensusRow[];
+  frozenRank: { overall: Map<string, number>; perCat: Map<string, number> };
+  actuals: ActualsPayload;
+  view: "live" | "final";
+  liveSort: "rank" | "status" | "actual" | "delta";
+  setLiveSort: (s: "rank" | "status" | "actual" | "delta") => void;
+}) {
+  // Eligibility: official + locked-class forecast only. Preview rows are
+  // explicitly excluded from Live / Final views per the lock-at-first-pitch
+  // rule. Game state must match the view.
+  const eligible = useMemo(() => {
+    return rows.filter((r) => {
+      if (r.projection_class !== "official") return false;
+      if (!(r.forecast_status === "locked" || r.forecast_status === "live" || r.forecast_status === "final")) return false;
+      if (view === "live") return r.game_display_state === "live" || r.game_display_state === "final";
+      if (view === "final") return r.game_display_state === "final";
+      return false;
+    });
+  }, [rows, view]);
+
+  type OverlayRow = ConsensusRow & {
+    overlay: ReturnType<typeof deriveLiveOverlay>;
+    rankOverall: number;
+    rankCat: number;
+  };
+
+  const overlayRows: OverlayRow[] = useMemo(() => {
+    return eligible.map((r) => {
+      const h = r.mlb_id != null ? actuals.hitters[String(r.mlb_id)] : undefined;
+      const p = r.mlb_id != null ? actuals.pitchers[String(r.mlb_id)] : undefined;
+      const overlay = deriveLiveOverlay({ row: r, hitterActual: h, pitcherActual: p, gameState: r.game_display_state });
+      return {
+        ...r,
+        overlay,
+        rankOverall: frozenRank.overall.get(r.key) ?? 9999,
+        rankCat: frozenRank.perCat.get(r.key) ?? 9999,
+      };
+    });
+  }, [eligible, actuals, frozenRank]);
+
+  const sortedRows = useMemo(() => {
+    const arr = [...overlayRows];
+    if (liveSort === "rank") arr.sort((a, b) => a.rankOverall - b.rankOverall);
+    else if (liveSort === "status") {
+      const order: Record<LiveStatus, number> = { Met: 0, "In Play": 1, Behind: 2, Pending: 3, Missed: 4, "N/A": 5, Final: 6 };
+      arr.sort((a, b) => (order[a.overlay.status] ?? 9) - (order[b.overlay.status] ?? 9));
+    } else if (liveSort === "actual") {
+      arr.sort((a, b) => (b.overlay.actual ?? -1) - (a.overlay.actual ?? -1));
+    } else if (liveSort === "delta") {
+      const dv = (r: OverlayRow) => (r.overlay.actual != null && r.simMean != null ? r.overlay.actual - r.simMean : -Infinity);
+      arr.sort((a, b) => dv(b) - dv(a));
+    }
+    return arr;
+  }, [overlayRows, liveSort]);
+
+  // Summary counts
+  const summary = useMemo(() => {
+    const gamePks = new Set<number>();
+    const liveGames = new Set<number>();
+    const finalGames = new Set<number>();
+    let met = 0, missed = 0, na = 0;
+    for (const r of overlayRows) {
+      if (r.gamePk != null) gamePks.add(r.gamePk);
+      if (r.game_display_state === "live" && r.gamePk != null) liveGames.add(r.gamePk);
+      if (r.game_display_state === "final" && r.gamePk != null) finalGames.add(r.gamePk);
+      if (r.overlay.status === "Met") met += 1;
+      else if (r.overlay.status === "Missed") missed += 1;
+      else if (r.overlay.status === "N/A") na += 1;
+    }
+    return {
+      lockedRows: overlayRows.length,
+      gamesLive: liveGames.size,
+      gamesFinal: finalGames.size,
+      met,
+      missed,
+      na,
+    };
+  }, [overlayRows]);
+
+  const top10 = useMemo(() => [...overlayRows].sort((a, b) => a.rankOverall - b.rankOverall).slice(0, 10), [overlayRows]);
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 rounded-md border border-border/60 bg-card/40 p-3 text-xs md:grid-cols-6">
+        <Summary label="Locked rows" value={String(summary.lockedRows)} />
+        <Summary label="Games live" value={String(summary.gamesLive)} />
+        <Summary label="Games final" value={String(summary.gamesFinal)} />
+        <Summary label="Met" value={String(summary.met)} tone="strong" />
+        <Summary label="Missed" value={String(summary.missed)} tone="warn" />
+        <Summary label="N/A" value={String(summary.na)} tone="muted" />
+      </div>
+
+      {top10.length > 0 && (
+        <div className="rounded-md border border-border/60 bg-card/30 p-3">
+          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Top 10 frozen consensus picks · live status</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {top10.map((r) => (
+              <span key={r.key} className={`mono inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] ${STATUS_CLASS[statusTone(r.overlay.status)]}`}>
+                <span className="text-muted-foreground">#{r.rankOverall}</span>
+                <span className="text-foreground">{r.player_name}</span>
+                <span className="opacity-70">{r.catLabel}</span>
+                <span>· {r.overlay.status}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+        <Filter label="Sort">
+          <Pill on={liveSort === "rank"} onClick={() => setLiveSort("rank")}>Frozen Rank</Pill>
+          <Pill on={liveSort === "status"} onClick={() => setLiveSort("status")}>Live Status</Pill>
+          <Pill on={liveSort === "actual"} onClick={() => setLiveSort("actual")}>Actual</Pill>
+          <Pill on={liveSort === "delta"} onClick={() => setLiveSort("delta")}>Δ vs Sim Mean</Pill>
+        </Filter>
+        <span className="mono ml-auto text-[10px] uppercase tracking-widest text-muted-foreground">
+          Sort changes order only — rank, score, mean, prob remain frozen.
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-md border border-border/60 bg-card/30">
+        <table className="w-full min-w-[1100px] text-xs">
+          <thead className="bg-card/60 text-[10px] uppercase tracking-widest text-muted-foreground">
+            <tr>
+              <th className="px-2 py-2 text-right">Rank</th>
+              <th className="px-2 py-2 text-right">Cat #</th>
+              <th className="px-2 py-2 text-left">Player</th>
+              <th className="px-2 py-2 text-left">Team</th>
+              <th className="px-2 py-2 text-left">Opp</th>
+              <th className="px-2 py-2 text-left">Category</th>
+              <th className="px-2 py-2 text-right">Sim Mean</th>
+              <th className="px-2 py-2 text-right">Sim Prob</th>
+              <th className="px-2 py-2 text-right">Diamond</th>
+              <th className="px-2 py-2 text-right">Consensus</th>
+              <th className="px-2 py-2 text-left">Game</th>
+              <th className="px-2 py-2 text-left">Progress</th>
+              <th className="px-2 py-2 text-left">{view === "final" ? "Final Result" : "Live Status"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRows.map((r) => {
+              const isNa = r.overlay.status === "N/A";
+              const status = view === "final" ? (r.overlay.final ?? r.overlay.status) : r.overlay.status;
+              const tone = statusTone(status);
+              return (
+                <tr key={r.key} className="border-t border-border/30">
+                  <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">{r.rankOverall}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums text-muted-foreground">#{r.rankCat}</td>
+                  <td className="px-2 py-1">
+                    {r.mlb_id ? (
+                      <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-semibold hover:underline">{r.player_name}</Link>
+                    ) : (<span className="font-semibold">{r.player_name}</span>)}
+                  </td>
+                  <td className="px-2 py-1 mono text-muted-foreground">{r.team_abbrev}</td>
+                  <td className="px-2 py-1 mono text-muted-foreground">{r.opp_abbrev}</td>
+                  <td className="px-2 py-1 text-foreground">{r.catLabel}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums text-edge">{fmtMean(r.simMean, r.meanDigits)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{fmtPct(r.simProb)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{fmtInt(r.diamondScore)}</td>
+                  <td className="px-2 py-1 text-right mono tabular-nums">{r.consensus.toFixed(0)}</td>
+                  <td className="px-2 py-1 mono uppercase tracking-widest text-[10px] text-muted-foreground">
+                    {r.game_display_state === "live" ? "Live" : r.game_display_state === "final" ? "Final" : "Upcoming"}
+                  </td>
+                  <td className="px-2 py-1 mono text-foreground" title={r.overlay.tooltip ?? undefined}>
+                    {isNa ? "—" : r.overlay.progress ?? "—"}
+                  </td>
+                  <td className="px-2 py-1">
+                    <span
+                      className={`mono inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-widest ${STATUS_CLASS[tone]}`}
+                      title={r.overlay.tooltip ?? undefined}
+                    >
+                      {status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {sortedRows.length === 0 && (
+              <tr>
+                <td colSpan={13} className="px-4 py-8 text-center text-muted-foreground">
+                  {view === "final"
+                    ? "No final locked-official consensus rows for this date yet."
+                    : "No live locked-official consensus rows right now. Once games start, locked official rows will appear here."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Rank, Consensus, Sim Mean, Sim Probability, and Diamond Score above are frozen from the original
+        pregame locked official forecast for each row. Only Game / Progress / Status update from live actuals.
+        Pinch hitters and post-first-pitch additions never enter this tracker.
+      </p>
+    </>
+  );
+}
+
+function Summary({ label, value, tone }: { label: string; value: string; tone?: "strong" | "warn" | "muted" }) {
+  const cls =
+    tone === "strong" ? "text-emerald-300" :
+    tone === "warn" ? "text-amber-300" :
+    tone === "muted" ? "text-muted-foreground" :
+    "text-foreground";
+  return (
+    <div className="rounded border border-border/40 bg-background/40 px-3 py-2">
+      <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className={`mono text-lg tabular-nums ${cls}`}>{value}</div>
+    </div>
+  );
+}
+
