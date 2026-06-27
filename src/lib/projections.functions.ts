@@ -856,8 +856,15 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         if (!proj) continue;
         if (chosenClass === "preview") previewRowsReturned += 1;
         else officialRowsReturned += 1;
-        const run = chosenClass === "official" ? runByKey.get(`${l.game_id}:${v}`) : undefined;
+        const run = runByKey.get(`${l.game_id}:${v}:${chosenClass}`);
         const snap = proj?.sim_snapshot ?? null;
+        const selected = selectedSnapshot(l.player_id, "hitter", chosenClass, run, snap);
+        const distSource = sourceDistributions(selected);
+        const mH = metric(selected, "hitter", "H");
+        const mHR = metric(selected, "hitter", "HR");
+        const mTB = metric(selected, "hitter", "TB");
+        const mRBI = metric(selected, "hitter", "RBI");
+        const mPA = metric(selected, "hitter", "PA");
         const fStatus: ForecastBoardStatus = chosenClass === "preview" ? "preview" : forecastStatusOf(run, gs);
         hitters.push({
           player_id: l.player_id,
@@ -878,6 +885,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           last_refresh_at: gls?.last_refresh_at ?? null,
           source_count: gls?.source_count ?? null,
           model_version: v,
+          projection_class: chosenClass,
           forecast_run_id: run?.id ?? null,
           forecast_status: fStatus,
           forecast_locked_at: run?.locked_at ?? null,
@@ -895,17 +903,16 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           rbi_probability: proj?.rbi_probability ?? null,
           run_probability: proj?.run_probability ?? null,
           sb_probability: proj?.sb_probability ?? null,
-          hit_mean: snapMean(snap, "H"),
-          hr_mean: snapMean(snap, "HR"),
-          tb_mean: snapMean(snap, "TB"),
-          rbi_mean: snapMean(snap, "RBI"),
-          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
-          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+          hit_mean: mH.mean,
+          hr_mean: mHR.mean,
+          tb_mean: mTB.mean,
+          rbi_mean: mRBI.mean,
+          distributions: distSource.distributions,
+          distributions_source: distSource.source,
+          selected_forecast: selected,
+          sim_metrics: { H: mH, HR: mHR, TB: mTB, RBI: mRBI, PA: mPA },
 
-          projected_pa: (() => {
-            const pa = snap?.distributions?.PA?.mean ?? snap?.projected_pa ?? null;
-            return typeof pa === "number" && isFinite(pa) ? pa : null;
-          })(),
+          projected_pa: mPA.mean,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
           actual: buildHitterActuals(actualByKey.get(`${l.player_id}:${l.game_id}`)),
         });
