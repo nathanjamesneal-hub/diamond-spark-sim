@@ -419,8 +419,13 @@ export async function runDiamondEngineForGames(
     .from("projections")
     .select("game_id, player_id, sim_snapshot, created_at")
     .in("game_id", targetGameIds)
+    // Snapshots are class-scoped — a preview rerun must not inherit
+    // a prior official snapshot (and vice versa). Locked official
+    // snapshots stay immutable within their own class history.
+    .eq("projection_class", intendedClass)
     .not("sim_snapshot", "is", null)
     .order("created_at", { ascending: false });
+
   const priorSnapshotByKey = new Map<string, any>();
   for (const row of priorSnapshotRows ?? []) {
     const k = `${row.game_id}:${row.player_id}`;
