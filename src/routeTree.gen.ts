@@ -33,6 +33,7 @@ import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenti
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
 import { Route as AuthenticatedForecastsIndexRouteImport } from './routes/_authenticated/forecasts.index'
+import { Route as AuthenticatedTodayLiveRouteImport } from './routes/_authenticated/today.live'
 import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams.$teamId'
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
@@ -173,6 +174,11 @@ const AuthenticatedForecastsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedForecastsRoute,
   } as any)
+const AuthenticatedTodayLiveRoute = AuthenticatedTodayLiveRouteImport.update({
+  id: '/today/live',
+  path: '/today/live',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTeamsTeamIdRoute =
   AuthenticatedTeamsTeamIdRouteImport.update({
     id: '/teams/$teamId',
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/today/live': typeof AuthenticatedTodayLiveRoute
   '/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/today/live': typeof AuthenticatedTodayLiveRoute
   '/forecasts': typeof AuthenticatedForecastsIndexRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/_authenticated/today/live': typeof AuthenticatedTodayLiveRoute
   '/_authenticated/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
@@ -384,6 +393,7 @@ export interface FileRouteTypes {
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
+    | '/today/live'
     | '/forecasts/'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
+    | '/today/live'
     | '/forecasts'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/_authenticated/matchups/$gamePk'
     | '/_authenticated/players/$playerId'
     | '/_authenticated/teams/$teamId'
+    | '/_authenticated/today/live'
     | '/_authenticated/forecasts/'
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
@@ -643,6 +655,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsIndexRouteImport
       parentRoute: typeof AuthenticatedForecastsRoute
     }
+    '/_authenticated/today/live': {
+      id: '/_authenticated/today/live'
+      path: '/today/live'
+      fullPath: '/today/live'
+      preLoaderRoute: typeof AuthenticatedTodayLiveRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/teams/$teamId': {
       id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
@@ -805,6 +824,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
   AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
   AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRoute
+  AuthenticatedTodayLiveRoute: typeof AuthenticatedTodayLiveRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -832,6 +852,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
   AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,
   AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRoute,
+  AuthenticatedTodayLiveRoute: AuthenticatedTodayLiveRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
