@@ -624,45 +624,53 @@ export async function runDiamondEngineForGames(
       lineup_source: gls?.primary_source ?? null,
       lineup_confidence: gls?.confidence ?? null,
       projection_status: "active",
+      projection_class: intendedClass,
       sim_snapshot,
     });
   }
 
   if (projections.length) {
-    // Supersede prior active rows for the targeted games + model_version
-    // so a rerun replaces both hitter and pitcher cards cleanly.
+    // Class-scoped supersede: a preview run must NEVER mark an active
+    // 'official' row as superseded, and vice versa. The (game, version,
+    // class) tuple is what the public read paths key off of.
+    const eligibleGameIdList = Array.from(eligibleGameIds);
     await supabaseAdmin
       .from("projections")
       .update({ projection_status: "superseded" })
-      .in("game_id", targetGameIds)
+      .in("game_id", eligibleGameIdList)
       .eq("model_version", version)
-      .eq("projection_status", "active");
+      .eq("projection_status", "active")
+      .eq("projection_class", intendedClass);
     const { error } = await supabaseAdmin.from("projections").insert(projections);
     if (error) throw new Error(error.message);
   }
 
   // Forecast Snapshot Lifecycle: dual-write a persisted, immutable forecast run
-  // per game. The lifecycle hashes material inputs and skips already-published
-  // games unless inputs changed. Read paths (boards, /odds) consume these.
+  // per ELIGIBLE game. Lifecycle still validates eligibility itself, so an
+  // ineligible candidate returns 'ineligible-for-official' without writing.
   let forecastsPublished = 0;
   try {
     const { resolveAndPublishForecast } = await import("@/lib/forecast/resolve");
-    const { data: gameRowsForForecast } = await supabaseAdmin
-      .from("games")
-      .select("id, mlb_game_id, date, game_status, first_pitch_at, home_team_id, away_team_id")
-      .in("id", targetGameIds);
-    for (const g of gameRowsForForecast ?? []) {
-      try {
-        const res = await resolveAndPublishForecast({
-          admin: supabaseAdmin,
-          game: g as any,
-          modelVersion: version,
-          triggerReason: "engine_run",
-        });
-        if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
+    const eligibleGameIdList = Array.from(eligibleGameIds);
+    if (eligibleGameIdList.length) {
+      const { data: gameRowsForForecast } = await supabaseAdmin
+        .from("games")
+        .select("id, mlb_game_id, date, game_status, first_pitch_at, home_team_id, away_team_id")
+        .in("id", eligibleGameIdList);
+      for (const g of gameRowsForForecast ?? []) {
+        try {
+          const res = await resolveAndPublishForecast({
+            admin: supabaseAdmin,
+            game: g as any,
+            modelVersion: version,
+            triggerReason: "engine_run",
+            forecastClass: intendedClass,
+          });
+          if (res.decision === "published" || res.decision === "superseded") forecastsPublished += 1;
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[forecast.lifecycle] game ${(g as any).mlb_game_id} failed:`, (e as Error).message);
+        }
       }
     }
   } catch (e) {
@@ -674,10 +682,15 @@ export async function runDiamondEngineForGames(
     projectionsInserted: projections.length,
     version,
     environmentFailures,
-    gamesProcessed: games.length,
+    gamesProcessed: gamesEligible,
+    gamesEligible,
+    gamesSkippedPreviewBlocked,
+    gamesSkippedNotEligible,
     forecastsPublished,
-  } as any;
+    forecastClass: intendedClass,
+  };
 }
+
 
 export const runDiamondEngine = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
