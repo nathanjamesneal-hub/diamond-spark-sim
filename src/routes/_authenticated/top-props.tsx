@@ -6,7 +6,7 @@ import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
 import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
-import { getMarketSimulationMetrics, NO_PERSISTED_MEAN_TOOLTIP, type MarketKey, type MarketRole } from "@/lib/forecast/sim-metrics";
+import { getMarketSimulationMetrics, type MarketKey, type MarketRole } from "@/lib/forecast/sim-metrics";
 
 
 
@@ -32,6 +32,7 @@ type PropRow = {
   meanValue: number | null;
   meanUnit: string;
   meanSourcePath: string | null;
+  meanUnavailableReason: string | null;
 };
 
 const PROP_MARKET: Record<PropType, { role: MarketRole; market: MarketKey; unit: string } | null> = {
@@ -215,7 +216,8 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
       probability: prob,
       meanValue: mean.value,
       meanUnit: mean.unit,
-      meanSourcePath: mean.sourcePath ?? mean.reason,
+      meanSourcePath: mean.sourcePath,
+      meanUnavailableReason: mean.reason,
     });
   }
   return rows;
@@ -253,7 +255,8 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
         probability: v,
         meanValue: mean.value,
         meanUnit: mean.unit,
-        meanSourcePath: mean.sourcePath ?? mean.reason,
+        meanSourcePath: mean.sourcePath,
+        meanUnavailableReason: mean.reason,
       });
       break;
     }
@@ -262,12 +265,12 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
   if (p.pitcher_win_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:win`,
       propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability,
-      meanValue: null, meanUnit: "", meanSourcePath: null });
+      meanValue: null, meanUnit: "", meanSourcePath: null, meanUnavailableReason: null });
   }
   if (p.quality_start_probability != null) {
     rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:qs`,
       propType: "qs", label: PROP_META.qs.label, line: PROP_META.qs.line, probability: p.quality_start_probability,
-      meanValue: null, meanUnit: "", meanSourcePath: null });
+      meanValue: null, meanUnit: "", meanSourcePath: null, meanUnavailableReason: null });
   }
   return rows;
 }
@@ -532,7 +535,7 @@ function TopPropsPage() {
                               {r.meanValue.toFixed(2)} <span className="text-muted-foreground">{r.meanUnit}</span>
                             </span>
                           ) : (
-                            <span className="text-muted-foreground italic" title={NO_PERSISTED_MEAN_TOOLTIP}>—</span>
+                            <span className="text-muted-foreground italic" title={r.meanUnavailableReason ?? "Probability-only market; no count mean expected"}>—</span>
                           )}
                           {r.is_preview ? (
                             <span className="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-400">Preview</span>
