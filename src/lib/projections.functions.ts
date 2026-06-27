@@ -435,7 +435,7 @@ export type DiamondHitterCard = {
     forecastRunId: string | null;
     projectionClass: "official" | "preview";
     fppDistributions: PersistedDistributions | null;
-    projectionSimSnapshot: unknown;
+    projectionSimSnapshot: Record<string, any> | null;
   };
   sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
   inputs_narrative: string | null;
@@ -487,7 +487,7 @@ export type DiamondPitcherCard = {
     forecastRunId: string | null;
     projectionClass: "official" | "preview";
     fppDistributions: PersistedDistributions | null;
-    projectionSimSnapshot: unknown;
+    projectionSimSnapshot: Record<string, any> | null;
   };
   sim_metrics: Partial<Record<MarketKey, SimulationMetrics>>;
 
