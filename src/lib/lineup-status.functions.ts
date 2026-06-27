@@ -416,13 +416,18 @@ export const runEngineForGame = createServerFn({ method: "POST" })
     const date = await dateForGame(data.gameId);
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      // Class-scoped supersede — only retire prior OFFICIAL rows for this
+      // game. Preview rows (admin sandbox) and legacy_unverified rows must
+      // be left alone; the lifecycle writer handles its own class scoping.
       await supabaseAdmin
         .from("projections")
         .update({ projection_status: "superseded" })
         .eq("game_id", data.gameId)
-        .eq("projection_status", "active");
+        .eq("projection_status", "active")
+        .eq("projection_class", "official");
       const { runDiamondEngineForGames } = await import("@/lib/ingest.functions");
-      const out = await runDiamondEngineForGames(date, [data.gameId]);
+      const out = await runDiamondEngineForGames(date, [data.gameId], undefined, "official");
+
       await logCronRun({
         date,
         notes: `Manual engine run · game ${data.gameId} · ${out.projectionsInserted} projections`,
