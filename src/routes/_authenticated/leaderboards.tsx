@@ -29,6 +29,8 @@ export const Route = createFileRoute("/_authenticated/leaderboards")({
 function LeadersPage() {
   const { data } = useSuspenseQuery(leadersQuery);
   return (
+    <>
+      <ForecastsTabBar />
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
       <div className="mb-6">
         <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">{data.season}</div>

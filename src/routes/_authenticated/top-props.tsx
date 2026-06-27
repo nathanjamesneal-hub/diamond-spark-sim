@@ -336,6 +336,8 @@ function TopPropsPage() {
   }, [allRows]);
 
   return (
+    <>
+      <ForecastsTabBar />
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>

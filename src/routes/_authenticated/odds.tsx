@@ -347,6 +347,8 @@ function SimLeadersPage() {
   }, [search.cat]);
 
   return (
+    <>
+      <ForecastsTabBar />
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
       <header className="space-y-1">
         <div className="mono text-[10px] uppercase tracking-[0.25em] text-edge">Simulation Engine</div>

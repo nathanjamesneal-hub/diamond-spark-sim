@@ -324,6 +324,8 @@ function DiamondConsensusPage() {
       : "Every qualifying row, sorted by Consensus Score.";
 
   return (
+    <>
+      <ForecastsTabBar />
     <section className="space-y-4 p-4">
       <header className="space-y-1">
         <h1 className="font-display text-3xl uppercase tracking-wide text-foreground">
