@@ -1186,3 +1186,40 @@ function HomeRunEventReview({
   );
 }
 
+function CoverageStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card/60 p-3">
+      <div className="mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="font-display mt-1 text-sm font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function RangePreset({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`mono rounded-md border px-2.5 py-1 text-[10px] uppercase tracking-widest transition ${
+        active
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-border/60 bg-card text-foreground hover:bg-card/80"
+      } disabled:cursor-not-allowed disabled:opacity-40`}
+    >
+      {label}
+    </button>
+  );
+}
+
+
