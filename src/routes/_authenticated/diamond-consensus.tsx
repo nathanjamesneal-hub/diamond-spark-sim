@@ -577,8 +577,9 @@ function DiamondConsensusPage() {
         />
       )}
 
-      {view === "pregame" && (
+      {view === "pregame" && (<>
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+
 
         <Filter label="View">
           <Pill on={scope === "balanced"} onClick={() => setScope("balanced")}>Balanced Board</Pill>
