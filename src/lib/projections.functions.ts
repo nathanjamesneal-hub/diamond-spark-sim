@@ -635,13 +635,14 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         .select("game_id, status, confidence, primary_source, source_count, hitters_set, hitters_expected, last_refresh_at")
         .in("game_id", gameIds),
 
-      // Forecast lifecycle status per (game, model_version). Filter to the
-      // public-visible runs: published or locked, non-superseded, official.
+      // Forecast lifecycle status per (game, model_version, class). Filter to
+      // the public-visible selected runs: official published/locked, or
+      // preview published/locked for pregame fallback.
       sb.from("forecast_runs")
         .select("id, game_id, model_version, status, locked_at, generated_at, projection_class, superseded_by")
         .in("game_id", gameIds)
-        .eq("projection_class", "official")
         .is("superseded_by", null)
+        .in("projection_class", ["official", "preview"])
         .in("status", ["published", "locked"]),
 
       // Final / in-progress box-score actuals for the actual column.
@@ -653,7 +654,22 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     const glsByGame = new Map((glsRows ?? []).map((r: any) => [r.game_id, r]));
     const runByKey = new Map<string, any>();
     for (const r of forecastRunRows ?? []) {
-      runByKey.set(`${r.game_id}:${r.model_version}`, r);
+      runByKey.set(`${r.game_id}:${r.model_version}:${r.projection_class}`, r);
+    }
+    const fppDistByKey = new Map<string, PersistedDistributions>();
+    const runIds = (forecastRunRows ?? []).map((r: any) => r.id).filter(Boolean);
+    if (runIds.length > 0) {
+      const { data: fppRows } = await sb
+        .from("forecast_player_projections")
+        .select("forecast_run_id, player_id, role, distributions")
+        .in("forecast_run_id", runIds);
+      for (const r of fppRows ?? []) {
+        const role = (r as any).role === "pitcher" ? "pitcher" : "hitter";
+        const dist = ((r as any).distributions ?? null) as PersistedDistributions | null;
+        if (dist && Object.keys(dist).length > 0) {
+          fppDistByKey.set(`${(r as any).forecast_run_id}:${(r as any).player_id}:${role}`, dist);
+        }
+      }
     }
     const actualByKey = new Map<string, any>();
     for (const a of actualRows ?? []) {
