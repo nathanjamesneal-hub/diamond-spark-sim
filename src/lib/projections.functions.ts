@@ -465,6 +465,10 @@ export type DiamondPitcherCard = {
   h_mean: number | null;
   /** Batters Faced isn't directly persisted yet; null when unavailable. */
   projected_bf: number | null;
+  /** Persisted Monte Carlo distributions from the SELECTED snapshot. */
+  distributions: PersistedDistributions | null;
+  distributions_source: "sim_snapshot" | null;
+
   quality_start_probability: number | null;
   pitcher_win_probability: number | null;
   inputs_narrative: string | null;
