@@ -111,13 +111,20 @@ export function selectBestPublicForecast<TProjection extends PublicProjectionCan
     if (officialRun) return { projection: officialProjection, run: officialRun, projectionClass: "official" };
   }
 
-  if (gameHasStartedOrPastStart(args.gameStatus, args.firstPitchAt, args.now)) return null;
-
   const previewProjection = bestProjection(args.projections, args.playerId, args.gameId, args.role, args.modelVersion, "preview");
   if (previewProjection) {
     const previewRun = bestRun(args.runs, args.gameId, args.modelVersion, "preview");
-    if (previewRun) return { projection: previewProjection, run: previewRun, projectionClass: "preview" };
+    if (previewRun) {
+      const started = gameHasStartedOrPastStart(args.gameStatus, args.firstPitchAt, args.now);
+      // Post-first-pitch: only accept a locked preview snapshot (immutable
+      // pregame projection frozen by the lock-live cron). Pregame: accept
+      // either locked or published preview.
+      if (!started || previewRun.status === "locked") {
+        return { projection: previewProjection, run: previewRun, projectionClass: "preview" };
+      }
+    }
   }
 
   return null;
 }
+
