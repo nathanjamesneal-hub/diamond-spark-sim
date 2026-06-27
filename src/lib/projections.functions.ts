@@ -893,9 +893,12 @@ export const getDiamondScores = createServerFn({ method: "GET" })
           er_mean: snapMean(snap, "ER"),
           h_mean: snapMean(snap, "H"),
           projected_bf: (() => {
-            const bf = snap?.distributions?.BF?.mean ?? snap?.projected_bf ?? null;
+            const bf = (snap as any)?.distributions?.BF?.mean ?? (snap as any)?.projected_bf ?? null;
             return typeof bf === "number" && isFinite(bf) ? bf : null;
           })(),
+          distributions: (snap?.distributions ?? null) as PersistedDistributions | null,
+          distributions_source: snap?.distributions ? "sim_snapshot" : null,
+
           quality_start_probability: proj?.quality_start_probability ?? null,
           pitcher_win_probability: proj?.pitcher_win_probability ?? null,
           inputs_narrative: narrativeFromInputs(proj?.inputs),
