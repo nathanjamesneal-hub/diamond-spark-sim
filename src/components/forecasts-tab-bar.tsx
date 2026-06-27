@@ -8,7 +8,7 @@ const TABS = [
   { to: "/diamond-scores", label: "Board", match: "exact" },
   { to: "/slate", label: "All Forecasts", match: "exact" },
   { to: "/odds", label: "Rankings", match: "exact" },
-  { to: "/diamond-consensus", label: "Consensus", match: "exact" },
+  { to: "/forecasts/consensus", label: "Consensus", match: "exact" },
   { to: "/top-props", label: "Top Props", match: "exact" },
   { to: "/leaderboards", label: "Player Search", match: "exact" },
   { to: "/forecasts/lab", label: "Projection Lab", match: "prefix" },
