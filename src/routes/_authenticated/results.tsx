@@ -281,15 +281,132 @@ function ResultsPage() {
             </div>
           </Section>
 
-          {/* E. Model Note */}
+          {/* E. Full Projection Audit */}
+          <FullProjectionAuditSection audit={audit} date={date} />
+
+          {/* F. Model Note */}
           {note ? (
-            <Section eyebrow="E · Note" title="Model Note">
+            <Section eyebrow="F · Note" title="Model Note">
               <p className="rounded-lg border border-border/60 bg-card/40 px-4 py-3 text-sm leading-relaxed text-foreground">{note}</p>
             </Section>
           ) : null}
         </>
       )}
     </div>
+  );
+}
+
+// ── Full Projection Audit ─────────────────────────────────────────────
+const HITTER_STATS: AuditStatKey[] = ["H", "TB", "HR", "RBI", "R", "SB", "K"];
+const PITCHER_STATS: AuditStatKey[] = ["outs", "PK", "BB", "ER", "PH"];
+
+function FullProjectionAuditSection({ audit, date }: { audit: ReturnType<typeof buildFullProjectionAudit>; date: string }) {
+  const [tab, setTab] = useState<"hitter" | "pitcher">("hitter");
+  const [query, setQuery] = useState("");
+  const rows = tab === "hitter" ? audit.hitters : audit.pitchers;
+  const stats = tab === "hitter" ? HITTER_STATS : PITCHER_STATS;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      r.player_name.toLowerCase().includes(q) ||
+      r.team_abbrev.toLowerCase().includes(q) ||
+      r.opp_abbrev.toLowerCase().includes(q),
+    );
+  }, [rows, query]);
+
+  const onExport = () => {
+    const csv = auditRowsToCsv(filtered, stats);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `diamond-audit-${tab}-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Section eyebrow="E · Audit" title="Full Projection Audit"
+      sublabel="Every persisted projection vs. final box score. Read-only — no re-simulation.">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-md border border-border/60 bg-card/40 p-0.5">
+          {(["hitter", "pitcher"] as const).map((g) => (
+            <button key={g} type="button" onClick={() => setTab(g)}
+              className={`mono rounded px-3 py-1 text-[11px] uppercase tracking-widest transition ${
+                tab === g ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+              }`}>
+              {g === "hitter" ? `Hitters (${audit.hitters.length})` : `Pitchers (${audit.pitchers.length})`}
+            </button>
+          ))}
+        </div>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter player / team / opp"
+          className="mono rounded-md border border-border/60 bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground" />
+        <button type="button" onClick={onExport}
+          className="mono rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[10px] uppercase tracking-widest text-primary transition hover:bg-primary/20">
+          Export CSV
+        </button>
+        <div className="mono ml-auto text-[10px] uppercase tracking-widest text-muted-foreground">
+          missing actuals: {audit.missing.hitters} hitters · {audit.missing.pitchers} pitchers
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/30">
+        <table className="table-modern w-full text-left text-xs">
+          <thead className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <tr className="border-b border-border/40">
+              <th className="px-2 py-2 sticky left-0 bg-card/60 z-10">Player</th>
+              {tab === "hitter" ? <th className="px-2 py-2 text-right">Spot</th> : null}
+              <th className="px-2 py-2 text-right">DS</th>
+              {stats.map((k) => (
+                <th key={k} className="px-2 py-2 text-right" colSpan={3}>{k}</th>
+              ))}
+            </tr>
+            <tr className="border-b border-border/40 text-[9px]">
+              <th className="px-2 py-1 sticky left-0 bg-card/60 z-10"></th>
+              {tab === "hitter" ? <th></th> : null}
+              <th></th>
+              {stats.map((k) => (
+                <Fragment key={k}>
+                  <th className="px-2 py-1 text-right text-edge">μ</th>
+                  <th className="px-2 py-1 text-right">act</th>
+                  <th className="px-2 py-1 text-right">Δ</th>
+                </Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={3 + stats.length * 3} className="px-2 py-4 text-center text-muted-foreground">No graded rows.</td></tr>
+            ) : filtered.map((r) => (
+              <tr key={r.key} className="border-t border-border/30">
+                <td className="px-2 py-1.5 sticky left-0 bg-card/30 z-10">
+                  {r.mlb_id ? (
+                    <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-semibold hover:underline">{r.player_name}</Link>
+                  ) : <span className="font-semibold">{r.player_name}</span>}
+                  <span className="mono ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">{r.team_abbrev} · {r.opp_abbrev}</span>
+                </td>
+                {tab === "hitter" ? <td className="px-2 py-1.5 text-right mono tabular-nums">{r.lineup_spot ?? "—"}</td> : null}
+                <td className="px-2 py-1.5 text-right mono tabular-nums">{r.diamond_score?.toFixed(0) ?? "—"}</td>
+                {stats.map((k) => {
+                  const c = r.stats[k];
+                  const dTone = c?.delta == null ? "" : c.delta > 0 ? "text-emerald-300" : c.delta < 0 ? "text-rose-300" : "text-muted-foreground";
+                  const fmt = (v: number | null | undefined, d = 2) => v == null ? "—" : v.toFixed(d);
+                  const dig = (k === "outs" || k === "PK" || k === "BB" || k === "ER" || k === "PH") ? 1 : 2;
+                  return (
+                    <Fragment key={k}>
+                      <td className="px-2 py-1.5 text-right mono tabular-nums text-edge">{fmt(c?.mean, dig)}</td>
+                      <td className="px-2 py-1.5 text-right mono tabular-nums">{c?.actual ?? "—"}</td>
+                      <td className={`px-2 py-1.5 text-right mono tabular-nums ${dTone}`}>{c?.delta == null ? "—" : `${c.delta >= 0 ? "+" : ""}${c.delta.toFixed(dig)}`}</td>
+                    </Fragment>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
   );
 }
 
