@@ -26,7 +26,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { todayInAppTz, shiftIsoDate } from "@/lib/timezone";
-import { getMarketSimulationMetrics, metricsToSimStat } from "@/lib/forecast/sim-metrics";
+import { getMarketSimulationMetrics, metricsToSimStat, type SimulationMetrics } from "@/lib/forecast/sim-metrics";
 
 const OFFICIAL_RUN_STATUSES = ["published", "locked"] as const;
 type OfficialStatus = (typeof OFFICIAL_RUN_STATUSES)[number];
@@ -167,6 +167,21 @@ export type LabRow = {
     BB: DistStat;
     outs: DistStat;
     ER: DistStat;
+  };
+
+  sim_metrics: {
+    H: SimulationMetrics;
+    HR: SimulationMetrics;
+    TB: SimulationMetrics;
+    RBI: SimulationMetrics;
+    R: SimulationMetrics;
+    SB: SimulationMetrics;
+    K: SimulationMetrics;
+    BB: SimulationMetrics;
+    PA: SimulationMetrics;
+    OUTS: SimulationMetrics;
+    BF: SimulationMetrics;
+    ER: SimulationMetrics;
   };
 
   actual: Record<string, any> | null;
@@ -427,11 +442,24 @@ async function loadLab(
       projectionSimSnapshot: projectionSnapshotByKey.get(`${run.game_id}::${p.player_id}::${p.role}::${run.model_version}::${run.projection_class}`) ?? null,
     };
     if (!p.distributions) missingDist += 1;
-    const ds = (market: Parameters<typeof getMarketSimulationMetrics>[0]["market"]): DistStat => metricsToSimStat(getMarketSimulationMetrics({
+    const metric = (market: Parameters<typeof getMarketSimulationMetrics>[0]["market"]): SimulationMetrics => getMarketSimulationMetrics({
       selectedForecast,
       role: p.role,
       market,
-    })) as DistStat;
+    });
+    const mH = metric("H");
+    const mHR = metric("HR");
+    const mTB = metric("TB");
+    const mRBI = metric("RBI");
+    const mR = metric("R");
+    const mSB = metric("SB");
+    const mK = metric("K");
+    const mBB = metric("BB");
+    const mPA = metric("PA");
+    const mOUTS = metric("OUTS");
+    const mBF = metric("BF");
+    const mER = metric("ER");
+    const ds = (m: SimulationMetrics): DistStat => metricsToSimStat(m) as DistStat;
 
     const actual = game ? (actualsByKey.get(`${game.id}::${p.player_id}`) ?? null) : null;
 
@@ -490,16 +518,17 @@ async function loadLab(
           : null,
 
       distributions: {
-        H: ds("H"),
-        HR: ds("HR"),
-        TB: ds("TB"),
-        RBI: ds("RBI"),
-        R: ds("R"),
-        K: ds("K"),
-        BB: ds("BB"),
-        outs: ds("OUTS"),
-        ER: ds("ER"),
+        H: ds(mH),
+        HR: ds(mHR),
+        TB: ds(mTB),
+        RBI: ds(mRBI),
+        R: ds(mR),
+        K: ds(mK),
+        BB: ds(mBB),
+        outs: ds(mOUTS),
+        ER: ds(mER),
       },
+      sim_metrics: { H: mH, HR: mHR, TB: mTB, RBI: mRBI, R: mR, SB: mSB, K: mK, BB: mBB, PA: mPA, OUTS: mOUTS, BF: mBF, ER: mER },
       actual,
     };
 
