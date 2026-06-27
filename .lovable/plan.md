@@ -1,69 +1,45 @@
 ## Problem
 
-Top Props (and every other surface that calls `getDiamondScores` / `selectBestPublicForecast`) hides games that are already in progress unless an official forecast was published before first pitch. For today's slate, several live games never got an official run — only a locked preview snapshot exists — so they vanish from Top Props the moment first pitch passes.
+Players added to a lineup after first pitch (pinch hitters, defensive subs, mid-game pitching changes) have no pregame Monte Carlo snapshot. Our hard first-pitch cutoff (correctly) blocks any new projection writes for live/final games, so these players surface on the Forecast Board / Top Props / Consensus / Sim Leaders with blank Sim Mean cells and look like a data bug.
 
-Today's live games and their persisted runs:
+This is expected behavior, not a missing-data bug — but the UI doesn't say so, so it reads as broken.
 
-```text
-gamePk 824257  In Progress  official=0  preview=1   ← dropped
-gamePk 824745  In Progress  official=0  preview=1   ← dropped
-gamePks 823688/823039/824014/823285/823206 (late-night carryover)  official=0  preview=0
-```
+## Fix (UI-only, no math or lifecycle changes)
 
-The 5 carryover games have no persisted forecast at all and cannot be shown (no snapshot to read). The 2 daytime live games DO have a locked preview snapshot from before first pitch — that immutable pregame projection is exactly what should populate the leaderboard while the game is live.
+Detect "post-lock roster additions" at read time and label them explicitly instead of rendering an empty mean.
 
-## Fix (read-layer only, no engine/snapshot changes)
+### 1. Shared classifier — `src/lib/forecast/post-lock-addition.ts` (new)
 
-Loosen the public selector to allow a **locked** preview snapshot after first pitch. Locked preview rows are already immutable pregame projections — they're the same data the user saw at lineup time, just frozen by the lock-live cron. Official always still wins when present.
+A row is a `post_lock_addition` when ALL of the following are true:
+- `game.status` is live / final / suspended-after-start (reuse `gameHasStartedOrPastStart`)
+- The player appears in the current `lineups` row for that game
+- `selectBestPublicForecast` returned `null` (no official + no locked preview snapshot for this player+role)
 
-### Change 1 — `src/lib/forecast/select-public.ts`
+No new tables, no writes, no changes to `forecast_runs` / `projections` / `forecast_player_projections`.
 
-In `selectBestPublicForecast`, replace the hard cutoff:
+### 2. Surfaces that show the badge
 
-```ts
-if (gameHasStartedOrPastStart(...)) return null;
-const previewProjection = bestProjection(..., "preview");
-```
+- **Forecast Board** (`src/components/forecast/forecast-row.tsx`): show a small amber/zinc "In-Game Add" pill in the Sim Mean cell and tooltip "Entered after first pitch — no pregame projection (cutoff locked)."
+- **Forecast Detail Drawer** (`forecast-detail-drawer.tsx`): show the same note in the header area; hide the empty distribution panels.
+- **Top Props** (`src/routes/_authenticated/top-props.tsx`): exclude post-lock additions from rankings (they have no mean to rank), and surface a small footer count: "N in-game additions hidden — added after first pitch."
+- **Sim Leaders** (`/odds`) and **Diamond Consensus** (`/diamond-consensus`): same exclusion + same footer count.
+- **Live Tracker** (`/today/live`): still show the player's live box-score stats; mark projection column as "—" with the same tooltip (do not grade them in Model Results — they're already excluded by snapshot-missing logic).
 
-with:
+### 3. No engine / orchestrator changes
 
-```ts
-const previewProjection = bestProjection(..., "preview");
-if (previewProjection) {
-  const previewRun = bestRun(..., "preview");
-  if (previewRun) {
-    const started = gameHasStartedOrPastStart(args.gameStatus, args.firstPitchAt, args.now);
-    // Post-first-pitch: only accept a locked preview snapshot (immutable pregame projection).
-    // Pregame: accept locked or published preview.
-    if (!started || previewRun.status === "locked") {
-      return { projection: previewProjection, run: previewRun, projectionClass: "preview" };
-    }
-  }
-}
-return null;
-```
+We do NOT attempt to project pinch hitters mid-game. The first-pitch lock and the "official forecast is immutable" rule both stay intact. We are only making the absence visible and intentional.
 
-Official-first priority above this block is unchanged. No engine, no simulator, no snapshot writes.
+### Technical notes
 
-### Change 2 — surface labeling
-
-`getDiamondScores` already derives `forecast_status` from the selected run. Add one branch in the `forecast_status` resolver (around `src/lib/projections.functions.ts:740`) so a selected preview row on a `live`/`final` game shows as `"live"` / `"final"` (locked preview = locked pregame snapshot now playing/played), not `"preview"`. The amber preview styling on Top Props/Forecast Board will then correctly flip to the live/final treatment, while the underlying data still comes from the locked preview snapshot.
-
-Concretely: in the existing `fStatus` derivation, when `chosenClass === "preview"` and the run is `locked`, map by `gameStateOf(g.game_status)` exactly the way official locked rows are mapped (`live` → "live", `final` → "final", else "locked").
-
-### Change 3 — Top Props copy
-
-In `src/routes/_authenticated/top-props.tsx`, when `is_preview` is true but `forecast_status` is `"live"` or `"final"`, render the live/final pill instead of the amber "Preview" pill. (Single conditional in the existing badge renderer — no data plumbing changes.)
+- Single read-time helper keeps logic in one place; no duplication across five surfaces.
+- Reuses existing `gameHasStartedOrPastStart` and `selectBestPublicForecast`; no new lifecycle states.
+- No DB migration. No changes to Alpha math, Monte Carlo, calibration, or Results grading.
+- Type: `{ isPostLockAddition: boolean; reason: 'no_pregame_snapshot' }` attached to the public row alongside existing fields.
 
 ## Out of scope
 
-- The 5 late-night carryover live games with zero persisted runs cannot be shown — there is no snapshot to read. They will continue to be excluded. If that matters, it's a separate fix in the orchestrator's nightly preview generation, not in the read layer.
-- No changes to Alpha math, Monte Carlo math, Diamond Score, calibration, simulator runs, or forecast lifecycle writes.
-- No new database columns or migrations.
+- Generating any kind of "rapid sim" for pinch hitters (would violate the hard cutoff rule you set).
+- Backfilling projections for non-starters who weren't on the projected lineup.
+- Any change to `forecast_status`, `display_state`, or grading.
 
-## Acceptance
-
-- The two in-progress 17:10 ET games appear in Top Props with their locked pregame preview probabilities and means.
-- Pregame games still prefer Official > Preview exactly as before.
-- Pregame games without a locked preview still suppress that preview after first pitch (no leaked unpublished previews).
-- Forecast Board, Consensus, Sim Leaders, Detail Drawer — all surfaces that share `selectBestPublicForecast` — gain the same live-game visibility automatically.
+Confirm and I'll implement.

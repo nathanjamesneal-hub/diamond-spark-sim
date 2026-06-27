@@ -54,6 +54,7 @@ function statusPill(s: ForecastBoardStatus): { label: string; cls: string; title
     case "locked":      return { label: "Locked",   cls: "text-foreground/80" };
     case "live":        return { label: "Live",     cls: "text-live" };
     case "final":       return { label: "Final",    cls: "text-foreground" };
+    case "in_game_add": return { label: "In-Game Add", cls: "text-amber-500", title: "Entered after first pitch — no pregame projection (cutoff locked)" };
   }
 }
 
