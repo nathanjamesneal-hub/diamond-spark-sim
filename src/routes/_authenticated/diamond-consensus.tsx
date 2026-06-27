@@ -538,7 +538,48 @@ function DiamondConsensusPage() {
         <p className="text-[11px] text-muted-foreground">{scopeBlurb}</p>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+        <Filter label="Mode">
+          <Pill on={view === "pregame"} onClick={() => setView("pregame")}>Pregame Consensus</Pill>
+          <Pill on={view === "live"} onClick={() => setView("live")}>Live Consensus Tracker</Pill>
+          <Pill on={view === "final"} onClick={() => setView("final")}>Final Consensus Results</Pill>
+        </Filter>
+        <Filter label="Date">
+          <input
+            type="date"
+            value={date ?? payload.date}
+            onChange={(e) => setDate(e.target.value || undefined)}
+            className="mono rounded border border-border/60 bg-background px-2 py-1 text-xs"
+          />
+          {date && (
+            <button
+              type="button"
+              onClick={() => setDate(undefined)}
+              className="mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            >
+              Today
+            </button>
+          )}
+        </Filter>
+        <p className="mono ml-auto text-[10px] uppercase tracking-widest text-amber-300/90">
+          Live status only — rankings are frozen from pregame.
+        </p>
+      </div>
+
+      {view !== "pregame" && (
+        <LiveTrackerSection
+          rows={rows}
+          frozenRank={frozenRank}
+          actuals={actuals}
+          view={view}
+          liveSort={liveSort}
+          setLiveSort={setLiveSort}
+        />
+      )}
+
+      {view === "pregame" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 p-3">
+
         <Filter label="View">
           <Pill on={scope === "balanced"} onClick={() => setScope("balanced")}>Balanced Board</Pill>
           <Pill on={scope === "top25"} onClick={() => setScope("top25")}>Top 25 Overall Agreement</Pill>
