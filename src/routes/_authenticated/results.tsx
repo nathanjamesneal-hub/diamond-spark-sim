@@ -159,7 +159,7 @@ function ResultsPage() {
           <span className="mono text-[10px] uppercase tracking-widest text-edge">Reviewing</span>
           <span className="ml-2 font-display text-lg font-semibold tracking-tight">{formatLongDate(date)}</span>
           <span className="mono ml-3 text-[11px] uppercase tracking-widest text-muted-foreground">
-            {info.final} / {info.scheduled} games final · {totalGradedOfficial} locked official forecasts · model {leaders.activeVersion ?? "—"}
+            {info.final} / {info.scheduled} games final · {totalGradedOfficial} locked official forecasts
           </span>
         </div>
 
