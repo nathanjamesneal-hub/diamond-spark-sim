@@ -328,7 +328,10 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         (r) => (r.lineup_confidence ?? 0) >= 95 || r.home.lineup_status === "confirmed" || r.away.lineup_status === "confirmed",
       ).length,
       games_with_starting_pitchers: rows.filter((r) => r.home.starting_pitcher_name && r.away.starting_pitcher_name).length,
-      games_with_projections: rows.filter((r) => r.active_projection_count > 0).length,
+      games_with_projections: rows.filter((r) => r.active_official_count > 0).length,
+      games_with_official_published: rows.filter((r) => r.active_official_count > 0).length,
+      games_with_preview_only: rows.filter((r) => r.active_official_count === 0 && r.active_preview_count > 0).length,
+
       games_locked: rows.filter((r) => r.locked_at != null).length,
       last_refresh_at: cronRuns?.[0]?.finished_at ?? null,
       last_engine_run_at: cronRuns?.find((r) => r.engine_ran)?.started_at ?? null,
