@@ -166,11 +166,11 @@ const SB_KEYS   = ["sb_probability", "sbProbability", "stolenBaseProbability", "
 
 let didLogSample = false;
 
-function meanForProp(distributions: unknown, propType: PropType): { value: number | null; unit: string; sourcePath: string | null } {
+function meanForProp(selectedForecast: DiamondHitterCard["selected_forecast"] | DiamondPitcherCard["selected_forecast"], propType: PropType): { value: number | null; unit: string; sourcePath: string | null; reason: string | null } {
   const spec = PROP_MARKET[propType];
-  if (!spec) return { value: null, unit: "", sourcePath: null };
-  const m = getMarketSimulationMetrics({ distributions, role: spec.role, market: spec.market });
-  return { value: m.mean, unit: spec.unit, sourcePath: m.sourcePath };
+  if (!spec) return { value: null, unit: "", sourcePath: null, reason: null };
+  const m = getMarketSimulationMetrics({ selectedForecast, role: spec.role, market: spec.market });
+  return { value: m.mean, unit: spec.unit, sourcePath: m.sourcePath, reason: m.unavailableReason };
 }
 
 function flattenHitter(h: DiamondHitterCard): PropRow[] {
@@ -207,7 +207,7 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
   for (const [propType, prob] of entries) {
     if (prob == null) continue;
     const meta = PROP_META[propType];
-    const mean = meanForProp(h.distributions, propType);
+    const mean = meanForProp(h.selected_forecast, propType);
     rows.push({
       ...base,
       key: `${h.player_id}:${h.game_id}:${h.model_version}:${propType}`,
@@ -215,7 +215,7 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
       probability: prob,
       meanValue: mean.value,
       meanUnit: mean.unit,
-      meanSourcePath: mean.sourcePath,
+      meanSourcePath: mean.sourcePath ?? mean.reason,
     });
   }
   return rows;
@@ -245,7 +245,7 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
   for (const key of K_PROB_KEYS) {
     const v = pAny[key];
     if (typeof v === "number" && isFinite(v)) {
-      const mean = meanForProp(p.distributions, "k");
+      const mean = meanForProp(p.selected_forecast, "k");
       rows.push({
         ...base,
         key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
@@ -253,7 +253,7 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
         probability: v,
         meanValue: mean.value,
         meanUnit: mean.unit,
-        meanSourcePath: mean.sourcePath,
+        meanSourcePath: mean.sourcePath ?? mean.reason,
       });
       break;
     }
