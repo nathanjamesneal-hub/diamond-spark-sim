@@ -554,11 +554,13 @@ export async function runDiamondEngineForGames(
   // unchanged but pitchers still get a real Diamond Pitcher Score.
   const { project: projectPitcherAlpha } = await import("@/lib/engines/alpha_0_3/engine");
   for (const sp of sps ?? []) {
+    if (!eligibleGameIds.has(sp.game_id)) continue;
     const game = games.find((x: any) => x.id === sp.game_id);
     if (!game) continue;
     const dna = dnaByPlayer.get(sp.player_id) ?? {
       contact: 50, power: 50, speed: 35, discipline: 50, consistency: 50,
     };
+
     const out = projectPitcherAlpha({
       role: "pitcher",
       teamSide: sideForTeam(game, sp.team_id),
