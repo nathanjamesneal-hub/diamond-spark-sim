@@ -211,38 +211,7 @@ async function fetchActiveRun(
   return (data as RunRow | null) ?? null;
 }
 
-async function fetchLatestRun(
-  admin: SupabaseClient<any>,
-  gamePk: number,
-  modelVersion: string,
-): Promise<RunRow | null> {
-  const { data } = await admin
-    .from("forecast_runs")
-    .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
-    .eq("game_pk", gamePk)
-    .eq("model_version", modelVersion)
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as RunRow | null) ?? null;
-}
 
-async function fetchActiveRun(
-  admin: SupabaseClient<any>,
-  gamePk: number,
-  modelVersion: string,
-): Promise<RunRow | null> {
-  const { data } = await admin
-    .from("forecast_runs")
-    .select("id, game_pk, game_id, model_version, version_number, status, input_hash, generated_at, locked_at")
-    .eq("game_pk", gamePk)
-    .eq("model_version", modelVersion)
-    .in("status", ["published", "locked"])
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as RunRow | null) ?? null;
-}
 
 function logLine(entry: LifecycleLogEntry) {
   // Compact server-side log per spec.
