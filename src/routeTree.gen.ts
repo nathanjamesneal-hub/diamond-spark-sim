@@ -32,6 +32,7 @@ import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authe
 import { Route as AuthenticatedCalibrationRouteImport } from './routes/_authenticated/calibration'
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
+import { Route as AuthenticatedForecastsIndexRouteImport } from './routes/_authenticated/forecasts.index'
 import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams.$teamId'
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
@@ -160,6 +161,12 @@ const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
   id: '/_admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedForecastsIndexRoute =
+  AuthenticatedForecastsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedForecastsRoute,
+  } as any)
 const AuthenticatedTeamsTeamIdRoute =
   AuthenticatedTeamsTeamIdRouteImport.update({
     id: '/teams/$teamId',
@@ -204,7 +211,7 @@ export interface FileRoutesByFullPath {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
-  '/forecasts': typeof AuthenticatedForecastsRoute
+  '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
@@ -233,7 +241,6 @@ export interface FileRoutesByTo {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
-  '/forecasts': typeof AuthenticatedForecastsRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/forecasts': typeof AuthenticatedForecastsIndexRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
@@ -264,7 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
-  '/_authenticated/forecasts': typeof AuthenticatedForecastsRoute
+  '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/leaders': typeof AuthenticatedLeadersRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/_authenticated/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
 }
@@ -314,6 +323,7 @@ export interface FileRouteTypes {
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
+    | '/forecasts/'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesByTo: FileRoutesByTo
@@ -325,7 +335,6 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
-    | '/forecasts'
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/matchups/$gamePk'
     | '/players/$playerId'
     | '/teams/$teamId'
+    | '/forecasts'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   id:
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/_authenticated/matchups/$gamePk'
     | '/_authenticated/players/$playerId'
     | '/_authenticated/teams/$teamId'
+    | '/_authenticated/forecasts/'
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/refresh-lineups'
   fileRoutesById: FileRoutesById
@@ -548,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/forecasts/': {
+      id: '/_authenticated/forecasts/'
+      path: '/'
+      fullPath: '/forecasts/'
+      preLoaderRoute: typeof AuthenticatedForecastsIndexRouteImport
+      parentRoute: typeof AuthenticatedForecastsRoute
+    }
     '/_authenticated/teams/$teamId': {
       id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
@@ -607,6 +625,20 @@ const AuthenticatedAdminRouteRouteWithChildren =
     AuthenticatedAdminRouteRouteChildren,
   )
 
+interface AuthenticatedForecastsRouteChildren {
+  AuthenticatedForecastsIndexRoute: typeof AuthenticatedForecastsIndexRoute
+}
+
+const AuthenticatedForecastsRouteChildren: AuthenticatedForecastsRouteChildren =
+  {
+    AuthenticatedForecastsIndexRoute: AuthenticatedForecastsIndexRoute,
+  }
+
+const AuthenticatedForecastsRouteWithChildren =
+  AuthenticatedForecastsRoute._addFileChildren(
+    AuthenticatedForecastsRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRoute
@@ -614,7 +646,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
-  AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRoute
+  AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLeadersRoute: typeof AuthenticatedLeadersRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
@@ -641,7 +673,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
-  AuthenticatedForecastsRoute: AuthenticatedForecastsRoute,
+  AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLeadersRoute: AuthenticatedLeadersRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
