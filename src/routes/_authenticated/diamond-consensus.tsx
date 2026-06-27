@@ -750,7 +750,10 @@ function DiamondConsensusPage() {
         A high consensus score means the signals agree within that category, not that the event is the most likely to happen on the slate.
         For raw event likelihood, use the <span className="text-foreground">High-Probability Outcomes</span> view.
       </p>
+      </div>
+      )}
     </section>
+
     </>
   );
 }
