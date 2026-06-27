@@ -622,12 +622,16 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       activeVersion ? p.model_version === activeVersion : true,
     );
 
-    // Latest projection per (player, game, model_version) — newest wins (input
-    // is ordered DESC by created_at).
-    const latest = new Map<string, any>();
+    // Latest projection per (player, game, role, model_version, class) —
+    // newest wins (input is DESC by created_at). Role normalized so legacy
+    // null/"batter" rows map to "hitter".
+    const normRole = (r: string | null | undefined) => (r === "pitcher" ? "pitcher" : "hitter");
+    const latestOfficial = new Map<string, any>();
+    const latestPreview = new Map<string, any>();
     for (const p of projections) {
-      const k = `${p.player_id}:${p.game_id}:${p.model_version}`;
-      if (!latest.has(k)) latest.set(k, p);
+      const k = `${p.player_id}:${p.game_id}:${normRole(p.projection_role)}:${p.model_version}`;
+      const bucket = p.projection_class === "preview" ? latestPreview : latestOfficial;
+      if (!bucket.has(k)) bucket.set(k, p);
     }
 
     const playerIds = new Set<string>();
