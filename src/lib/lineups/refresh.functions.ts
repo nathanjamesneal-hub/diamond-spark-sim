@@ -168,15 +168,37 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
       }
     }
 
-    // 4. Drop locked or Final games from changed set
+    // 4. Drop locked, Final, OR live/started games from the changed set.
+    //    First-pitch cutoff applies to the refresh path too — lineup changes
+    //    for a game that has already started must NOT trigger the engine.
     if (summary.changedGameIds.length) {
+      const { gameHasStartedOrPastStart } = await import("@/lib/forecast/window");
       const { data: filtered } = await supabaseAdmin
         .from("games")
-        .select("id, game_status, lineups_locked_at")
+        .select("id, mlb_game_id, game_status, first_pitch_at, lineups_locked_at")
         .in("id", summary.changedGameIds);
+      const blocked: Array<{ id: string; mlb_game_id: number | null; game_status: string | null }> = [];
       summary.changedGameIds = (filtered ?? [])
-        .filter((g: any) => !g.lineups_locked_at && g.game_status !== "Final" && g.game_status !== "Postponed")
+        .filter((g: any) => {
+          if (g.lineups_locked_at) return false;
+          if (g.game_status === "Final" || g.game_status === "Postponed") return false;
+          if (gameHasStartedOrPastStart(g.game_status, g.first_pitch_at)) {
+            blocked.push({ id: g.id, mlb_game_id: g.mlb_game_id, game_status: g.game_status });
+            return false;
+          }
+          return true;
+        })
         .map((g: any) => g.id);
+      for (const b of blocked) {
+        // eslint-disable-next-line no-console
+        console.log("[forecast.window]", JSON.stringify({
+          gamePk: b.mlb_game_id,
+          gameStatus: b.game_status,
+          action: "runRefresh",
+          decision: "forecast_window_closed",
+          reason: "lineup change after first pitch ignored",
+        }));
+      }
     }
 
     // 5. If nothing changed, finish run

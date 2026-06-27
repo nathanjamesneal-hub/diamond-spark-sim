@@ -416,6 +416,38 @@ export const runEngineForGame = createServerFn({ method: "POST" })
     const date = await dateForGame(data.gameId);
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      // FIRST-PITCH CUTOFF — refuse to rerun the engine for a live/final game.
+      const { data: gameRow } = await supabaseAdmin
+        .from("games")
+        .select("id, mlb_game_id, game_status, first_pitch_at")
+        .eq("id", data.gameId)
+        .maybeSingle();
+      if (gameRow) {
+        const { gameHasStartedOrPastStart, logWindowClosed } = await import("@/lib/forecast/window");
+        if (gameHasStartedOrPastStart((gameRow as any).game_status, (gameRow as any).first_pitch_at)) {
+          logWindowClosed({
+            gamePk: (gameRow as any).mlb_game_id,
+            gameStatus: (gameRow as any).game_status,
+            action: "runEngineForGame",
+            actor: context.userId,
+          });
+          await logCronRun({
+            date,
+            notes: `Engine rerun blocked · forecast window closed · game ${data.gameId}`,
+            gameIds: [data.gameId],
+            engineRan: false,
+            durationMs: Date.now() - t0,
+          });
+          return {
+            ok: false,
+            decision: "forecast_window_closed" as const,
+            gameStatus: (gameRow as any).game_status,
+            error: "Forecast window closed — game is live",
+          };
+        }
+      }
+
       // Class-scoped supersede — only retire prior OFFICIAL rows for this
       // game. Preview rows (admin sandbox) and legacy_unverified rows must
       // be left alone; the lifecycle writer handles its own class scoping.
