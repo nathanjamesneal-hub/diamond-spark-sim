@@ -38,7 +38,7 @@ type Props = {
   topN?: number;
 };
 
-const PUBLIC_STATUSES: ForecastBoardStatus[] = ["published", "locked", "live", "final"];
+const PUBLIC_STATUSES: ForecastBoardStatus[] = ["published", "locked", "live", "final", "preview"];
 
 export function ForecastBoard({ payload, state, onState, compact, topN }: Props) {
   const [internal, setInternal] = useState<ControlledState>({
