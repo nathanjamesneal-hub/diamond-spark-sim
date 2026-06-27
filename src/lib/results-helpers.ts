@@ -169,48 +169,208 @@ const PITCHER_BINARY: {
   { key: "qs",  label: "Quality Start", getProb: (p) => p.quality_start_probability, getEvent: (a) => !!a.qualityStart },
 ];
 
+function summarizeBinary(
+  key: BinaryMarketKey,
+  label: string,
+  group: "hitter" | "pitcher",
+  pairs: { p: number; y: 0 | 1 }[],
+): BinaryMarketSummary {
+  let n = 0, pSum = 0, oSum = 0, brierSum = 0, llSum = 0;
+  const ys: number[] = [];
+  for (const { p, y } of pairs) {
+    n += 1; pSum += p; oSum += y;
+    brierSum += (p - y) ** 2;
+    const pc = clamp(p);
+    llSum += -(y * Math.log(pc) + (1 - y) * Math.log(1 - pc));
+    ys.push(y);
+  }
+  const observed = n > 0 ? oSum / n : null;
+  let baseBrier: number | null = null, baseLL: number | null = null;
+  if (n > 0 && observed != null) {
+    const bc = clamp(observed);
+    let bb = 0, bl = 0;
+    for (const y of ys) { bb += (observed - y) ** 2; bl += -(y * Math.log(bc) + (1 - y) * Math.log(1 - bc)); }
+    baseBrier = bb / n; baseLL = bl / n;
+  }
+  const sample: HRSummary["sample_label"] =
+    n < 10 ? "insufficient" : n < 30 ? "early" : "trusted";
+  return {
+    key, label, group, n,
+    predicted_avg: n > 0 ? pSum / n : null,
+    observed_rate: observed,
+    delta: observed != null && n > 0 ? observed - pSum / n : null,
+    brier: n > 0 ? brierSum / n : null,
+    log_loss: n > 0 ? llSum / n : null,
+    baseline_brier: baseBrier,
+    baseline_log_loss: baseLL,
+    sample_label: sample,
+  };
+}
+
 export function buildBinaryMarkets(
   leaders: SimulationLeadersPayload,
   actuals: ActualsPayload,
 ): BinaryMarketSummary[] {
-  return HITTER_BINARY.map(({ key, label, getProb, getActual }) => {
-    let n = 0, pSum = 0, oSum = 0, brierSum = 0, llSum = 0;
-    const ys: number[] = [];
+  const out: BinaryMarketSummary[] = [];
+  for (const { key, label, getProb, getActual } of HITTER_BINARY) {
+    const pairs: { p: number; y: 0 | 1 }[] = [];
     for (const h of leaders.hitters) {
       const p = getProb(h);
       if (p == null || !isFinite(p)) continue;
       if (h.mlb_game_id == null || !actuals.finalGames.includes(h.mlb_game_id)) continue;
       const act = h.mlb_id != null ? actuals.hitters[String(h.mlb_id)] : undefined;
       if (!act) continue;
-      const y = getActual(act) >= 1 ? 1 : 0;
-      n += 1; pSum += p; oSum += y;
-      brierSum += (p - y) ** 2;
-      const pc = clamp(p);
-      llSum += -(y * Math.log(pc) + (1 - y) * Math.log(1 - pc));
-      ys.push(y);
+      pairs.push({ p, y: getActual(act) >= 1 ? 1 : 0 });
     }
-    const observed = n > 0 ? oSum / n : null;
-    let baseBrier: number | null = null, baseLL: number | null = null;
-    if (n > 0 && observed != null) {
-      const bc = clamp(observed);
-      let bb = 0, bl = 0;
-      for (const y of ys) { bb += (observed - y) ** 2; bl += -(y * Math.log(bc) + (1 - y) * Math.log(1 - bc)); }
-      baseBrier = bb / n; baseLL = bl / n;
+    out.push(summarizeBinary(key, label, "hitter", pairs));
+  }
+  for (const { key, label, getProb, getEvent } of PITCHER_BINARY) {
+    const pairs: { p: number; y: 0 | 1 }[] = [];
+    for (const pp of leaders.pitchers) {
+      const p = getProb(pp);
+      if (p == null || !isFinite(p)) continue;
+      if (pp.mlb_game_id == null || !actuals.finalGames.includes(pp.mlb_game_id)) continue;
+      const act = pp.mlb_id != null ? actuals.pitchers[String(pp.mlb_id)] : undefined;
+      if (!act) continue;
+      pairs.push({ p, y: getEvent(act) ? 1 : 0 });
     }
-    const sample: HRSummary["sample_label"] =
-      n < 10 ? "insufficient" : n < 30 ? "early" : "trusted";
-    return {
-      key, label, n,
-      predicted_avg: n > 0 ? pSum / n : null,
-      observed_rate: observed,
-      delta: observed != null && n > 0 ? observed - pSum / n : null,
-      brier: n > 0 ? brierSum / n : null,
-      log_loss: n > 0 ? llSum / n : null,
-      baseline_brier: baseBrier,
-      baseline_log_loss: baseLL,
-      sample_label: sample,
-    };
-  });
+    out.push(summarizeBinary(key, label, "pitcher", pairs));
+  }
+  return out;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Full Projection Audit — per-player rows joining persisted snapshot
+// projections against final box-score actuals. Display-only.
+// ──────────────────────────────────────────────────────────────────────
+
+export type AuditStatKey =
+  | "H" | "TB" | "HR" | "RBI" | "R" | "SB" | "K"
+  | "outs" | "PK" | "BB" | "ER" | "PH";
+
+export type AuditStatCell = {
+  key: AuditStatKey;
+  mean: number | null;
+  p50: number | null;
+  p90: number | null;
+  prob1: number | null;
+  actual: number | null;
+  delta: number | null;
+  inP50P90: boolean | null;
+};
+
+export type AuditRow = {
+  key: string;
+  group: "hitter" | "pitcher";
+  player_name: string;
+  mlb_id: number | null;
+  team_abbrev: string;
+  opp_abbrev: string;
+  game_id: string;
+  mlb_game_id: number | null;
+  diamond_score: number | null;
+  lineup_spot: number | null;
+  stats: Partial<Record<AuditStatKey, AuditStatCell>>;
+};
+
+const HITTER_AUDIT: { key: AuditStatKey; stat: (r: SimLeaderHitterRow) => { mean: number | null; p50: number | null; p90: number | null; probAtLeast1: number | null } | null; actual: (a: HitterActual) => number | null }[] = [
+  { key: "H",   stat: (r) => r.H,   actual: (a) => a.H ?? null },
+  { key: "TB",  stat: (r) => r.TB,  actual: (a) => a.TB ?? null },
+  { key: "HR",  stat: (r) => r.HR,  actual: (a) => a.HR ?? null },
+  { key: "RBI", stat: (r) => r.RBI, actual: (a) => a.RBI ?? null },
+  { key: "R",   stat: (r) => r.R,   actual: (a) => a.R ?? null },
+  { key: "SB",  stat: (r) => r.SB,  actual: (a) => a.SB ?? null },
+  { key: "K",   stat: (r) => r.K,   actual: (a) => a.K ?? null },
+];
+
+const PITCHER_AUDIT: { key: AuditStatKey; stat: (r: SimLeaderPitcherRow) => { mean: number | null; p50: number | null; p90: number | null; probAtLeast1: number | null } | null; actual: (a: PitcherActual) => number | null }[] = [
+  { key: "outs", stat: (r) => r.outs, actual: (a) => a.outs ?? null },
+  { key: "PK",   stat: (r) => r.K,    actual: (a) => a.K ?? null },
+  { key: "BB",   stat: (r) => r.BB,   actual: (a) => a.BB ?? null },
+  { key: "ER",   stat: (r) => r.ER,   actual: (a) => a.ER ?? null },
+  { key: "PH",   stat: (r) => r.H,    actual: (a) => a.H ?? null },
+];
+
+function cell(k: AuditStatKey, s: { mean: number | null; p50: number | null; p90: number | null; probAtLeast1: number | null } | null, actual: number | null): AuditStatCell {
+  const mean = s?.mean ?? null;
+  const p50 = s?.p50 ?? null;
+  const p90 = s?.p90 ?? null;
+  const prob1 = s?.probAtLeast1 ?? null;
+  const delta = mean != null && actual != null ? actual - mean : null;
+  const inP50P90 = actual != null && p50 != null && p90 != null ? actual >= p50 && actual <= p90 : null;
+  return { key: k, mean, p50, p90, prob1, actual, delta, inP50P90 };
+}
+
+export function buildFullProjectionAudit(
+  leaders: SimulationLeadersPayload,
+  actuals: ActualsPayload,
+  scope: "final" | "live_or_final" = "final",
+): { hitters: AuditRow[]; pitchers: AuditRow[]; missing: { hitters: number; pitchers: number } } {
+  const eligibleGames = scope === "live_or_final"
+    ? new Set<number>([...actuals.finalGames, ...actuals.liveGames])
+    : new Set<number>(actuals.finalGames);
+
+  const hitters: AuditRow[] = [];
+  const pitchers: AuditRow[] = [];
+  let missingH = 0, missingP = 0;
+
+  for (const h of leaders.hitters) {
+    if (h.mlb_game_id == null || !eligibleGames.has(h.mlb_game_id)) continue;
+    const act = h.mlb_id != null ? actuals.hitters[String(h.mlb_id)] : undefined;
+    if (!act) { missingH += 1; continue; }
+    const stats: Partial<Record<AuditStatKey, AuditStatCell>> = {};
+    for (const def of HITTER_AUDIT) stats[def.key] = cell(def.key, def.stat(h), def.actual(act));
+    hitters.push({
+      key: `H:${h.mlb_id ?? h.player_name}:${h.game_id}`,
+      group: "hitter",
+      player_name: h.player_name, mlb_id: h.mlb_id,
+      team_abbrev: h.team_abbrev, opp_abbrev: h.opp_abbrev,
+      game_id: h.game_id, mlb_game_id: h.mlb_game_id,
+      diamond_score: h.diamond_score, lineup_spot: h.batting_order,
+      stats,
+    });
+  }
+  for (const p of leaders.pitchers) {
+    if (p.mlb_game_id == null || !eligibleGames.has(p.mlb_game_id)) continue;
+    const act = p.mlb_id != null ? actuals.pitchers[String(p.mlb_id)] : undefined;
+    if (!act) { missingP += 1; continue; }
+    const stats: Partial<Record<AuditStatKey, AuditStatCell>> = {};
+    for (const def of PITCHER_AUDIT) stats[def.key] = cell(def.key, def.stat(p), def.actual(act));
+    pitchers.push({
+      key: `P:${p.mlb_id ?? p.player_name}:${p.game_id}`,
+      group: "pitcher",
+      player_name: p.player_name, mlb_id: p.mlb_id,
+      team_abbrev: p.team_abbrev, opp_abbrev: p.opp_abbrev,
+      game_id: p.game_id, mlb_game_id: p.mlb_game_id,
+      diamond_score: p.diamond_score, lineup_spot: null,
+      stats,
+    });
+  }
+  return { hitters, pitchers, missing: { hitters: missingH, pitchers: missingP } };
+}
+
+export function auditRowsToCsv(rows: AuditRow[], statKeys: AuditStatKey[]): string {
+  const headers = ["player", "mlb_id", "team", "opp", "lineup_spot", "diamond_score"];
+  for (const k of statKeys) headers.push(`${k}_mean`, `${k}_p50`, `${k}_p90`, `${k}_prob1`, `${k}_actual`, `${k}_delta`, `${k}_in_p50_p90`);
+  const out: string[] = [headers.join(",")];
+  for (const r of rows) {
+    const base: (string | number | null)[] = [
+      r.player_name, r.mlb_id ?? "", r.team_abbrev, r.opp_abbrev, r.lineup_spot ?? "", r.diamond_score ?? "",
+    ];
+    for (const k of statKeys) {
+      const c = r.stats[k];
+      base.push(
+        c?.mean ?? "", c?.p50 ?? "", c?.p90 ?? "", c?.prob1 ?? "",
+        c?.actual ?? "", c?.delta ?? "", c?.inP50P90 == null ? "" : (c.inP50P90 ? "Y" : "N"),
+      );
+    }
+    out.push(base.map((v) => {
+      if (v == null || v === "") return "";
+      const s = typeof v === "number" ? (Math.round(v * 1000) / 1000).toString() : String(v);
+      return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(","));
+  }
+  return out.join("\n");
 }
 
 // ──────────────────────────────────────────────────────────────────────
