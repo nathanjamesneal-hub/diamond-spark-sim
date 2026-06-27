@@ -490,10 +490,14 @@ function CategorySection({
     if (cat.group === "hitter" && lineupFilter !== "all") {
       filtered = filtered.filter((r) => (r as SimLeaderHitterRow).lineup_status === lineupFilter);
     }
-    // Need a real mean for this category to rank.
+    // Need a real, finite, positive mean for this category to rank. A null,
+    // zero, or non-finite mean from the selected snapshot (e.g. a preview
+    // projection that was persisted without sim_snapshot.distributions)
+    // disqualifies the row from the ranked leaderboard.
     const withMean = filtered.filter((r) => {
       const stat = cat.getStat?.(r);
-      return stat?.mean != null;
+      const m = stat?.mean;
+      return typeof m === "number" && isFinite(m) && m > 0;
     });
     // Defensive dedupe: one row per game + player + role per category. The
     // server is authoritative; this is a safety net against stale duplicates.

@@ -209,6 +209,11 @@ function flattenHitter(h: DiamondHitterCard): PropRow[] {
     if (prob == null) continue;
     const meta = PROP_META[propType];
     const mean = meanForProp(h.selected_forecast, propType);
+    // Pregame-eligibility gate: a hitter prop ranks only when the SAME selected
+    // snapshot persists a finite positive Monte Carlo mean for that market.
+    // Probability without a same-run mean (e.g. preview rows where sim_snapshot
+    // wasn't persisted) must NOT appear on ranked boards.
+    if (PROP_MARKET[propType] && !(mean.value != null && isFinite(mean.value) && mean.value > 0)) continue;
     rows.push({
       ...base,
       key: `${h.player_id}:${h.game_id}:${h.model_version}:${propType}`,
@@ -248,6 +253,9 @@ function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
     const v = pAny[key];
     if (typeof v === "number" && isFinite(v)) {
       const mean = meanForProp(p.selected_forecast, "k");
+      // Same eligibility rule as hitter props: pitcher K only ranks when the
+      // selected snapshot persists a finite positive K mean from the same run.
+      if (!(mean.value != null && isFinite(mean.value) && mean.value > 0)) break;
       rows.push({
         ...base,
         key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,

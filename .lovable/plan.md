@@ -1,45 +1,154 @@
-## Problem
+# Fix live/snapshot-incomplete contamination of ranked Diamond surfaces
 
-Players added to a lineup after first pitch (pinch hitters, defensive subs, mid-game pitching changes) have no pregame Monte Carlo snapshot. Our hard first-pitch cutoff (correctly) blocks any new projection writes for live/final games, so these players surface on the Forecast Board / Top Props / Consensus / Sim Leaders with blank Sim Mean cells and look like a data bug.
+## What investigation showed
 
-This is expected behavior, not a missing-data bug — but the UI doesn't say so, so it reads as broken.
+Dingler and Duran are NOT post-lock pinch hitters. They are confirmed starters
+in the MLB lineup (BO 2 and BO 6). Their active rows are persisted as:
 
-## Fix (UI-only, no math or lifecycle changes)
+- `projection_class = preview`, `model_version = alpha-0.3`, `projection_status = active`
+- `hit_probability` is set (0.859 / 0.838)
+- `sim_snapshot IS NULL` → no persisted Monte Carlo distributions
+- No `forecast_player_projections.distributions` row exists for the selected run either
 
-Detect "post-lock roster additions" at read time and label them explicitly instead of rendering an empty mean.
+`getDiamondScores` therefore emits a card with `hit_probability` set but
+`sim_metrics.H.mean = null`. `consensusScore` tolerates `meanPct = null` and
+ranks them off probability alone → they appear near the top of the Hits
+category in Diamond Consensus with Sim Mean = "—".
 
-### 1. Shared classifier — `src/lib/forecast/post-lock-addition.ts` (new)
+So this is a **ranking-eligibility bug**, not a pinch-hitter bug, and not a
+live-write bug. The fix is to gate every ranked public surface on a single
+canonical "is this a valid pregame candidate for THIS market in THIS selected
+run" check, and to require a finite persisted market mean alongside the
+probability before a row may rank.
 
-A row is a `post_lock_addition` when ALL of the following are true:
-- `game.status` is live / final / suspended-after-start (reuse `gameHasStartedOrPastStart`)
-- The player appears in the current `lineups` row for that game
-- `selectBestPublicForecast` returned `null` (no official + no locked preview snapshot for this player+role)
+## Plan
 
-No new tables, no writes, no changes to `forecast_runs` / `projections` / `forecast_player_projections`.
+### 1. Shared eligibility helper (new)
 
-### 2. Surfaces that show the badge
+`src/lib/forecast/pregame-eligibility.ts`
 
-- **Forecast Board** (`src/components/forecast/forecast-row.tsx`): show a small amber/zinc "In-Game Add" pill in the Sim Mean cell and tooltip "Entered after first pitch — no pregame projection (cutoff locked)."
-- **Forecast Detail Drawer** (`forecast-detail-drawer.tsx`): show the same note in the header area; hide the empty distribution panels.
-- **Top Props** (`src/routes/_authenticated/top-props.tsx`): exclude post-lock additions from rankings (they have no mean to rank), and surface a small footer count: "N in-game additions hidden — added after first pitch."
-- **Sim Leaders** (`/odds`) and **Diamond Consensus** (`/diamond-consensus`): same exclusion + same footer count.
-- **Live Tracker** (`/today/live`): still show the player's live box-score stats; mark projection column as "—" with the same tooltip (do not grade them in Model Results — they're already excluded by snapshot-missing logic).
+```ts
+isEligiblePregameForecastCandidate({
+  role: "hitter" | "pitcher",
+  market: MarketKey,                 // H | HR | TB | RBI | K | OUTS | BB | ...
+  selectedForecast,                  // result of selectBestPublicForecast
+  simMetrics,                        // getMarketSimulationMetrics(selectedForecast, role, market)
+  probability,                       // proj.hit_probability / hr_probability / etc.
+  lineup,                            // { batting_order, confirmed, locked_at } | null for pitchers
+  projectionClass,                   // "official" | "preview"
+}): { eligible: boolean; reason?: EligibilityReason }
+```
 
-### 3. No engine / orchestrator changes
+A row passes ALL of the following or it is rejected:
 
-We do NOT attempt to project pinch hitters mid-game. The first-pitch lock and the "official forecast is immutable" rule both stay intact. We are only making the absence visible and intentional.
+1. `selectedForecast` is non-null (locked official → published official →
+   pregame preview, per existing `selectBestPublicForecast`).
+2. For hitters: `lineup.batting_order` is 1..9 AND either `confirmed` or
+   `locked_at` is true. Pitchers must come from `starting_pitchers`.
+3. The same selected snapshot contains a **finite, positive** `mean` for the
+   requested market (`simMetrics.available && simMetrics.mean != null &&
+   simMetrics.mean > 0`). Null / NaN / ≤0 is rejected, even if a probability
+   exists.
+4. The required probability for that market (when the market has one — Hit,
+   HR, TB, RBI, Win, QS) is finite. Probability without a same-run mean does
+   NOT make the row eligible.
+5. The selected snapshot is from the same forecast run as the probability
+   (already guaranteed because `selectBestPublicForecast` returns a single
+   `{ projection, run, projectionClass }` tuple — assert it).
 
-### Technical notes
+Rejection reasons are typed: `no_snapshot | no_lineup_slot |
+missing_market_mean | non_positive_market_mean | missing_market_prob |
+cross_run_mismatch | post_lock_addition`.
 
-- Single read-time helper keeps logic in one place; no duplication across five surfaces.
-- Reuses existing `gameHasStartedOrPastStart` and `selectBestPublicForecast`; no new lifecycle states.
-- No DB migration. No changes to Alpha math, Monte Carlo, calibration, or Results grading.
-- Type: `{ isPostLockAddition: boolean; reason: 'no_pregame_snapshot' }` attached to the public row alongside existing fields.
+The helper is pure / read-only. It does NOT trigger sims, writes, or lineup
+fetches.
 
-## Out of scope
+### 2. Apply the helper everywhere a public list ranks rows
 
-- Generating any kind of "rapid sim" for pinch hitters (would violate the hard cutoff rule you set).
-- Backfilling projections for non-starters who weren't on the projected lineup.
-- Any change to `forecast_status`, `display_state`, or grading.
+A single call site per surface — never component-level `mean != null` filters.
 
-Confirm and I'll implement.
+- `src/lib/projections.functions.ts` → `getDiamondScores`
+  After building each hitter / pitcher card, run the helper per market the
+  card exposes. Cards still build for diagnostics; add a per-market
+  `eligibility: Record<MarketKey, { eligible; reason? }>` map on the card.
+  Synthesize `is_post_lock_addition: true` ONLY when reason is
+  `post_lock_addition`; do not synthesize cards for snapshot-incomplete
+  starters (they stay as a non-eligible diagnostic card).
+- `src/lib/sim.functions.ts` → `getSimulationLeaders` filters per market on
+  the same helper before sorting.
+- `src/routes/_authenticated/top-props.tsx` filters per market before
+  ranking; surface a small footer count: "N hidden — pregame snapshot
+  missing for this market" (separately from the existing in-game-add count).
+- `src/routes/_authenticated/diamond-consensus.tsx` filters BEFORE
+  percentile population is built (otherwise an ineligible row affects every
+  other row's percentile).
+- `src/components/diamond/forecast-board/forecast-board.tsx` keeps
+  ineligible rows visible in the dense board but tags the Sim Mean cell
+  "Unavailable" and excludes them from the default sort tiers.
+- `src/routes/_authenticated/forecasts.index.tsx` (Today Top Forecasts) and
+  Projection Lab public list use the same helper.
+
+### 3. Consensus must require BOTH a mean and a prob for the active market
+
+`src/lib/consensus.ts` — no formula change. Add a gate at the call site
+(consensus page) that drops a row from a category whenever
+`isEligiblePregameForecastCandidate` rejects it for that category's market.
+This removes the current path where `meanPct = null` is silently treated as
+0-weight and probability alone carries the score.
+
+### 4. Live-write audit (read-only sweep)
+
+Confirm that `src/lib/automation/live-actuals.ts`,
+`src/routes/api/public/hooks/refresh-live-actuals.ts`,
+`src/routes/api/public/hooks/lock-live-forecasts.ts`, and
+`src/lib/lineups/refresh.functions.ts` never insert/activate
+`projections` or `forecast_player_projections` rows after first pitch. If any
+write path is found, restrict it behind `gameHasStartedOrPastStart` so live
+workers can only update actuals.
+
+No expected code changes here — this is verification, with a one-line note in
+the orchestrator log if a guard is added.
+
+### 5. Diagnostics endpoint (admin only)
+
+Extend the existing telemetry function (`src/lib/automation/telemetry.functions.ts`)
+with a small read-only helper `auditPregameEligibility(date)` returning:
+
+- selected forecast run id / projection class / model version per (player, game, role)
+- presence of `sim_snapshot.distributions`
+- presence of matching `forecast_player_projections.distributions`
+- saved batting-order slot
+- per-market eligibility result + reason
+- counts: removed-from-rank per surface, remaining visible-but-unrankable
+
+Surfaced on `/admin` as a collapsible "Pregame Eligibility Audit" panel.
+
+## Out of scope (will NOT do)
+
+- Re-running Monte Carlo or backfilling preview `sim_snapshot` for missing
+  rows. (The cause of the snapshot gap belongs to a separate ticket on the
+  preview pipeline — this fix just stops contaminated rows from ranking.)
+- Changing Alpha / Monte Carlo / consensus formula weights.
+- Changing lifecycle, lock-live, or grading code.
+- Adding new tables or migrations.
+
+## Verification deliverables
+
+After implementation I will return:
+
+1. Exact source path that previously admitted Dingler / Duran (active preview
+   projection row with `hit_probability` set + null `sim_snapshot` + no FPP
+   distributions for the selected run) and their per-market eligibility
+   result before/after (`eligible: false`, reason: `missing_market_mean`).
+2. Count of rows removed from rankings per surface (Forecast Board ranked
+   tiers, Top Props, Sim Leaders, Diamond Consensus, Today Top Forecasts,
+   Projection Lab) — separately for `missing_market_mean` vs
+   `post_lock_addition`.
+3. Count of remaining ranked rows missing the required market mean — must be
+   zero.
+4. Three valid preview rows + three valid official rows with
+   {player, batting order, selected run id, market, mean, probability,
+   distribution source path}.
+5. Confirmation that no simulation ran, no projections / forecast_runs /
+   forecast_player_projections rows were modified, and no locked snapshot was
+   altered.
