@@ -113,6 +113,9 @@ export const getLineupStatus = createServerFn({ method: "GET" })
         games_with_confirmed_lineups: 0,
         games_with_starting_pitchers: 0,
         games_with_projections: 0,
+        games_with_official_published: 0,
+        games_with_preview_only: 0,
+
         games_locked: 0,
         last_refresh_at: null,
         last_engine_run_at: null,
