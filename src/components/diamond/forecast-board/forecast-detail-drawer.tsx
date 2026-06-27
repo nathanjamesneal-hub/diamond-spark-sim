@@ -42,6 +42,7 @@ function statusLabel(s: ForecastBoardStatus): string {
     case "locked":      return "Locked at first pitch";
     case "live":        return "Live · locked";
     case "final":       return "Final · locked";
+    case "in_game_add": return "In-Game Add · entered after first pitch (no pregame projection)";
   }
 }
 
