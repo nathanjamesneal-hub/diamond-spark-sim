@@ -93,6 +93,14 @@ export async function orchestrateDiamondSlate(
       projectionsRegenerated: 0,
       engineRan: false,
     },
+    preview: {
+      candidateGames: 0,
+      projectionsRegenerated: 0,
+      gamesProcessed: 0,
+      gamesSkippedPreviewBlocked: 0,
+      gamesSkippedWindowClosed: 0,
+      engineRan: false,
+    },
     lock: { today: 0, yesterday: 0 },
   };
 
