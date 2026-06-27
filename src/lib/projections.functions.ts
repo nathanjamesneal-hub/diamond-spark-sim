@@ -403,8 +403,18 @@ export type DiamondHitterCard = {
   rbi_mean: number | null;
   /** PA isn't directly persisted yet; null when unavailable. */
   projected_pa: number | null;
+  /**
+   * Persisted Monte Carlo distributions from the SELECTED snapshot
+   * (sim_snapshot.distributions for this exact projections row). Read-only
+   * passthrough so the UI / consensus can extract market means without
+   * crossing snapshots from different runs.
+   */
+  distributions: Record<string, unknown> | null;
+  /** Source of `distributions`: 'sim_snapshot' (projections row) or null. */
+  distributions_source: "sim_snapshot" | null;
   inputs_narrative: string | null;
   actual: ForecastActuals | null;
+
 };
 
 export type PitcherComponentSnapshot = {
