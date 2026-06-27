@@ -9,6 +9,8 @@ import { getActualsForDate } from "@/lib/actuals.functions";
 import {
   getDefaultModelResultsDate,
   getModelResultsDateStatus,
+  getModelResultsDiagnostics,
+  getTrustedDateRange,
 } from "@/lib/model-results.functions";
 import {
   MR_CATEGORIES,
@@ -46,6 +48,19 @@ const statusQ = (date: string) =>
   queryOptions({
     queryKey: ["mr-status", date],
     queryFn: () => getModelResultsDateStatus({ data: { date } }),
+    staleTime: 60_000,
+  });
+
+const trustedRangeQ = queryOptions({
+  queryKey: ["mr-trusted-range"],
+  queryFn: () => getTrustedDateRange(),
+  staleTime: 5 * 60 * 1000,
+});
+
+const diagnosticsQ = (days: number) =>
+  queryOptions({
+    queryKey: ["mr-diagnostics", days],
+    queryFn: () => getModelResultsDiagnostics({ data: { days } }),
     staleTime: 60_000,
   });
 
