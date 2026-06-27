@@ -37,6 +37,7 @@ function num(n: number | null | undefined, digits = 2): string {
 function statusLabel(s: ForecastBoardStatus): string {
   switch (s) {
     case "no_official": return "Awaiting confirmed lineups";
+    case "preview":     return "Preview · projected lineups, not an official Diamond forecast";
     case "published":   return "Published";
     case "locked":      return "Locked at first pitch";
     case "live":        return "Live · locked";
