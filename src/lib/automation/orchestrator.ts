@@ -180,8 +180,9 @@ export async function orchestrateDiamondSlate(
     details: {
       refresh: result.refresh,
       lock: result.lock,
+      petri: result.petri,
     },
-    error: result.refresh.error || result.lock.error || null,
+    error: result.refresh.error || result.lock.error || result.petri.error || null,
   });
 
   return result;
