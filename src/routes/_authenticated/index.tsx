@@ -94,7 +94,9 @@ function TopForecasts() {
   const q = useQuery({
     queryKey: ["diamond-scores", "today"],
     queryFn: () => getDiamondScores({ data: {} }),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     retry: 1,
     throwOnError: false,
   });
