@@ -27,6 +27,7 @@ import { runRefresh } from "@/lib/lineups/refresh.functions";
 import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runDiamondEngineForGames } from "@/lib/ingest.functions";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
+import { runPetriAutoForDate } from "@/lib/petri/run.functions";
 
 import { finishAutomationLog, logAutomation } from "./log";
 
@@ -51,6 +52,14 @@ export type OrchestrateResult = {
     gamesSkippedPreviewBlocked: number;
     gamesSkippedWindowClosed: number;
     engineRan: boolean;
+    error?: string;
+  };
+  petri: {
+    previewGenerated: number;
+    officialGenerated: number;
+    abstained: number;
+    skipped: number;
+    locked: number;
     error?: string;
   };
   lock: { today: number; yesterday: number; error?: string };
