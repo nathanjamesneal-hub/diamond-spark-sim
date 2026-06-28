@@ -103,12 +103,20 @@ export function SiteHeader() {
             </Link>
           ))}
           {isAdmin ? (
-            <Link to="/admin"
-              activeProps={{ className: "text-foreground border-primary" }}
-              className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-primary transition-colors hover:text-foreground"
-            >
-              Admin
-            </Link>
+            <>
+              <Link to="/admin"
+                activeProps={{ className: "text-foreground border-primary" }}
+                className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-primary transition-colors hover:text-foreground"
+              >
+                Admin
+              </Link>
+              <Link to="/petri"
+                activeProps={{ className: "text-foreground border-amber-400" }}
+                className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-amber-400 transition-colors hover:text-foreground"
+              >
+                Petri
+              </Link>
+            </>
           ) : null}
         </nav>
 
@@ -138,9 +146,14 @@ export function SiteHeader() {
           </Link>
         ))}
         {isAdmin ? (
-          <Link to="/admin" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
-            Admin
-          </Link>
+          <>
+            <Link to="/admin" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
+              Admin
+            </Link>
+            <Link to="/petri" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-amber-400">
+              Petri
+            </Link>
+          </>
         ) : null}
       </nav>
     </header>

@@ -182,11 +182,13 @@ async function getBullpenAggregate(teamId: number, season: number, starterIds: S
       } catch {}
     }));
     if (bf < 50) throw new Error("thin bullpen sample");
+    const H_1B = Math.max(0, H - H_2B - H_3B - HR);
+    const shrunk = shrinkPitcherCounts({ bf, K, BB, HBP, HR, H_1B, H_2B, H_3B });
     return {
       id: 0, name: "Bullpen",
-      bf, K, BB, HBP, HR,
-      H_1B: Math.max(0, H - H_2B - H_3B - HR),
-      H_2B, H_3B,
+      bf,
+      K: shrunk.K, BB: shrunk.BB, HBP: shrunk.HBP, HR: shrunk.HR,
+      H_1B: shrunk.H_1B, H_2B: shrunk.H_2B, H_3B: shrunk.H_3B,
       expectedIp: 1,
     };
   } catch {
