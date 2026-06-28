@@ -146,7 +146,18 @@ export async function orchestrateDiamondSlate(
     result.lock.error = e?.message ?? String(e);
   }
 
-  const finishedAt = new Date();
+  // 3) Petri v0.2 Shadow — auto preview + auto official + first-pitch lock.
+  //    Fully isolated from Alpha. Failures here do NOT affect Alpha.
+  try {
+    const petri = await runPetriAutoForDate(supabaseAdmin, date);
+    result.petri.previewGenerated = petri.preview?.generated ?? 0;
+    result.petri.officialGenerated = petri.official?.generated ?? 0;
+    result.petri.abstained = petri.abstained.length;
+    result.petri.skipped = petri.skipped.length;
+    result.petri.locked = petri.locked;
+  } catch (e: any) {
+    result.petri.error = e?.message ?? String(e);
+  }
   result.finishedAt = finishedAt.toISOString();
   result.durationMs = finishedAt.getTime() - startedAt.getTime();
 
