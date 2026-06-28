@@ -1033,13 +1033,8 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(sp.game_id);
       const oppTeamId = sp.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      const versionSet = new Set<string>();
-      for (const p of projections) {
-        if (p.player_id === sp.player_id && p.game_id === sp.game_id && normRole(p.projection_role) === "pitcher") {
-          versionSet.add(p.model_version);
-        }
-      }
-      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      const effVersion = effectiveVersionByGame.get(sp.game_id) ?? activeVersion;
+      const versionList: string[] = effVersion ? [effVersion] : [];
       for (const v of versionList) {
         const { proj, run, chosenClass } = resolveDisplay(sp.player_id, sp.game_id, "pitcher", v, g.game_status, g.first_pitch_at);
         if (!proj || !chosenClass) continue;
