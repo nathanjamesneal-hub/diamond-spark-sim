@@ -104,7 +104,20 @@ function TopForecasts() {
     retry: 1,
     throwOnError: false,
   });
-  const data = q.data;
+  const actualsQ = useQuery({
+    queryKey: ["live-actuals", q.data?.date ?? "today"],
+    queryFn: () => getActualsForDate({ data: q.data?.date ? { date: q.data.date } : {} }),
+    enabled: !!q.data,
+    refetchInterval: 45_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const data = useMemo(
+    () => (q.data ? mergeLiveActualsIntoDiamondPayload(q.data, actualsQ.data) : null),
+    [q.data, actualsQ.data],
+  );
   if (!data) return null;
   const hasOfficial = [...data.hitters, ...data.pitchers].some((r) =>
     ["published", "locked", "live", "final", "preview"].includes(r.forecast_status)
@@ -122,6 +135,7 @@ function TopForecasts() {
     </section>
   );
 }
+
 
 
 const DASHBOARD_CARDS = [
