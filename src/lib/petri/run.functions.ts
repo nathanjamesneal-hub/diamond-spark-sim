@@ -123,9 +123,10 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
     const { data: players } = playerUuids.length
       ? await supabaseAdmin
           .from("players")
-          .select("id, mlb_id, name, team_id")
+          .select("id, mlb_id, name, team_id, bats, throws")
           .in("id", playerUuids)
       : { data: [] as any[] };
+
     const playerByUuid = new Map((players ?? []).map((p) => [p.id, p]));
 
     const { data: dnaRows } = playerUuids.length
