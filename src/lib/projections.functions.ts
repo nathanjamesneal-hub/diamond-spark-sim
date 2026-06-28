@@ -984,7 +984,7 @@ export const getDiamondScores = createServerFn({ method: "GET" })
         (gs === "live" || gs === "final") &&
         !hitters.some((h) => h.player_id === l.player_id && h.game_id === l.game_id);
       if (startedAndNoCard) {
-        const v = activeVersion ?? (versionList[0] ?? "alpha-0.3");
+        const v = (effectiveVersionByGame.get(l.game_id) ?? activeVersion) ?? "alpha-0.3";
         hitters.push({
           player_id: l.player_id,
           mlb_id: playerMlbId.get(l.player_id) ?? null,
