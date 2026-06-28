@@ -762,6 +762,9 @@ export const publishOfficialForecast = createServerFn({ method: "POST" })
     } catch (e: any) {
       return { ok: false, error: e?.message ?? String(e) };
     }
+  });
+
+
 
 
 /**
