@@ -22,6 +22,16 @@ import {
   type SourceMap,
 } from "./inputs";
 import { inputHash, seedFromHash } from "./hash";
+import {
+  buildHitterSkillProfile,
+  buildPitcherSkillProfile,
+  profileToOutcomeRates,
+  toEnginePARates,
+  PETRI_SKILL_PROFILE_VERSION,
+  type HitterSkillProfile,
+  type PitcherSkillProfile,
+} from "./skill-profile";
+
 
 const ITERATIONS = 10000;
 
