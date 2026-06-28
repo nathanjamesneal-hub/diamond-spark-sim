@@ -441,7 +441,7 @@ function PetriLiveTrackerSection({
         </span>
         {data && (
           <span className="text-xs text-zinc-500">
-            {data.games.length} locked game{data.games.length === 1 ? "" : "s"} · refreshed{" "}
+            {data.games.length} game{data.games.length === 1 ? "" : "s"} · auto-locks at first pitch · refreshed{" "}
             {formatDateTimeInAppTz(data.fetchedAt)}
           </span>
         )}
@@ -449,9 +449,10 @@ function PetriLiveTrackerSection({
       {loading && <div className="text-sm text-zinc-400">Loading tracker…</div>}
       {data && data.games.length === 0 && (
         <div className="text-sm text-zinc-400">
-          No locked Petri runs for this date yet. Locking happens at first pitch.
+          No Petri runs for this date yet. They auto-generate from the lineup ingest cycle.
         </div>
       )}
+
       {data?.games.map((g) => (
         <div key={g.run_id} className="rounded border border-zinc-800 bg-zinc-950/40">
           <div className="flex flex-wrap items-center gap-3 border-b border-zinc-800 px-3 py-2">
