@@ -392,3 +392,155 @@ function KV({ label, value, mono }: { label: string; value: string; mono?: boole
     </div>
   );
 }
+
+function PetriLiveTrackerSection({
+  data,
+  loading,
+}: {
+  data: PetriLiveTrackerPayload | null;
+  loading: boolean;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h2 className="font-display text-lg">Petri v0.2 Shadow — Live Tracker</h2>
+        <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+          Raw · Not Yet Calibrated · Not a Public Recommendation
+        </span>
+        {data && (
+          <span className="text-xs text-zinc-500">
+            {data.games.length} locked game{data.games.length === 1 ? "" : "s"} · refreshed{" "}
+            {formatDateTimeInAppTz(data.fetchedAt)}
+          </span>
+        )}
+      </div>
+      {loading && <div className="text-sm text-zinc-400">Loading tracker…</div>}
+      {data && data.games.length === 0 && (
+        <div className="text-sm text-zinc-400">
+          No locked Petri runs for this date yet. Locking happens at first pitch.
+        </div>
+      )}
+      {data?.games.map((g) => (
+        <div key={g.run_id} className="rounded border border-zinc-800 bg-zinc-950/40">
+          <div className="flex flex-wrap items-center gap-3 border-b border-zinc-800 px-3 py-2">
+            <div className="font-display text-base">{g.matchup}</div>
+            <GameStatePill state={g.game_state} />
+            {g.locked_at && (
+              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                locked {formatDateTimeInAppTz(g.locked_at)}
+              </span>
+            )}
+          </div>
+          {g.hitters.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-zinc-900/60 text-[10px] uppercase tracking-wide text-zinc-400">
+                  <tr>
+                    <th className="px-2 py-1 text-left">#</th>
+                    <th className="px-2 py-1 text-left">Hitter</th>
+                    <th className="px-2 py-1 text-right">H μ</th>
+                    <th className="px-2 py-1 text-right">Hit 1+</th>
+                    <th className="px-2 py-1 text-right">TB μ</th>
+                    <th className="px-2 py-1 text-right">TB 2+</th>
+                    <th className="px-2 py-1 text-right">HR μ</th>
+                    <th className="px-2 py-1 text-right">HR 1+</th>
+                    <th className="px-2 py-1 text-right">act H</th>
+                    <th className="px-2 py-1 text-right">act TB</th>
+                    <th className="px-2 py-1 text-right">act HR</th>
+                    <th className="px-2 py-1 text-right">act K</th>
+                    <th className="px-2 py-1 text-left">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.hitters.map((h) => (
+                    <tr key={h.mlb_player_id} className="border-t border-zinc-900">
+                      <td className="px-2 py-1 tabular-nums text-zinc-400">{h.lineup_slot ?? ""}</td>
+                      <td className="px-2 py-1">{h.player_name}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{f2(h.h_mean)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{pct(h.hit_1plus)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{f2(h.tb_mean)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{pct(h.tb_2plus)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{f2(h.hr_mean)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{pct(h.hr_1plus)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{h.actual_h ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{h.actual_tb ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{h.actual_hr ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{h.actual_k ?? "—"}</td>
+                      <td className="px-2 py-1 text-[10px]">
+                        {h.final ? (
+                          <div className="flex flex-wrap gap-1">
+                            <GradePill label="H1+" v={h.grade.hit_1plus} />
+                            <GradePill label="TB2+" v={h.grade.tb_2plus} />
+                            <GradePill label="HR1+" v={h.grade.hr_1plus} />
+                          </div>
+                        ) : (
+                          <span className="text-zinc-500">{g.game_state === "live" ? "live" : "pending"}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {g.pitchers.length > 0 && (
+            <div className="overflow-x-auto border-t border-zinc-800">
+              <table className="w-full text-xs">
+                <thead className="bg-zinc-900/60 text-[10px] uppercase tracking-wide text-zinc-400">
+                  <tr>
+                    <th className="px-2 py-1 text-left">Pitcher</th>
+                    <th className="px-2 py-1 text-right">K μ</th>
+                    <th className="px-2 py-1 text-right">K P10–P90</th>
+                    <th className="px-2 py-1 text-right">Outs μ</th>
+                    <th className="px-2 py-1 text-right">Outs P10–P90</th>
+                    <th className="px-2 py-1 text-right">act K</th>
+                    <th className="px-2 py-1 text-right">act outs</th>
+                    <th className="px-2 py-1 text-right">act BB</th>
+                    <th className="px-2 py-1 text-right">act H</th>
+                    <th className="px-2 py-1 text-right">act ER</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.pitchers.map((p) => (
+                    <tr key={p.mlb_player_id} className="border-t border-zinc-900">
+                      <td className="px-2 py-1">{p.player_name}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{f2(p.pk_mean)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-zinc-400">
+                        {f2(p.pk_p10)}–{f2(p.pk_p90)}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">{f2(p.outs_mean)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-zinc-400">
+                        {f2(p.outs_p10)}–{f2(p.outs_p90)}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">{p.actual_k ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{p.actual_outs ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{p.actual_bb ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{p.actual_h ?? "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{p.actual_er ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function GameStatePill({ state }: { state: "pending" | "live" | "final" }) {
+  const cls =
+    state === "live"
+      ? "bg-emerald-500/15 text-emerald-300 animate-pulse"
+      : state === "final"
+        ? "bg-zinc-700 text-zinc-200"
+        : "bg-blue-500/15 text-blue-300";
+  return <span className={`rounded px-2 py-0.5 text-[10px] uppercase tracking-wide ${cls}`}>{state}</span>;
+}
+
+function GradePill({ label, v }: { label: string; v: "Hit" | "Miss" | null }) {
+  if (!v) return <span className="text-zinc-500">{label}: —</span>;
+  const cls = v === "Hit" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300";
+  return <span className={`rounded px-1.5 py-0.5 ${cls}`}>{label}: {v}</span>;
+}
