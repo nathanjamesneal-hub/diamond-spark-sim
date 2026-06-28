@@ -98,7 +98,12 @@ function AdminPanel() {
         <p className="mt-1 text-sm text-muted-foreground">
           Cron refreshes every 15 minutes during lineup hours. Diamond Engine runs only when lineup data actually changes.
         </p>
-      </div>
+        <a
+          href="/petri"
+          className="mt-3 inline-block rounded border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+        >
+          → Petri v0.2 Shadow Lab (isolated research)
+        </a>
 
       <CronStatusPanel />
 
