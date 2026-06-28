@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -9,6 +9,8 @@ import {
   type DiamondHitterCard,
   type DiamondPitcherCard,
 } from "@/lib/projections.functions";
+import { getActualsForDate } from "@/lib/actuals.functions";
+import { mergeLiveActualsIntoDiamondPayload } from "@/lib/forecast/merge-live-actuals";
 import { shiftIsoDate } from "@/lib/timezone";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -22,6 +24,7 @@ import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tool
 
 
 import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
+
 
 const hitterSorts = ["diamond", "hit", "hr", "rbi", "sb"] as const;
 const pitcherSorts = ["diamond", "k"] as const;
