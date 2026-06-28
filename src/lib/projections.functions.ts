@@ -683,13 +683,75 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     const versions = new Set<string>();
     for (const p of projectionsAll ?? []) versions.add(p.model_version);
 
-    // Leaderboards must render ONE row per (player, game, role). Only emit the
-    // active model version — stale rows from older versions (e.g. 0.1.0 left
-    // active before the version flip) are preserved in the DB for calibration
-    // but excluded from today's current slate.
-    const projections = (projectionsAll ?? []).filter((p) =>
-      activeVersion ? p.model_version === activeVersion : true,
+    // PER-GAME PUBLIC MODEL SELECTION
+    // -----------------------------------------------------------------------
+    // The global `activeVersion` may have advanced (e.g. → alpha-0.3.1) AFTER
+    // older games were already locked under the previous version (alpha-0.3).
+    // Selecting strictly by `activeVersion` would hide locked historical/live
+    // forecasts. Resolve a single effective version PER GAME:
+    //   - started / live / final → prefer a locked version present for that
+    //     game (locked snapshot is immutable, must remain visible)
+    //   - unstarted              → prefer the active version; fall back to
+    //     any prior version that still has rows
+    const LEGACY_ALPHA = "alpha-0.3";
+    const NEW_ALPHA = "alpha-0.3.1-sample-shrink";
+    const versionsByGame = new Map<string, Set<string>>();
+    for (const p of (projectionsAll ?? [])) {
+      if (!versionsByGame.has(p.game_id)) versionsByGame.set(p.game_id, new Set());
+      versionsByGame.get(p.game_id)!.add(p.model_version);
+    }
+    const lockedRunVersionsByGame = new Map<string, Set<string>>();
+    for (const r of (forecastRunRows ?? []) as any[]) {
+      if (r.status !== "locked") continue;
+      if (!lockedRunVersionsByGame.has(r.game_id)) lockedRunVersionsByGame.set(r.game_id, new Set());
+      lockedRunVersionsByGame.get(r.game_id)!.add(r.model_version);
+    }
+    const gameDisplayState = (status: string | null | undefined): "upcoming" | "live" | "final" | "other" => {
+      const s = (status ?? "").toLowerCase();
+      if (!s || s.includes("scheduled") || s.includes("warmup") || s.includes("pre-game") || s.includes("pregame") || s.includes("delayed start")) return "upcoming";
+      if (s.includes("final") || s.includes("game over") || s.includes("completed")) return "final";
+      if (s.includes("postponed") || s.includes("cancelled") || s.includes("canceled")) return "other";
+      if (s.includes("in progress") || s.includes("live") || s.includes("manager challenge") || s.includes("delayed") || s.includes("suspended") || s.includes("review")) return "live";
+      return "upcoming";
+    };
+    const effectiveVersionByGame = new Map<string, string | null>();
+    let startedSelectingLegacyAlpha = 0;
+    let unstartedEligibleForReplacement = 0;
+    for (const g of games) {
+      const gs = gameDisplayState(g.game_status);
+      const present = versionsByGame.get(g.id) ?? new Set<string>();
+      const locked = lockedRunVersionsByGame.get(g.id) ?? new Set<string>();
+      let chosen: string | null = null;
+      if (gs === "live" || gs === "final") {
+        // Prefer the locked version (immutable historical snapshot).
+        if (locked.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
+        else if (locked.has(NEW_ALPHA)) chosen = NEW_ALPHA;
+        else if (locked.size > 0) chosen = Array.from(locked)[0];
+        else if (present.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
+        else if (present.has(NEW_ALPHA)) chosen = NEW_ALPHA;
+        else if (activeVersion && present.has(activeVersion)) chosen = activeVersion;
+        else if (present.size > 0) chosen = Array.from(present)[0];
+        if (chosen === LEGACY_ALPHA) startedSelectingLegacyAlpha += 1;
+      } else {
+        // Unstarted: prefer new shrinkage; else legacy; else active; else any.
+        if (present.has(NEW_ALPHA)) chosen = NEW_ALPHA;
+        else if (present.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
+        else if (activeVersion && present.has(activeVersion)) chosen = activeVersion;
+        else if (present.size > 0) chosen = Array.from(present)[0];
+        else chosen = activeVersion;
+        if (present.has(LEGACY_ALPHA) && !present.has(NEW_ALPHA)) unstartedEligibleForReplacement += 1;
+      }
+      effectiveVersionByGame.set(g.id, chosen);
+    }
+    console.info(
+      `[getDiamondScores] per-game model selection date=${date} activeVersion=${activeVersion} ` +
+      `startedSelectingLegacyAlpha=${startedSelectingLegacyAlpha} unstartedEligibleForReplacement=${unstartedEligibleForReplacement}`,
     );
+
+    // Keep all rows; we filter to the per-game effective version inside the
+    // hitter/pitcher loops below.
+    const projections = projectionsAll ?? [];
+
 
     // Role normalized so legacy null/"batter" rows map to "hitter".
     const normRole = (r: string | null | undefined) => (r === "pitcher" ? "pitcher" : "hitter");
