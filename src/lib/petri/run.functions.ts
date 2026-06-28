@@ -1245,7 +1245,7 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
       snapsByRun.set(s.run_id, arr);
     }
 
-    for (const r of runs as any[]) {
+    for (const r of picked as any[]) {
       const g = gameById.get(r.game_id);
       const homeAb = g ? teamById.get(g.home_team_id) ?? "?" : "?";
       const awayAb = g ? teamById.get(g.away_team_id) ?? "?" : "?";
