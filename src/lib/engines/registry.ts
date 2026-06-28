@@ -11,8 +11,27 @@ import {
   type EngineOutput,
 } from "./v0_1_0/engine.ts";
 
-export const SUPPORTED_MODEL_VERSIONS = [V0_1_0_VERSION, ALPHA_0_3_VERSION] as const;
+/**
+ * Alpha 0.3.1 — same Alpha 0.3 engine wiring, but with Bayesian small-sample
+ * shrinkage applied at the input-profile layer (see src/lib/sim/shrinkage.ts
+ * + src/lib/sim.functions.ts). No hitter math changed inside the engine; the
+ * version key is used by the registry + DB to roll out new immutable runs.
+ *
+ * Runs (R) are explicitly unavailable in this version — Alpha credits batter
+ * runs only on HR. UI surfaces should hide R for alpha-0.3.1-sample-shrink.
+ */
+export const ALPHA_0_3_1_VERSION = "alpha-0.3.1-sample-shrink" as const;
+
+export const SUPPORTED_MODEL_VERSIONS = [
+  V0_1_0_VERSION,
+  ALPHA_0_3_VERSION,
+  ALPHA_0_3_1_VERSION,
+] as const;
 export type SupportedModelVersion = (typeof SUPPORTED_MODEL_VERSIONS)[number];
+
+export const VERSIONS_WITHOUT_RUNS: ReadonlySet<string> = new Set([
+  ALPHA_0_3_1_VERSION,
+]);
 
 export type VersionedProjectionOutput =
   | (EngineOutput & {
@@ -31,15 +50,18 @@ export function resolveModelVersion(activeVersion: string | null | undefined, ex
   return explicitVersion ?? activeVersion ?? V0_1_0_VERSION;
 }
 
-export function isAlpha03(version: string): version is typeof ALPHA_0_3_VERSION {
-  return version === ALPHA_0_3_VERSION;
+export function isAlpha03(version: string): boolean {
+  return version === ALPHA_0_3_VERSION || version === ALPHA_0_3_1_VERSION;
 }
 
 export function projectForModelVersion(
   version: string,
   input: AlphaEngineInput,
 ): VersionedProjectionOutput {
-  if (version === ALPHA_0_3_VERSION) return projectAlpha03(input);
+  if (version === ALPHA_0_3_VERSION || version === ALPHA_0_3_1_VERSION) {
+    return projectAlpha03(input);
+  }
+
 
   if (version === V0_1_0_VERSION) {
     const out = projectV010(input as EngineInput);

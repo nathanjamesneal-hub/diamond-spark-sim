@@ -765,6 +765,103 @@ export const publishOfficialForecast = createServerFn({ method: "POST" })
   });
 
 
+
+
+/**
+ * Replace inflated Alpha 0.3 forecasts for the date's UNSTARTED games with a
+ * fresh `alpha-0.3.1-sample-shrink` run.
+ *
+ * Started/locked games are protected by `partitionOpenGames` inside
+ * `runDiamondEngineForGames` and by the immutable `forecast_runs.locked_at`
+ * lifecycle — we never mutate snapshots that already exist.
+ *
+ * After a successful new-version insert, we mark the legacy `alpha-0.3`
+ * `active` rows as `superseded` for the same (game, class) so the public read
+ * paths (which filter by the active model_version) flip cleanly.
+ *
+ * The active model version must already be `alpha-0.3.1-sample-shrink`
+ * (see the registry + model_versions migration).
+ */
+export const replaceInflatedAlphaForUnstartedGames = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { date?: string; gameIds?: string[] } | undefined) => data ?? {})
+  .handler(async ({ data, context }): Promise<ImportResult & {
+    replacementRuns?: number;
+    supersededLegacyRuns?: number;
+    skippedStartedGames?: number;
+    fromVersion?: string;
+    toVersion?: string;
+  }> => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const date = data.date ?? todayIso();
+
+    const LEGACY = "alpha-0.3";
+    const NEW = "alpha-0.3.1-sample-shrink";
+
+    // 1) Find candidate games (date, optional id filter).
+    let q = supabaseAdmin
+      .from("games")
+      .select("id, mlb_game_id, game_status, first_pitch_at")
+      .eq("date", date);
+    if (data.gameIds?.length) q = q.in("id", data.gameIds);
+    const { data: allGames } = await q;
+    if (!allGames?.length) {
+      return { ok: true, count: 0, details: "No games for date.", replacementRuns: 0, supersededLegacyRuns: 0, skippedStartedGames: 0, fromVersion: LEGACY, toVersion: NEW };
+    }
+
+    const { partitionOpenGames } = await import("@/lib/forecast/window");
+    const { open, blocked } = partitionOpenGames(allGames as any[], "replaceInflatedAlphaForUnstartedGames");
+    const skippedStartedGames = blocked.length;
+    if (!open.length) {
+      return { ok: true, count: 0, details: `All ${allGames.length} games already started — nothing replaced.`, replacementRuns: 0, supersededLegacyRuns: 0, skippedStartedGames, fromVersion: LEGACY, toVersion: NEW };
+    }
+
+    const openIds = open.map((g: any) => g.id);
+
+    try {
+      // 2) Run the engine for unstarted games. The active version (now the
+      // new shrinkage version) is used automatically by runDiamondEngineForGames.
+      const r = await runDiamondEngineForGames(date, openIds, NEW, "official");
+
+      // 3) Only after the replacement insert succeeded, supersede legacy
+      // `alpha-0.3` active rows for the same games so public read paths flip.
+      let supersededLegacyRuns = 0;
+      if (r.projectionsInserted > 0) {
+        const { count } = await supabaseAdmin
+          .from("projections")
+          .update({ projection_status: "superseded" }, { count: "exact" })
+          .in("game_id", openIds)
+          .eq("model_version", LEGACY)
+          .eq("projection_status", "active");
+        supersededLegacyRuns = count ?? 0;
+
+        // Mirror the supersede on forecast_runs (immutable rows stay; status flips).
+        await supabaseAdmin
+          .from("forecast_runs")
+          .update({ status: "superseded" })
+          .in("game_id", openIds)
+          .eq("model_version", LEGACY)
+          .eq("status", "active");
+      }
+
+      return {
+        ok: true,
+        count: r.projectionsInserted,
+        replacementRuns: r.forecastsPublished,
+        supersededLegacyRuns,
+        skippedStartedGames,
+        fromVersion: LEGACY,
+        toVersion: NEW,
+        details: `Wrote ${r.projectionsInserted} projections for ${r.gamesEligible} eligible unstarted games as ${NEW}. Superseded ${supersededLegacyRuns} legacy ${LEGACY} active rows. Skipped ${skippedStartedGames} started/locked games (immutable).`,
+      };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
+    }
+  });
+
+
+
 // ---------- One-click daily pipeline ----------
 // One admin click runs: schedule → SP → confirmed lineups → aggregator
 // refresh → Diamond Engine (always, for every game with a lineup OR a
