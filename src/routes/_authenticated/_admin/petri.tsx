@@ -38,6 +38,7 @@ function PetriShadowLab() {
   const runShadow = useServerFn(runPetriShadowForUnstarted);
   const listRuns = useServerFn(getPetriRunsForDate);
   const detailFn = useServerFn(getPetriRunDetail);
+  const trackerFn = useServerFn(getPetriLiveTracker);
   const qc = useQueryClient();
 
   const runsQuery = useQuery({
@@ -45,11 +46,18 @@ function PetriShadowLab() {
     queryFn: () => listRuns({ data: { date } }),
   });
 
+  const trackerQuery = useQuery({
+    queryKey: ["petri-tracker", date],
+    queryFn: () => trackerFn({ data: { date } }),
+    refetchInterval: 45_000,
+  });
+
   const detailQuery = useQuery({
     queryKey: ["petri-detail", openRunId],
     queryFn: () => detailFn({ data: { runId: openRunId! } }),
     enabled: !!openRunId,
   });
+
 
   async function onRun() {
     setRunning(true);
