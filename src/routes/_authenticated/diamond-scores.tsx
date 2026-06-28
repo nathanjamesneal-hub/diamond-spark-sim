@@ -40,7 +40,12 @@ function diamondQuery(date: string | undefined) {
   return queryOptions({
     queryKey: ["diamond-scores", date ?? "today"],
     queryFn: () => getDiamondScores({ data: date ? { date } : {} }),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    // Auto-refresh so live actuals (and status transitions) flow into the
+    // board without a manual reload. Pregame snapshots are immutable so this
+    // only updates the Actual / Status columns.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
