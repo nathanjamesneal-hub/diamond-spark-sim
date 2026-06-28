@@ -1,118 +1,110 @@
-# Petri v0.2 Shadow Lab — Implementation Plan
+## Goal
 
-A fully isolated admin-only shadow simulation system. Zero changes to Alpha 0.3, Forecast Board, Diamond Score, Consensus, Top Props, Results, grading, cron jobs, or public surfaces.
+Ship two tightly-scoped production changes for today's unstarted slate without touching locked/started forecasts or unrelated pages.
 
-## 1. Database (new tables, Petri-only)
+---
 
-Migration creates two tables under `public`, both admin-read/service-write only — no anon access, no policies that intersect with existing forecast tables.
+## Part 1 — Replace inflated Alpha forecasts (`alpha-0.3.1-sample-shrink`)
 
-`petri_forecast_runs`
-- `id uuid pk`
-- `game_pk bigint not null`
-- `game_date date not null`
-- `model_version text not null default 'petri-v0.2-shadow'`
-- `status text not null` — `preview | locked | skipped | abstained`
-- `seed bigint not null`
-- `iterations int not null`
-- `input_hash text not null`
-- `input_source_map jsonb not null` — paths + table refs used
-- `data_completeness jsonb not null` — per-input score
-- `fallbacks jsonb` — `[{path, source, reason, confidence_impact}]`
-- `abstention_reasons jsonb`
-- `locked_at timestamptz`
-- `created_at timestamptz default now()`
+Shrinkage math already landed last turn in `src/lib/sim/shrinkage.ts` and is wired into `src/lib/sim.functions.ts`. What's missing is the versioned rollout + persistence + supersession.
 
-`petri_player_market_snapshots`
-- `id uuid pk`
-- `run_id uuid fk → petri_forecast_runs(id) on delete cascade`
-- `game_pk bigint not null`
-- `player_id bigint not null` (MLB id)
-- `team_id bigint not null`
-- `role text not null` — `hitter | pitcher`
-- `lineup_slot int` — 1–9 for hitters, null for pitchers
-- `is_confirmed_starter boolean` — pitchers
-- Hitter metrics: `h_mean, h_p10, h_p50, h_p90, hit_1plus, tb_mean, tb_p10, tb_p50, tb_p90, tb_2plus, hr_mean, hr_p10, hr_p50, hr_p90, hr_1plus, hitter_k_mean, hitter_k_p10, hitter_k_p50, hitter_k_p90, pa_mean`
-- Pitcher metrics: `pk_mean, pk_p10, pk_p90, outs_mean, outs_p10, outs_p90, bf_mean`
-- `source_map jsonb not null`
-- `data_completeness numeric`
-- `raw_probability_label text default 'Shadow raw probability — not yet calibrated'`
-- `calibrated_probability numeric` — always null at insert
-- `created_at timestamptz default now()`
+### 1a. Register the new model version
 
-Indexes: `(game_pk, run_id)`, `(run_id, role)`, unique `(run_id, player_id, role)`.
+- DB migration: `INSERT INTO model_versions (key, label, active, created_at) VALUES ('alpha-0.3.1-sample-shrink', 'Alpha 0.3.1 (Sample Shrinkage)', true, now())` and flip `alpha-0.3` to `active=false`. Keep all historical `alpha-0.3` rows untouched.
+- `src/lib/engines/registry.ts`: register `alpha-0.3.1-sample-shrink` reusing the Alpha 0.3 engine entry point. The engine code stays identical — only the version label and the (already-shipped) shrunk inputs differ.
+- Mark `R` (Runs) as `unavailable` in the new version's metadata so the Forecast Board can render "N/A" for the runs column under the new version. Do NOT silently zero or cap; explicit unavailability.
 
-RLS: enable. Policies:
-- `SELECT` to `authenticated` only when `has_role(auth.uid(), 'admin')`.
-- `ALL` to `service_role`.
-- No `anon` grants.
+### 1b. Persist shrinkage metadata on every new snapshot
 
-## 2. Engine (new files only)
+Extend the snapshot payload built in `src/lib/sim-snapshot.ts` (and the writer in `src/lib/ingest.functions.ts`) with a `shrinkage` block per player:
 
-```
-src/lib/petri/
-  ├── engine.ts                 # Seeded Monte Carlo (10k iters) — hitter + pitcher
-  ├── inputs.ts                 # Pulls inputs from app data; builds source_map + completeness
-  ├── eligibility.ts            # Gate: game not started, lineup 1–9, confirmed starter, etc.
-  ├── hash.ts                   # Stable input hash (sha256 of canonical JSON)
-  ├── rng.ts                    # mulberry32 seeded RNG
-  └── run.functions.ts          # createServerFn: runPetriShadowForUnstarted()
+```jsonc
+shrinkage: {
+  sampleOpportunity, fullTrustOpportunity, maxPriorOpportunity,
+  priorOpportunity, shrinkageWeight,
+  perOutcome: { K:{rawCount,rawRate,leagueRate,shrunkRate,shrunkCount}, BB:…, HR:…, … }
+}
 ```
 
-Engine details:
-- Seeded RNG per game: `seed = hash(game_pk, model_version, input_hash) mod 2^31`
-- 10,000 sims per game
-- Per-PA exclusive outcome resolution: K / BB+HBP / OUT-in-play / 1B / 2B / 3B / HR — blended from batter rate × pitcher rate × league baseline (log5), scaled by venue when available
-- Hitter PA opportunity derived from lineup slot + projected team runs context (if any) + starter expected workload
-- Pitcher outs/BF derived from confirmed starter context + opponent confirmed lineup quality
-- Abstain instead of guess: any required input missing → record reason, status = `abstained`
-- Document fallbacks explicitly (e.g., "no team-runs context → league avg lineup turnover ~37.8 PA / 9")
+Source = the `diagnostics` object already returned by `shrinkHitterCounts` / `shrinkPitcherCounts`. No new math.
 
-Server fn `runPetriShadowForUnstarted` (admin-only via `has_role` check inside handler):
-1. Resolve today's date in America/Chicago via `todayInAppTz`
-2. List today's games with status not in (started/live/final)
-3. For each game: build inputs, check eligibility, hash inputs, simulate or abstain, persist run + snapshots
-4. Return summary: `{ eligibleGames, generated, abstained: [{gamePk, reason}], hitterSnapshots, pitcherSnapshots }`
+### 1c. Generate replacement runs for unstarted games only
 
-Separate small fn `lockPetriRunsForStartedGames` flips `preview → locked` and sets `locked_at` once first pitch has passed. Called inline at the end of the run, never from cron.
+Add `replaceInflatedAlphaForUnstartedGames(date)` in `src/lib/ingest.functions.ts` that:
 
-Read fns (admin-only): `getPetriRunsForDate(date)`, `getPetriRunDetail(runId)`.
+1. Lists today's games and filters out any game where `gameHasStartedOrPastStart()` is true (reuses existing first-pitch guard — never mutates locked/started forecasts).
+2. For each remaining game, runs the engine under `intendedVersion = 'alpha-0.3.1-sample-shrink'` to produce a new immutable `forecast_runs` row + `projections` rows.
+3. Only after the new run inserts successfully, marks the prior active `alpha-0.3` run as `superseded=true` for that game (same supersede path Petri already uses). Failed insert → leave old run intact.
+4. Returns `{ replaced, superseded, skippedStarted }` counts.
 
-## 3. Admin UI
+### 1d. Public selection
 
-New file `src/routes/_authenticated/_admin/petri.tsx` registered under the existing admin layout (already role-gated).
+`src/lib/forecast/select-public.ts` (and the Forecast Board read path in `src/lib/projections.functions.ts::getDiamondScores`) already filters by `activeVersion`. Once 1a flips `active`, the board automatically reads the new run for unstarted games and still shows the old locked `alpha-0.3` snapshot for started/locked games. No UI changes needed beyond rendering "N/A" for Runs under the new version.
 
-Layout:
-- Header: **Petri v0.2 Shadow Lab** + persistent banner *"Petri v0.2 Shadow — Not Public / Not Calibrated"* on every panel
-- Primary button: **Run Petri Shadow — Unstarted Games** (calls server fn via `useServerFn` + `useMutation`)
-- Date selector (defaults to today CT)
-- Summary cards: eligible / generated / abstained / skipped / locked
-- Games table: gamePk, matchup, status (eligible/generated/locked/skipped/abstained), seed, iterations, input hash (short), data completeness, "View Details"
-- Detail drawer (lazy): tabs Hitters / Pitchers / Inputs
-  - Hitter table: name · slot · H mean · Hit 1+ · TB mean · TB 2+ · HR mean · HR 1+ · PA mean · completeness
-  - Pitcher table: name · K mean (P10/P90) · outs mean (P10/P90) · workload context · completeness
-  - Inputs tab: seed · iterations · input hash · source map JSON · fallbacks · abstention reasons
+### 1e. Trigger
 
-Add an Admin nav link entry pointing at `/petri`. No public surface ever links to it.
+Add a one-shot call to `replaceInflatedAlphaForUnstartedGames(todayInAppTz())` at the end of the next `orchestrate-slate` cycle, gated by `activeVersion === 'alpha-0.3.1-sample-shrink'` so it self-heals and then becomes idempotent (input-hash guard prevents duplicate runs).
 
-## 4. Isolation guarantees
+---
 
-- New tables only; no FK to or write to existing `forecast_runs`, `forecast_player_projections`, `projections`, `forecast_consensus`
-- No imports from Alpha 0.3 engine, consensus, sim-metrics, or grading
-- No edits to: orchestrator, refresh, ingest, sim.functions, projections.functions, model-results, calibration, results, top-props, odds, diamond-consensus, forecasts.*, forecast-board components
-- No new cron job; Petri only runs from the admin button
-- Petri snapshots never feed `selectBestPublicForecast`, Consensus v1/v2, Top Props, or Sim Leaders
+## Part 2 — Petri automation + live tracker
 
-## 5. First-run report
+Auto-generation, first-pitch lock, and per-game idempotency by `(game_id, model_version, projection_class, input_hash)` are already implemented in `src/lib/petri/run.functions.ts::runPetriAutoForDate` and wired into the orchestrator. Two real gaps remain:
 
-After deploying, run the button against today's CT slate and report:
-- eligible / generated / abstained (with reasons) / hitter snapshots / pitcher snapshots
-- one full hitter example (source paths, fallbacks, seed, input hash, means/percentiles, Hit 1+, TB 2+, HR 1+, completeness)
-- one full pitcher example (same fields plus K mean/range, outs mean/range)
-- confirmation that Alpha 0.3 tables and routes were untouched (file diff list)
+### 2a. Admin access fix
 
-## Technical notes
+Discovery: site header link points to `/admin` but the route is `/admin/admin`, and there's no top-level Petri nav entry. Last turn added the link but the user still can't load `/petri` — that suggests the `_admin` route gate or RLS path. Verify and, if needed, fix:
 
-- Hash inputs with `crypto.createHash('sha256')` over canonical-sorted JSON
-- Seeded RNG via `mulberry32(seed)` (already used in Alpha sim, but copied into `src/lib/petri/rng.ts` so Petri owns its copy)
-- All Petri DB writes go through `supabaseAdmin` loaded inside handlers
-- Admin auth: `requireSupabaseAuth` middleware + `has_role(userId, 'admin')` check at top of every Petri server fn
+- Confirm `src/routes/_authenticated/_admin/petri.tsx` resolves to `/petri` (since the layout is pathless). If the file actually creates `/admin/petri`, add a top-level redirect or rename so the nav link works.
+- Verify RLS on `petri_forecast_runs` / `petri_player_market_snapshots` allows `authenticated` admins via `has_role`. Patch policies if not.
+
+Report the exact root cause + the patch.
+
+### 2b. Petri Live Tracker (Admin-only)
+
+Extend the existing `/petri` admin page (no new route) with a Live Tracker section per locked game:
+
+- **Server fn** `getPetriLiveTracker(date)` in `src/lib/petri/run.functions.ts`:
+  - Loads locked official Petri runs for `date` from `petri_player_market_snapshots`.
+  - Joins live actuals via existing `getActualsForDate(date)` helper (same one Alpha uses).
+  - Returns hitter rows: `{player, mean_H, hit1plus, mean_TB, tb2plus, mean_HR, hr1plus, actual_PA/H/TB/HR/K, status, grade}` and pitcher rows: `{player, mean_K, range_K, mean_outs, range_outs, actual_K/outs/BB/H/ER/pitches, status, grade}`.
+  - Grade fills only when game `final`.
+- **UI**: new `<PetriLiveTracker/>` collapsible card inside the existing Petri Lab page, with the mandatory label `Petri v0.2 Shadow — Raw / Not Yet Calibrated`. Late additions with no locked snapshot render a single row `No Petri pregame forecast`. Polls every 45s like the existing Alpha live tracker.
+
+### 2c. Hard immutability assertion
+
+Add a unit test in `src/lib/petri/__tests__/lock.test.ts` confirming the lock path rejects any update to a `locked` Petri snapshot. Same for Alpha already covered by existing tests.
+
+---
+
+## Files touched
+
+**Schema migration**
+- `model_versions` insert + activation flip (no table changes).
+
+**Code**
+- `src/lib/engines/registry.ts` — register new version, mark `R` unavailable.
+- `src/lib/sim-snapshot.ts` — persist shrinkage diagnostics block.
+- `src/lib/ingest.functions.ts` — `replaceInflatedAlphaForUnstartedGames` + supersede.
+- `src/lib/automation/orchestrator.ts` — call replacement once new version is active.
+- `src/lib/petri/run.functions.ts` — `getPetriLiveTracker`.
+- `src/routes/_authenticated/_admin/petri.tsx` — Live Tracker section + label.
+- Possibly `src/routes/_authenticated/_admin/route.tsx` or RLS migration if 2a uncovers a policy gap.
+- `src/lib/petri/__tests__/lock.test.ts` — new.
+
+**Out of scope (explicitly NOT touched)**
+- Locked / started Alpha runs.
+- `alpha-0.3` historical rows.
+- Diamond Score / Consensus / Top Props / public Results — Petri stays isolated.
+- Runs (`R`) math fix — flagged as separate known defect; marked unavailable only.
+
+---
+
+## Return report (what I'll send back after running)
+
+1. Alpha: `{ replaced, superseded, skippedStarted }` counts for today.
+2. Before/after H/HR/TB/RBI means + raw PA + prior used for two previously-inflated hitters.
+3. Petri access root cause + the exact code/policy fix applied.
+4. Petri today: `{ eligible, preview, official, locked, skipped, abstained }`.
+5. One locked Petri hitter + one locked Petri pitcher with source paths, input hash, forecast, live actuals.
+6. Confirmation that locked Alpha and Petri snapshots are immutable under live updates (RLS + unit test reference).
