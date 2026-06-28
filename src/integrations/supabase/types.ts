@@ -970,6 +970,104 @@ export type Database = {
           },
         ]
       }
+      petri_skill_profiles: {
+        Row: {
+          adjustments: Json
+          base_rates: Json
+          created_at: string
+          data_completeness: number
+          fallbacks: Json
+          features: Json
+          game_id: string
+          handedness: string | null
+          id: string
+          is_confirmed_starter: boolean | null
+          lineup_slot: number | null
+          mlb_player_id: number
+          opposing_hand: string | null
+          pa_outcome_rates: Json
+          player_id: string | null
+          profile_version: string
+          role: string
+          run_id: string
+          side: string
+          team_id: string | null
+        }
+        Insert: {
+          adjustments?: Json
+          base_rates: Json
+          created_at?: string
+          data_completeness?: number
+          fallbacks?: Json
+          features: Json
+          game_id: string
+          handedness?: string | null
+          id?: string
+          is_confirmed_starter?: boolean | null
+          lineup_slot?: number | null
+          mlb_player_id: number
+          opposing_hand?: string | null
+          pa_outcome_rates: Json
+          player_id?: string | null
+          profile_version?: string
+          role: string
+          run_id: string
+          side: string
+          team_id?: string | null
+        }
+        Update: {
+          adjustments?: Json
+          base_rates?: Json
+          created_at?: string
+          data_completeness?: number
+          fallbacks?: Json
+          features?: Json
+          game_id?: string
+          handedness?: string | null
+          id?: string
+          is_confirmed_starter?: boolean | null
+          lineup_slot?: number | null
+          mlb_player_id?: number
+          opposing_hand?: string | null
+          pa_outcome_rates?: Json
+          player_id?: string | null
+          profile_version?: string
+          role?: string
+          run_id?: string
+          side?: string
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petri_skill_profiles_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_skill_profiles_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_skill_profiles_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "petri_forecast_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_skill_profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_dna: {
         Row: {
           consistency: number
