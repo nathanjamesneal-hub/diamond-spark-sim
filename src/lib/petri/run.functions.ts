@@ -1329,5 +1329,10 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
       });
     }
 
+    // Live first, then pending, then final — matches /today/live ordering.
+    const ord: Record<"live" | "pending" | "final", number> = { live: 0, pending: 1, final: 2 };
+    out.games.sort((a, b) => ord[a.game_state] - ord[b.game_state] || a.matchup.localeCompare(b.matchup));
+
     return out;
   });
+
