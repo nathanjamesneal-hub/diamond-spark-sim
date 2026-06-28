@@ -183,14 +183,17 @@ export type PetriSimResult = {
 };
 
 export function simulate(input: PetriSimInput): PetriSimResult {
-  const { home, away, park, iterations, seed } = input;
+  const { home, away, park, iterations, seed, prebuiltRates } = input;
   const rng = mulberry32(seed);
 
-  // Pre-build per-PA rate matrices: lineup × (starter|bullpen)
-  const homeVsStarter = home.lineup.map((b) => paRates(b, away.starter, park));
-  const homeVsBullpen = home.lineup.map((b) => paRates(b, away.bullpen, park));
-  const awayVsStarter = away.lineup.map((b) => paRates(b, home.starter, park));
-  const awayVsBullpen = away.lineup.map((b) => paRates(b, home.bullpen, park));
+  // Pre-build per-PA rate matrices: lineup × (starter|bullpen).
+  // If the caller provides prebuiltRates (Petri Skill Profile path), use them
+  // verbatim — they already encode log5 + park + platoon + capped form.
+  const homeVsStarter = prebuiltRates?.homeVsStarter ?? home.lineup.map((b) => paRates(b, away.starter, park));
+  const homeVsBullpen = prebuiltRates?.homeVsBullpen ?? home.lineup.map((b) => paRates(b, away.bullpen, park));
+  const awayVsStarter = prebuiltRates?.awayVsStarter ?? away.lineup.map((b) => paRates(b, home.starter, park));
+  const awayVsBullpen = prebuiltRates?.awayVsBullpen ?? away.lineup.map((b) => paRates(b, home.bullpen, park));
+
 
   const homeAccs: PetriBatterDist[] = home.lineup.map(() => ({ H: [], HR: [], TB: [], K: [], PA: [] }));
   const awayAccs: PetriBatterDist[] = away.lineup.map(() => ({ H: [], HR: [], TB: [], K: [], PA: [] }));
