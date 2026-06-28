@@ -873,7 +873,61 @@ export const getPetriRunsForDate = createServerFn({ method: "GET" })
         locked_at: r.locked_at,
       };
     });
-    return { date, runs: result };
+
+    // ENFORCE dedup contract: one active row per
+    // (game_id, model_version, projection_class). Priority: locked > preview;
+    // within same status, newest created_at. Older same-class active rows
+    // are demoted to display status `superseded_duplicate` so the table
+    // never shows two rows for the same key. Preview-class and
+    // official-class still coexist as two separate rows per game — that is
+    // the intended lifecycle, not a duplicate.
+    const ACTIVE = new Set(["preview", "locked"]);
+    const statusPriority = (s: string) => (s === "locked" ? 2 : s === "preview" ? 1 : 0);
+    const groups = new Map<string, PetriRunListRow[]>();
+    for (const row of result) {
+      // model_version is fixed for the Petri pipeline; (game, class) is the effective key.
+      const key = `${row.game_id}::${row.projection_class}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+    const deduped: PetriRunListRow[] = [];
+    for (const rows of groups.values()) {
+      const activeRows = rows.filter((r) => ACTIVE.has(r.status));
+      const nonActive = rows.filter((r) => !ACTIVE.has(r.status));
+      if (activeRows.length === 0) {
+        rows.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+        deduped.push(rows[0]);
+        continue;
+      }
+      activeRows.sort((a, b) => {
+        const sp = statusPriority(b.status) - statusPriority(a.status);
+        if (sp !== 0) return sp;
+        return +new Date(b.created_at) - +new Date(a.created_at);
+      });
+      deduped.push(activeRows[0]);
+      for (const loser of activeRows.slice(1)) {
+        deduped.push({
+          ...loser,
+          status: "superseded_duplicate",
+          abstention_reasons: [
+            ...(loser.abstention_reasons ?? []),
+            "duplicate generation within same input window",
+          ],
+        });
+      }
+      // Keep one most-recent audit row per group for context.
+      if (nonActive.length > 0) {
+        nonActive.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+        deduped.push(nonActive[0]);
+      }
+    }
+    deduped.sort((a, b) => {
+      if (a.matchup !== b.matchup) return a.matchup.localeCompare(b.matchup);
+      const cp = (a.projection_class === "official" ? 0 : 1) - (b.projection_class === "official" ? 0 : 1);
+      if (cp !== 0) return cp;
+      return statusPriority(b.status) - statusPriority(a.status);
+    });
+    return { date, runs: deduped };
   });
 
 export type PetriRunDetail = {

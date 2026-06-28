@@ -155,6 +155,7 @@ function PetriShadowLab() {
               <thead className="bg-zinc-900 text-xs uppercase tracking-wide text-zinc-400">
                 <tr>
                   <th className="px-3 py-2 text-left">Matchup</th>
+                  <th className="px-3 py-2 text-left">Class</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-right">Seed</th>
                   <th className="px-3 py-2 text-right">Iters</th>
@@ -169,6 +170,9 @@ function PetriShadowLab() {
                 {runsQuery.data.runs.map((r) => (
                   <tr key={r.id} className="border-t border-zinc-800">
                     <td className="px-3 py-2 font-medium">{r.matchup}</td>
+                    <td className="px-3 py-2">
+                      <ClassPill cls={r.projection_class} />
+                    </td>
                     <td className="px-3 py-2">
                       <StatusPill status={r.status} />
                     </td>
@@ -223,8 +227,20 @@ function StatusPill({ status }: { status: string }) {
         ? "bg-zinc-700 text-zinc-200"
         : status === "abstained"
           ? "bg-amber-500/15 text-amber-300"
-          : "bg-red-500/15 text-red-300";
+          : status === "superseded_duplicate"
+            ? "bg-fuchsia-500/15 text-fuchsia-300"
+            : status === "superseded"
+              ? "bg-zinc-800 text-zinc-400"
+              : "bg-red-500/15 text-red-300";
   return <span className={`rounded px-2 py-0.5 text-xs ${cls}`}>{status}</span>;
+}
+
+function ClassPill({ cls }: { cls: string }) {
+  const tone =
+    cls === "official"
+      ? "bg-emerald-500/15 text-emerald-300"
+      : "bg-indigo-500/15 text-indigo-300";
+  return <span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`}>{cls}</span>;
 }
 
 function RunDrawer({
