@@ -111,6 +111,13 @@ export async function orchestrateDiamondSlate(
       engineRan: false,
     },
     lock: { today: 0, yesterday: 0 },
+    petri: {
+      previewGenerated: 0,
+      officialGenerated: 0,
+      abstained: 0,
+      skipped: 0,
+      locked: 0,
+    },
   };
 
   // 1) Refresh lineups + run engine for changed/gap games (today only).
