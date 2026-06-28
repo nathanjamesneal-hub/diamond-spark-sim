@@ -696,9 +696,13 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     const LEGACY_ALPHA = "alpha-0.3";
     const NEW_ALPHA = "alpha-0.3.1-sample-shrink";
     const versionsByGame = new Map<string, Set<string>>();
+    const activeVersionsByGame = new Map<string, Set<string>>();
     for (const p of (projectionsAll ?? [])) {
       if (!versionsByGame.has(p.game_id)) versionsByGame.set(p.game_id, new Set());
       versionsByGame.get(p.game_id)!.add(p.model_version);
+      // projectionsAll is already filtered to projection_status='active'.
+      if (!activeVersionsByGame.has(p.game_id)) activeVersionsByGame.set(p.game_id, new Set());
+      activeVersionsByGame.get(p.game_id)!.add(p.model_version);
     }
     const lockedRunVersionsByGame = new Map<string, Set<string>>();
     for (const r of (forecastRunRows ?? []) as any[]) {
@@ -720,25 +724,24 @@ export const getDiamondScores = createServerFn({ method: "GET" })
     for (const g of games) {
       const gs = gameDisplayState(g.game_status);
       const present = versionsByGame.get(g.id) ?? new Set<string>();
+      const active = activeVersionsByGame.get(g.id) ?? new Set<string>();
       const locked = lockedRunVersionsByGame.get(g.id) ?? new Set<string>();
+      // Eligible versions MUST have active projection rows. Selecting a
+      // version whose projection rows are all `superseded` returns zero
+      // cards — that was the bug emptying every live game.
+      const pick = (cands: string[]) => cands.find((v) => v && active.has(v)) ?? null;
       let chosen: string | null = null;
       if (gs === "live" || gs === "final") {
-        // Prefer the locked version (immutable historical snapshot).
-        if (locked.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
-        else if (locked.has(NEW_ALPHA)) chosen = NEW_ALPHA;
-        else if (locked.size > 0) chosen = Array.from(locked)[0];
-        else if (present.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
-        else if (present.has(NEW_ALPHA)) chosen = NEW_ALPHA;
-        else if (activeVersion && present.has(activeVersion)) chosen = activeVersion;
-        else if (present.size > 0) chosen = Array.from(present)[0];
+        // Prefer a locked version that is ALSO active; else any active.
+        const lockedActive = Array.from(locked).filter((v) => active.has(v));
+        chosen =
+          pick([NEW_ALPHA, LEGACY_ALPHA, ...lockedActive, activeVersion ?? "", ...Array.from(active)]) ??
+          (lockedActive[0] ?? null);
         if (chosen === LEGACY_ALPHA) startedSelectingLegacyAlpha += 1;
       } else {
-        // Unstarted: prefer new shrinkage; else legacy; else active; else any.
-        if (present.has(NEW_ALPHA)) chosen = NEW_ALPHA;
-        else if (present.has(LEGACY_ALPHA)) chosen = LEGACY_ALPHA;
-        else if (activeVersion && present.has(activeVersion)) chosen = activeVersion;
-        else if (present.size > 0) chosen = Array.from(present)[0];
-        else chosen = activeVersion;
+        chosen =
+          pick([NEW_ALPHA, LEGACY_ALPHA, activeVersion ?? "", ...Array.from(active)]) ??
+          activeVersion;
         if (present.has(LEGACY_ALPHA) && !present.has(NEW_ALPHA)) unstartedEligibleForReplacement += 1;
       }
       effectiveVersionByGame.set(g.id, chosen);

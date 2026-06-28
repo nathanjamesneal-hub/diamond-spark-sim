@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -9,6 +9,8 @@ import {
   type DiamondHitterCard,
   type DiamondPitcherCard,
 } from "@/lib/projections.functions";
+import { getActualsForDate } from "@/lib/actuals.functions";
+import { mergeLiveActualsIntoDiamondPayload } from "@/lib/forecast/merge-live-actuals";
 import { shiftIsoDate } from "@/lib/timezone";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -22,6 +24,7 @@ import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tool
 
 
 import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
+
 
 const hitterSorts = ["diamond", "hit", "hr", "rbi", "sb"] as const;
 const pitcherSorts = ["diamond", "k"] as const;
@@ -40,7 +43,12 @@ function diamondQuery(date: string | undefined) {
   return queryOptions({
     queryKey: ["diamond-scores", date ?? "today"],
     queryFn: () => getDiamondScores({ data: date ? { date } : {} }),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    // Auto-refresh so live actuals (and status transitions) flow into the
+    // board without a manual reload. Pregame snapshots are immutable so this
+    // only updates the Actual / Status columns.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -67,7 +75,21 @@ export const Route = createFileRoute("/_authenticated/diamond-scores")({
 function DiamondScoresPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { data } = useSuspenseQuery(diamondQuery(search.date));
+  const { data: raw } = useSuspenseQuery(diamondQuery(search.date));
+  const actualsQ = useQuery({
+    queryKey: ["live-actuals", raw.date],
+    queryFn: () => getActualsForDate({ data: { date: raw.date } }),
+    refetchInterval: 45_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const data = useMemo(
+    () => mergeLiveActualsIntoDiamondPayload(raw, actualsQ.data),
+    [raw, actualsQ.data],
+  );
+
 
   const filteredHitters = useMemo(() => {
     let rows = data.hitters.slice();
