@@ -898,14 +898,11 @@ export const getDiamondScores = createServerFn({ method: "GET" })
       const gls = glsByGame.get(l.game_id);
       const oppTeamId = l.team_id === g.home_team_id ? g.away_team_id : g.home_team_id;
       const gs = gameStateOf(g.game_status);
-      // Versions present in either bucket for this player/game/hitter slot.
-      const versionSet = new Set<string>();
-      for (const p of projections) {
-        if (p.player_id === l.player_id && p.game_id === l.game_id && normRole(p.projection_role) === "hitter") {
-          versionSet.add(p.model_version);
-        }
-      }
-      const versionList = versionSet.size ? Array.from(versionSet) : (activeVersion ? [activeVersion] : []);
+      // Per-game effective version (enforces locked-history visibility and
+      // active-version preference for unstarted games). Render exactly one
+      // row per (player, game, hitter) at the resolved version.
+      const effVersion = effectiveVersionByGame.get(l.game_id) ?? activeVersion;
+      const versionList: string[] = effVersion ? [effVersion] : [];
       for (const v of versionList) {
         const { proj, run, chosenClass } = resolveDisplay(l.player_id, l.game_id, "hitter", v, g.game_status, g.first_pitch_at);
         // Skip rendering rows with no resolvable forecast (post-cutoff with no official).
