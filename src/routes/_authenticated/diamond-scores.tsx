@@ -75,7 +75,21 @@ export const Route = createFileRoute("/_authenticated/diamond-scores")({
 function DiamondScoresPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { data } = useSuspenseQuery(diamondQuery(search.date));
+  const { data: raw } = useSuspenseQuery(diamondQuery(search.date));
+  const actualsQ = useQuery({
+    queryKey: ["live-actuals", raw.date],
+    queryFn: () => getActualsForDate({ data: { date: raw.date } }),
+    refetchInterval: 45_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const data = useMemo(
+    () => mergeLiveActualsIntoDiamondPayload(raw, actualsQ.data),
+    [raw, actualsQ.data],
+  );
+
 
   const filteredHitters = useMemo(() => {
     let rows = data.hitters.slice();
