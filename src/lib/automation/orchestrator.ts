@@ -158,6 +158,7 @@ export async function orchestrateDiamondSlate(
   } catch (e: any) {
     result.petri.error = e?.message ?? String(e);
   }
+  const finishedAt = new Date();
   result.finishedAt = finishedAt.toISOString();
   result.durationMs = finishedAt.getTime() - startedAt.getTime();
 
