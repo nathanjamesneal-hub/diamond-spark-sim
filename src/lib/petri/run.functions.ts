@@ -290,7 +290,7 @@ export async function runPetriPipeline(
         .eq("status", "abstained")
         .limit(1);
       if (!existingAbst || existingAbst.length === 0) {
-        const hash = inputHash({ game: g.mlb_game_id, class: intendedClass, reasons: abstentionReasons });
+        const hash = await inputHash({ game: g.mlb_game_id, class: intendedClass, reasons: abstentionReasons });
         await supabaseAdmin.from("petri_forecast_runs").insert({
           game_id: g.id,
           mlb_game_id: g.mlb_game_id,
@@ -322,7 +322,7 @@ export async function runPetriPipeline(
 
     if (!homeStarterPlayer || !awayStarterPlayer) {
       const reasons = ["missing player metadata for starter"];
-      const hash = inputHash({ game: g.mlb_game_id, class: intendedClass, reasons });
+      const hash = await inputHash({ game: g.mlb_game_id, class: intendedClass, reasons });
       await supabaseAdmin.from("petri_forecast_runs").insert({
         game_id: g.id, mlb_game_id: g.mlb_game_id, game_date: g.date,
         model_version: MODEL_VERSION, projection_class: intendedClass, status: "abstained",
@@ -353,7 +353,7 @@ export async function runPetriPipeline(
       away: { starter: awayStarterPlayer.mlb_id, lineup: awayLineupMlb },
       park,
     };
-    const hash = inputHash(hashInput);
+    const hash = await inputHash(hashInput);
 
     const { data: existingActive } = await supabaseAdmin
       .from("petri_forecast_runs")
