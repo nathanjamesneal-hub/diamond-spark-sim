@@ -61,7 +61,21 @@ export type PetriSimInput = {
   park: PetriParkFactor;
   iterations: number;
   seed: number;
+  /**
+   * Optional precomputed PA outcome rates per (lineup slot × pitcher kind).
+   * When supplied, the engine SKIPS its internal log5+park blend and uses
+   * these rates directly. This is the path used by the Petri Skill Profile
+   * feature layer so all probabilities flow from one source of truth.
+   * Each inner array must be aligned with `home.lineup` / `away.lineup` order.
+   */
+  prebuiltRates?: {
+    homeVsStarter: PARates[];
+    homeVsBullpen: PARates[];
+    awayVsStarter: PARates[];
+    awayVsBullpen: PARates[];
+  };
 };
+
 
 function log5(b: number, p: number, l: number): number {
   if (l <= 0 || l >= 1) return b;
