@@ -9,7 +9,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { runDiamondEngineForGames } from "@/lib/engines/registry";
+import { runDiamondEngineForGames } from "@/lib/ingest.functions";
 import { todayInAppTz } from "@/lib/timezone";
 
 function unauthorized() {
