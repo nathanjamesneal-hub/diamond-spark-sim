@@ -8,6 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAppMember } from "@/integrations/supabase/member-middleware";
 import { simulate, type SimResult, type BatterProfile, type PitcherProfile, type TeamSim } from "./sim/engine";
 import { toMonteCarloGameEnvironment } from "./sim/environment";
+import { shrinkHitterCounts, shrinkPitcherCounts } from "./sim/shrinkage";
 import type { MonteCarloGameEnvironment } from "./game-environment";
 
 const BASE = "https://statsapi.mlb.com/api/v1";
@@ -56,9 +57,7 @@ async function batterProfile(playerId: number, name: string, season: number): Pr
     );
     const s = j.stats?.[0]?.splits?.[0]?.stat;
     if (!s || !s.plateAppearances) throw new Error("no PA");
-    return {
-      id: playerId,
-      name,
+    const raw = {
       pa: s.plateAppearances ?? 0,
       K: s.strikeOuts ?? 0,
       BB: s.baseOnBalls ?? 0,
@@ -67,6 +66,21 @@ async function batterProfile(playerId: number, name: string, season: number): Pr
       H_2B: s.doubles ?? 0,
       H_3B: s.triples ?? 0,
       H_1B: Math.max(0, (s.hits ?? 0) - (s.doubles ?? 0) - (s.triples ?? 0) - (s.homeRuns ?? 0)),
+    };
+    // Bayesian shrinkage against league-average prior — prevents tiny-sample
+    // 2026 rates from generating absurd HR/TB/RBI/H projections.
+    const shrunk = shrinkHitterCounts(raw);
+    return {
+      id: playerId,
+      name,
+      pa: raw.pa,
+      K: shrunk.K,
+      BB: shrunk.BB,
+      HBP: shrunk.HBP,
+      HR: shrunk.HR,
+      H_1B: shrunk.H_1B,
+      H_2B: shrunk.H_2B,
+      H_3B: shrunk.H_3B,
       SB: s.stolenBases ?? 0,
     };
   } catch {
@@ -82,9 +96,7 @@ async function pitcherProfile(playerId: number, name: string, season: number, is
     );
     const s = j.stats?.[0]?.splits?.[0]?.stat;
     if (!s || !s.battersFaced) throw new Error("no BF");
-    return {
-      id: playerId,
-      name,
+    const raw = {
       bf: s.battersFaced ?? 0,
       K: s.strikeOuts ?? 0,
       BB: s.baseOnBalls ?? 0,
@@ -93,6 +105,19 @@ async function pitcherProfile(playerId: number, name: string, season: number, is
       H_2B: s.doubles ?? 0,
       H_3B: s.triples ?? 0,
       H_1B: Math.max(0, (s.hits ?? 0) - (s.doubles ?? 0) - (s.triples ?? 0) - (s.homeRuns ?? 0)),
+    };
+    const shrunk = shrinkPitcherCounts(raw);
+    return {
+      id: playerId,
+      name,
+      bf: raw.bf,
+      K: shrunk.K,
+      BB: shrunk.BB,
+      HBP: shrunk.HBP,
+      HR: shrunk.HR,
+      H_1B: shrunk.H_1B,
+      H_2B: shrunk.H_2B,
+      H_3B: shrunk.H_3B,
       expectedIp: isStarter ? 5.5 : 1.0,
     };
   } catch {
@@ -157,11 +182,13 @@ async function getBullpenAggregate(teamId: number, season: number, starterIds: S
       } catch {}
     }));
     if (bf < 50) throw new Error("thin bullpen sample");
+    const H_1B = Math.max(0, H - H_2B - H_3B - HR);
+    const shrunk = shrinkPitcherCounts({ bf, K, BB, HBP, HR, H_1B, H_2B, H_3B });
     return {
       id: 0, name: "Bullpen",
-      bf, K, BB, HBP, HR,
-      H_1B: Math.max(0, H - H_2B - H_3B - HR),
-      H_2B, H_3B,
+      bf,
+      K: shrunk.K, BB: shrunk.BB, HBP: shrunk.HBP, HR: shrunk.HR,
+      H_1B: shrunk.H_1B, H_2B: shrunk.H_2B, H_3B: shrunk.H_3B,
       expectedIp: 1,
     };
   } catch {
