@@ -744,6 +744,232 @@ export type Database = {
         }
         Relationships: []
       }
+      petri_forecast_runs: {
+        Row: {
+          abstention_reasons: Json | null
+          created_at: string
+          data_completeness: Json
+          fallbacks: Json | null
+          game_date: string
+          game_id: string
+          id: string
+          input_hash: string
+          input_source_map: Json
+          iterations: number
+          locked_at: string | null
+          mlb_game_id: number
+          model_version: string
+          seed: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          abstention_reasons?: Json | null
+          created_at?: string
+          data_completeness?: Json
+          fallbacks?: Json | null
+          game_date: string
+          game_id: string
+          id?: string
+          input_hash: string
+          input_source_map?: Json
+          iterations: number
+          locked_at?: string | null
+          mlb_game_id: number
+          model_version?: string
+          seed: number
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          abstention_reasons?: Json | null
+          created_at?: string
+          data_completeness?: Json
+          fallbacks?: Json | null
+          game_date?: string
+          game_id?: string
+          id?: string
+          input_hash?: string
+          input_source_map?: Json
+          iterations?: number
+          locked_at?: string | null
+          mlb_game_id?: number
+          model_version?: string
+          seed?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petri_forecast_runs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      petri_player_market_snapshots: {
+        Row: {
+          bf_mean: number | null
+          calibrated_probability: number | null
+          created_at: string
+          data_completeness: number | null
+          game_id: string
+          h_mean: number | null
+          h_p10: number | null
+          h_p50: number | null
+          h_p90: number | null
+          hit_1plus: number | null
+          hitter_k_mean: number | null
+          hitter_k_p10: number | null
+          hitter_k_p50: number | null
+          hitter_k_p90: number | null
+          hr_1plus: number | null
+          hr_mean: number | null
+          hr_p10: number | null
+          hr_p50: number | null
+          hr_p90: number | null
+          id: string
+          is_confirmed_starter: boolean | null
+          lineup_slot: number | null
+          mlb_player_id: number
+          outs_mean: number | null
+          outs_p10: number | null
+          outs_p90: number | null
+          pa_mean: number | null
+          pk_mean: number | null
+          pk_p10: number | null
+          pk_p90: number | null
+          player_id: string | null
+          raw_probability_label: string
+          role: string
+          run_id: string
+          source_map: Json
+          tb_2plus: number | null
+          tb_mean: number | null
+          tb_p10: number | null
+          tb_p50: number | null
+          tb_p90: number | null
+          team_id: string | null
+        }
+        Insert: {
+          bf_mean?: number | null
+          calibrated_probability?: number | null
+          created_at?: string
+          data_completeness?: number | null
+          game_id: string
+          h_mean?: number | null
+          h_p10?: number | null
+          h_p50?: number | null
+          h_p90?: number | null
+          hit_1plus?: number | null
+          hitter_k_mean?: number | null
+          hitter_k_p10?: number | null
+          hitter_k_p50?: number | null
+          hitter_k_p90?: number | null
+          hr_1plus?: number | null
+          hr_mean?: number | null
+          hr_p10?: number | null
+          hr_p50?: number | null
+          hr_p90?: number | null
+          id?: string
+          is_confirmed_starter?: boolean | null
+          lineup_slot?: number | null
+          mlb_player_id: number
+          outs_mean?: number | null
+          outs_p10?: number | null
+          outs_p90?: number | null
+          pa_mean?: number | null
+          pk_mean?: number | null
+          pk_p10?: number | null
+          pk_p90?: number | null
+          player_id?: string | null
+          raw_probability_label?: string
+          role: string
+          run_id: string
+          source_map?: Json
+          tb_2plus?: number | null
+          tb_mean?: number | null
+          tb_p10?: number | null
+          tb_p50?: number | null
+          tb_p90?: number | null
+          team_id?: string | null
+        }
+        Update: {
+          bf_mean?: number | null
+          calibrated_probability?: number | null
+          created_at?: string
+          data_completeness?: number | null
+          game_id?: string
+          h_mean?: number | null
+          h_p10?: number | null
+          h_p50?: number | null
+          h_p90?: number | null
+          hit_1plus?: number | null
+          hitter_k_mean?: number | null
+          hitter_k_p10?: number | null
+          hitter_k_p50?: number | null
+          hitter_k_p90?: number | null
+          hr_1plus?: number | null
+          hr_mean?: number | null
+          hr_p10?: number | null
+          hr_p50?: number | null
+          hr_p90?: number | null
+          id?: string
+          is_confirmed_starter?: boolean | null
+          lineup_slot?: number | null
+          mlb_player_id?: number
+          outs_mean?: number | null
+          outs_p10?: number | null
+          outs_p90?: number | null
+          pa_mean?: number | null
+          pk_mean?: number | null
+          pk_p10?: number | null
+          pk_p90?: number | null
+          player_id?: string | null
+          raw_probability_label?: string
+          role?: string
+          run_id?: string
+          source_map?: Json
+          tb_2plus?: number | null
+          tb_mean?: number | null
+          tb_p10?: number | null
+          tb_p50?: number | null
+          tb_p90?: number | null
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petri_player_market_snapshots_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_player_market_snapshots_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_player_market_snapshots_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "petri_forecast_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petri_player_market_snapshots_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_dna: {
         Row: {
           consistency: number
