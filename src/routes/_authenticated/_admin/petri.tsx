@@ -34,6 +34,8 @@ function PetriShadowLab() {
   const [summary, setSummary] = useState<PetriRunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
+  const [showRunsAudit, setShowRunsAudit] = useState(false);
+
 
   const runShadow = useServerFn(runPetriShadowForUnstarted);
   const listRuns = useServerFn(getPetriRunsForDate);
