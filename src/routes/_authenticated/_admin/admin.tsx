@@ -104,6 +104,7 @@ function AdminPanel() {
         >
           → Petri v0.2 Shadow Lab (isolated research)
         </a>
+      </div>
 
       <CronStatusPanel />
 
