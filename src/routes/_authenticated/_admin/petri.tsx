@@ -227,8 +227,20 @@ function StatusPill({ status }: { status: string }) {
         ? "bg-zinc-700 text-zinc-200"
         : status === "abstained"
           ? "bg-amber-500/15 text-amber-300"
-          : "bg-red-500/15 text-red-300";
+          : status === "superseded_duplicate"
+            ? "bg-fuchsia-500/15 text-fuchsia-300"
+            : status === "superseded"
+              ? "bg-zinc-800 text-zinc-400"
+              : "bg-red-500/15 text-red-300";
   return <span className={`rounded px-2 py-0.5 text-xs ${cls}`}>{status}</span>;
+}
+
+function ClassPill({ cls }: { cls: string }) {
+  const tone =
+    cls === "official"
+      ? "bg-emerald-500/15 text-emerald-300"
+      : "bg-indigo-500/15 text-indigo-300";
+  return <span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`}>{cls}</span>;
 }
 
 function RunDrawer({
