@@ -22,6 +22,16 @@ import {
   type SourceMap,
 } from "./inputs";
 import { inputHash, seedFromHash } from "./hash";
+import {
+  buildHitterSkillProfile,
+  buildPitcherSkillProfile,
+  profileToOutcomeRates,
+  toEnginePARates,
+  PETRI_SKILL_PROFILE_VERSION,
+  type HitterSkillProfile,
+  type PitcherSkillProfile,
+} from "./skill-profile";
+
 
 const ITERATIONS = 10000;
 
@@ -113,9 +123,10 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
     const { data: players } = playerUuids.length
       ? await supabaseAdmin
           .from("players")
-          .select("id, mlb_id, name, team_id")
+          .select("id, mlb_id, name, team_id, bats, throws")
           .in("id", playerUuids)
       : { data: [] as any[] };
+
     const playerByUuid = new Map((players ?? []).map((p) => [p.id, p]));
 
     const { data: dnaRows } = playerUuids.length
@@ -290,9 +301,99 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
         }
       }
 
+      // ---- Petri Skill Profile feature layer ----
+      // Build per-player profiles BEFORE simulating, then convert each
+      // (hitter × pitcher) pair into mutually exclusive PA outcome rates that
+      // normalize to 1. The simulator consumes those rates verbatim.
+      const homePlayerRows = homeLineup.map((l) => ({
+        lineup: l,
+        player: playerByUuid.get(l.player_id) as any,
+      }));
+      const awayPlayerRows = awayLineup.map((l) => ({
+        lineup: l,
+        player: playerByUuid.get(l.player_id) as any,
+      }));
+
+      function summarizeOpponent(rows: typeof homePlayerRows) {
+        const dnas = rows
+          .map((r) => dnaByUuid.get(r.lineup.player_id))
+          .filter(Boolean) as DnaRow[];
+        const avg = (sel: (d: DnaRow) => number) =>
+          dnas.length ? dnas.reduce((s, d) => s + sel(d), 0) / dnas.length / 100 : null;
+        const bats = rows.map((r) => (r.player?.bats ?? "?").toUpperCase());
+        const r = bats.filter((b) => b === "R").length;
+        const l = bats.filter((b) => b === "L").length;
+        const known = r + l;
+        return {
+          avg_contact: avg((d) => d.contact),
+          avg_power: avg((d) => d.power),
+          avg_discipline: avg((d) => d.discipline),
+          rhb_share: known ? r / known : null,
+          lhb_share: known ? l / known : null,
+        };
+      }
+      const awayOpp = summarizeOpponent(homePlayerRows); // away starter faces home lineup
+      const homeOpp = summarizeOpponent(awayPlayerRows); // home starter faces away lineup
+
+      const awayStarterProfile: PitcherSkillProfile = buildPitcherSkillProfile({
+        side: "away",
+        mlbId: awayStarterPlayer.mlb_id,
+        name: awayStarterPlayer.name,
+        teamMlbId: awayTeamMlbId,
+        player: { throws: (awayStarterPlayer as any).throws ?? null },
+        dna: dnaByUuid.get(awayStarterRow!.player_id),
+        expectedOuts: awayTeamSim.starter.expectedOuts,
+        park, ballpark: g.ballpark,
+        opponentDnaSummary: awayOpp,
+      });
+      const homeStarterProfile: PitcherSkillProfile = buildPitcherSkillProfile({
+        side: "home",
+        mlbId: homeStarterPlayer.mlb_id,
+        name: homeStarterPlayer.name,
+        teamMlbId: homeTeamMlbId,
+        player: { throws: (homeStarterPlayer as any).throws ?? null },
+        dna: dnaByUuid.get(homeStarterRow!.player_id),
+        expectedOuts: homeTeamSim.starter.expectedOuts,
+        park, ballpark: g.ballpark,
+        opponentDnaSummary: homeOpp,
+      });
+
+      function buildHitterProfiles(side: "home" | "away", rows: typeof homePlayerRows, teamMlbId: number): HitterSkillProfile[] {
+        const oppHand = side === "home" ? awayStarterProfile.handedness : homeStarterProfile.handedness;
+        return rows.map((r) => buildHitterSkillProfile({
+          side,
+          mlbId: r.player?.mlb_id ?? 0,
+          name: r.player?.name ?? `Player ${r.lineup.player_id.slice(0, 6)}`,
+          teamMlbId,
+          lineupSlot: r.lineup.batting_order,
+          player: { bats: r.player?.bats ?? null },
+          opposingHand: oppHand,
+          dna: dnaByUuid.get(r.lineup.player_id),
+          park, ballpark: g.ballpark,
+        }));
+      }
+      const homeHitterProfiles = buildHitterProfiles("home", homePlayerRows, homeTeamMlbId);
+      const awayHitterProfiles = buildHitterProfiles("away", awayPlayerRows, awayTeamMlbId);
+
+      // Build PA outcome rates per (hitter × pitcher). Bullpen reuses the
+      // starter profile for now — we have no separate bullpen feature layer.
+      const adjustmentsByProfile = new Map<HitterSkillProfile, ReturnType<typeof profileToOutcomeRates>["adjustments"]>();
+      function rateMatrix(hitters: HitterSkillProfile[], pitcher: PitcherSkillProfile) {
+        return hitters.map((h) => {
+          const out = profileToOutcomeRates({ hitter: h, pitcher, park });
+          if (!adjustmentsByProfile.has(h)) adjustmentsByProfile.set(h, out.adjustments);
+          return toEnginePARates(out.rates);
+        });
+      }
+      const homeVsStarter = rateMatrix(homeHitterProfiles, awayStarterProfile);
+      const homeVsBullpen = rateMatrix(homeHitterProfiles, awayStarterProfile);
+      const awayVsStarter = rateMatrix(awayHitterProfiles, homeStarterProfile);
+      const awayVsBullpen = rateMatrix(awayHitterProfiles, homeStarterProfile);
+
       const hashInput = {
         game: g.mlb_game_id,
         model: "petri-v0.2-shadow",
+        profileVersion: PETRI_SKILL_PROFILE_VERSION,
         iters: ITERATIONS,
         home: {
           starter: homeStarterPlayer.mlb_id,
@@ -315,6 +416,7 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
           park,
           iterations: ITERATIONS,
           seed,
+          prebuiltRates: { homeVsStarter, homeVsBullpen, awayVsStarter, awayVsBullpen },
         });
       } catch (e: any) {
         const reason = `simulation error: ${e?.message ?? String(e)}`;
@@ -326,6 +428,7 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
         summary.skipped.push({ mlb_game_id: g.mlb_game_id, matchup, reason });
         continue;
       }
+
 
       const completeness = computeCompleteness(sources);
 
@@ -356,6 +459,81 @@ export const runPetriShadowForUnstarted = createServerFn({ method: "POST" })
         continue;
       }
       const runId = runRow.id;
+
+      // Persist per-player skill profiles for this run.
+      const profileRows: any[] = [];
+      function pushHitterProfiles(side: "home" | "away", profiles: HitterSkillProfile[]) {
+        const teamUuid = side === "home" ? g.home_team_id : g.away_team_id;
+        for (const p of profiles) {
+          const opp = side === "home" ? awayStarterProfile : homeStarterProfile;
+          const out = profileToOutcomeRates({ hitter: p, pitcher: opp, park });
+          profileRows.push({
+            run_id: runId,
+            game_id: g.id,
+            mlb_player_id: p.mlbId,
+            team_id: teamUuid,
+            role: "hitter",
+            lineup_slot: p.lineupSlot,
+            is_confirmed_starter: null,
+            side,
+            handedness: p.handedness,
+            opposing_hand: opp.handedness,
+            profile_version: p.profileVersion,
+            features: p.features,
+            fallbacks: p.fallbacks,
+            adjustments: out.adjustments,
+            base_rates: p.baseRates,
+            pa_outcome_rates: out.rates,
+            data_completeness: p.dataCompleteness,
+          });
+        }
+      }
+      function pushPitcherProfile(side: "home" | "away", p: PitcherSkillProfile) {
+        profileRows.push({
+          run_id: runId,
+          game_id: g.id,
+          mlb_player_id: p.mlbId,
+          team_id: side === "home" ? g.home_team_id : g.away_team_id,
+          role: "pitcher",
+          lineup_slot: null,
+          is_confirmed_starter: true,
+          side,
+          handedness: p.handedness,
+          opposing_hand: null,
+          profile_version: p.profileVersion,
+          features: p.features,
+          fallbacks: p.fallbacks,
+          adjustments: [],
+          base_rates: p.baseRates,
+          pa_outcome_rates: p.paStandalone,
+          data_completeness: p.dataCompleteness,
+        });
+      }
+      pushHitterProfiles("home", homeHitterProfiles);
+      pushHitterProfiles("away", awayHitterProfiles);
+      pushPitcherProfile("home", homeStarterProfile);
+      pushPitcherProfile("away", awayStarterProfile);
+
+      // Resolve player UUIDs for profile rows.
+      const profileMlbIds = profileRows.map((r) => r.mlb_player_id).filter((id) => id && id > 0);
+      const { data: profPidRows } = profileMlbIds.length
+        ? await supabaseAdmin.from("players").select("id, mlb_id").in("mlb_id", profileMlbIds)
+        : { data: [] as any[] };
+      const profUuidByMlb = new Map((profPidRows ?? []).map((p: any) => [p.mlb_id, p.id]));
+      for (const r of profileRows) r.player_id = profUuidByMlb.get(r.mlb_player_id) ?? null;
+
+      const { error: profErr } = await supabaseAdmin
+        .from("petri_skill_profiles")
+        .insert(profileRows);
+      if (profErr) {
+        // Profile persistence failure does NOT block the run, but is recorded
+        // for diagnostics. Petri snapshots still describe the simulation.
+        await supabaseAdmin.from("petri_forecast_runs").update({
+          abstention_reasons: [`skill profile insert warning: ${profErr.message}`],
+        }).eq("id", runId);
+      }
+
+
 
       const snapshotRows: any[] = [];
 
