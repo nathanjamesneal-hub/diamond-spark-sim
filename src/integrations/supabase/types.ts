@@ -759,6 +759,7 @@ export type Database = {
           locked_at: string | null
           mlb_game_id: number
           model_version: string
+          projection_class: string
           seed: number
           status: string
           updated_at: string
@@ -777,6 +778,7 @@ export type Database = {
           locked_at?: string | null
           mlb_game_id: number
           model_version?: string
+          projection_class?: string
           seed: number
           status: string
           updated_at?: string
@@ -795,6 +797,7 @@ export type Database = {
           locked_at?: string | null
           mlb_game_id?: number
           model_version?: string
+          projection_class?: string
           seed?: number
           status?: string
           updated_at?: string

@@ -27,6 +27,7 @@ import { runRefresh } from "@/lib/lineups/refresh.functions";
 import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runDiamondEngineForGames } from "@/lib/ingest.functions";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
+import { runPetriAutoForDate } from "@/lib/petri/run.functions";
 
 import { finishAutomationLog, logAutomation } from "./log";
 
@@ -51,6 +52,14 @@ export type OrchestrateResult = {
     gamesSkippedPreviewBlocked: number;
     gamesSkippedWindowClosed: number;
     engineRan: boolean;
+    error?: string;
+  };
+  petri: {
+    previewGenerated: number;
+    officialGenerated: number;
+    abstained: number;
+    skipped: number;
+    locked: number;
     error?: string;
   };
   lock: { today: number; yesterday: number; error?: string };
@@ -102,6 +111,13 @@ export async function orchestrateDiamondSlate(
       engineRan: false,
     },
     lock: { today: 0, yesterday: 0 },
+    petri: {
+      previewGenerated: 0,
+      officialGenerated: 0,
+      abstained: 0,
+      skipped: 0,
+      locked: 0,
+    },
   };
 
   // 1) Refresh lineups + run engine for changed/gap games (today only).
@@ -130,6 +146,18 @@ export async function orchestrateDiamondSlate(
     result.lock.error = e?.message ?? String(e);
   }
 
+  // 3) Petri v0.2 Shadow — auto preview + auto official + first-pitch lock.
+  //    Fully isolated from Alpha. Failures here do NOT affect Alpha.
+  try {
+    const petri = await runPetriAutoForDate(supabaseAdmin, date);
+    result.petri.previewGenerated = petri.preview?.generated ?? 0;
+    result.petri.officialGenerated = petri.official?.generated ?? 0;
+    result.petri.abstained = petri.abstained.length;
+    result.petri.skipped = petri.skipped.length;
+    result.petri.locked = petri.locked;
+  } catch (e: any) {
+    result.petri.error = e?.message ?? String(e);
+  }
   const finishedAt = new Date();
   result.finishedAt = finishedAt.toISOString();
   result.durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -152,8 +180,9 @@ export async function orchestrateDiamondSlate(
     details: {
       refresh: result.refresh,
       lock: result.lock,
+      petri: result.petri,
     },
-    error: result.refresh.error || result.lock.error || null,
+    error: result.refresh.error || result.lock.error || result.petri.error || null,
   });
 
   return result;
