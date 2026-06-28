@@ -42,6 +42,7 @@ import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
+import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
 import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
@@ -228,6 +229,12 @@ const AuthenticatedForecastsLabIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedForecastsLabRoute,
   } as any)
+const ApiPublicHooksReplaceInflatedAlphaRoute =
+  ApiPublicHooksReplaceInflatedAlphaRouteImport.update({
+    id: '/api/public/hooks/replace-inflated-alpha',
+    path: '/api/public/hooks/replace-inflated-alpha',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRefreshLiveActualsRoute =
   ApiPublicHooksRefreshLiveActualsRouteImport.update({
     id: '/api/public/hooks/refresh-live-actuals',
@@ -309,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesByTo {
@@ -347,6 +355,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesById {
@@ -390,6 +399,7 @@ export interface FileRoutesById {
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRouteTypes {
@@ -432,6 +442,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/replace-inflated-alpha'
     | '/forecasts/lab/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -470,6 +481,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/replace-inflated-alpha'
     | '/forecasts/lab'
   id:
     | '__root__'
@@ -512,6 +524,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/replace-inflated-alpha'
     | '/_authenticated/forecasts/lab/'
   fileRoutesById: FileRoutesById
 }
@@ -523,6 +536,7 @@ export interface RootRouteChildren {
   ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
   ApiPublicHooksRefreshLiveActualsRoute: typeof ApiPublicHooksRefreshLiveActualsRoute
+  ApiPublicHooksReplaceInflatedAlphaRoute: typeof ApiPublicHooksReplaceInflatedAlphaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -758,6 +772,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsLabIndexRouteImport
       parentRoute: typeof AuthenticatedForecastsLabRoute
     }
+    '/api/public/hooks/replace-inflated-alpha': {
+      id: '/api/public/hooks/replace-inflated-alpha'
+      path: '/api/public/hooks/replace-inflated-alpha'
+      fullPath: '/api/public/hooks/replace-inflated-alpha'
+      preLoaderRoute: typeof ApiPublicHooksReplaceInflatedAlphaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/refresh-live-actuals': {
       id: '/api/public/hooks/refresh-live-actuals'
       path: '/api/public/hooks/refresh-live-actuals'
@@ -929,6 +950,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
   ApiPublicHooksRefreshLiveActualsRoute: ApiPublicHooksRefreshLiveActualsRoute,
+  ApiPublicHooksReplaceInflatedAlphaRoute:
+    ApiPublicHooksReplaceInflatedAlphaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
