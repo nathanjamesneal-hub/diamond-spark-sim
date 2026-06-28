@@ -140,7 +140,10 @@ function PetriShadowLab() {
         </section>
       )}
 
+      <PetriLiveTrackerSection data={trackerQuery.data ?? null} loading={trackerQuery.isLoading} />
+
       <section>
+
         <h2 className="mb-2 font-display text-lg">Petri Runs · {date}</h2>
         {runsQuery.isLoading && <div className="text-sm text-zinc-400">Loading…</div>}
         {runsQuery.data && runsQuery.data.runs.length === 0 && (
