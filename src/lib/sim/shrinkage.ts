@@ -17,7 +17,7 @@
  * League-average rates are the prior. Constants are intentionally explicit so
  * future tuning is a single-file edit.
  */
-import { LEAGUE } from "./league";
+import { LEAGUE } from "./league.ts";
 
 export const HITTER_FULL_TRUST_PA = 300;
 export const HITTER_MAX_PRIOR_PA = 250;
