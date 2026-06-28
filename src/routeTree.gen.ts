@@ -39,6 +39,7 @@ import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
+import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
@@ -211,6 +212,11 @@ const AuthenticatedForecastsConsensusRoute =
     path: '/consensus',
     getParentRoute: () => AuthenticatedForecastsRoute,
   } as any)
+const AuthenticatedAdminPetriRoute = AuthenticatedAdminPetriRouteImport.update({
+  id: '/petri',
+  path: '/petri',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -288,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/petri': typeof AuthenticatedAdminPetriRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
@@ -326,6 +333,7 @@ export interface FileRoutesByTo {
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/petri': typeof AuthenticatedAdminPetriRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -367,6 +375,7 @@ export interface FileRoutesById {
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/petri'
     | '/forecasts/consensus'
     | '/forecasts/lab'
     | '/matchups/$gamePk'
@@ -446,6 +456,7 @@ export interface FileRouteTypes {
     | '/standings'
     | '/top-props'
     | '/admin'
+    | '/petri'
     | '/forecasts/consensus'
     | '/matchups/$gamePk'
     | '/players/$playerId'
@@ -486,6 +497,7 @@ export interface FileRouteTypes {
     | '/_authenticated/top-props'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
+    | '/_authenticated/_admin/petri'
     | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
     | '/_authenticated/matchups/$gamePk'
@@ -725,6 +737,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsConsensusRouteImport
       parentRoute: typeof AuthenticatedForecastsRoute
     }
+    '/_authenticated/_admin/petri': {
+      id: '/_authenticated/_admin/petri'
+      path: '/petri'
+      fullPath: '/petri'
+      preLoaderRoute: typeof AuthenticatedAdminPetriRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
       path: '/admin'
@@ -793,11 +812,13 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
+  AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
 }
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
     AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
+    AuthenticatedAdminPetriRoute: AuthenticatedAdminPetriRoute,
   }
 
 const AuthenticatedAdminRouteRouteWithChildren =
