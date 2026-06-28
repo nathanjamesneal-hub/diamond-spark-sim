@@ -1143,12 +1143,22 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const date = data.date ?? todayInAppTz();
 
-    // Locked Petri runs only — never expose unlocked previews here.
+    // Auto-lock any preview runs whose game has reached first pitch before
+    // reading. Tracker should reflect "locked once live" without manual action.
+    try {
+      await lockPetriForecastsAtFirstPitch(supabaseAdmin, date);
+    } catch (e) {
+      console.warn("[petri.tracker] auto-lock failed", (e as Error).message);
+    }
+
+    // Load all active (preview|locked) runs for the date; we'll dedupe to one
+    // row per game (priority: locked > preview, official > preview class,
+    // newest created_at).
     const { data: runs } = await supabaseAdmin
       .from("petri_forecast_runs")
-      .select("id, game_id, mlb_game_id, status, locked_at, created_at")
+      .select("id, game_id, mlb_game_id, status, projection_class, locked_at, created_at")
       .eq("game_date", date)
-      .eq("status", "locked")
+      .in("status", ["preview", "locked"])
       .order("created_at", { ascending: false });
 
     const out: PetriLiveTrackerPayload = {
@@ -1160,8 +1170,29 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
 
     if (!runs?.length) return out;
 
-    const runIds = runs.map((r: any) => r.id);
-    const gameIds = Array.from(new Set(runs.map((r: any) => r.game_id)));
+    // Pick ONE run per game.
+    const byGame = new Map<string, any[]>();
+    for (const r of runs as any[]) {
+      const arr = byGame.get(r.game_id) ?? [];
+      arr.push(r);
+      byGame.set(r.game_id, arr);
+    }
+    const statusRank = (s: string) => (s === "locked" ? 2 : 1);
+    const classRank = (c: string) => (c === "official" ? 2 : 1);
+    const picked = Array.from(byGame.values()).map((arr) => {
+      arr.sort((a, b) => {
+        const sd = statusRank(b.status) - statusRank(a.status);
+        if (sd !== 0) return sd;
+        const cd = classRank(b.projection_class ?? "preview") - classRank(a.projection_class ?? "preview");
+        if (cd !== 0) return cd;
+        return +new Date(b.created_at) - +new Date(a.created_at);
+      });
+      return arr[0];
+    });
+
+    const runIds = picked.map((r: any) => r.id);
+    const gameIds = Array.from(new Set(picked.map((r: any) => r.game_id)));
+
 
     const [{ data: snaps }, { data: games }] = await Promise.all([
       supabaseAdmin
@@ -1214,7 +1245,7 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
       snapsByRun.set(s.run_id, arr);
     }
 
-    for (const r of runs as any[]) {
+    for (const r of picked as any[]) {
       const g = gameById.get(r.game_id);
       const homeAb = g ? teamById.get(g.home_team_id) ?? "?" : "?";
       const awayAb = g ? teamById.get(g.away_team_id) ?? "?" : "?";
@@ -1298,5 +1329,10 @@ export const getPetriLiveTracker = createServerFn({ method: "GET" })
       });
     }
 
+    // Live first, then pending, then final — matches /today/live ordering.
+    const ord: Record<"live" | "pending" | "final", number> = { live: 0, pending: 1, final: 2 };
+    out.games.sort((a, b) => ord[a.game_state] - ord[b.game_state] || a.matchup.localeCompare(b.matchup));
+
     return out;
   });
+

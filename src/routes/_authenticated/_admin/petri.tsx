@@ -34,6 +34,8 @@ function PetriShadowLab() {
   const [summary, setSummary] = useState<PetriRunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
+  const [showRunsAudit, setShowRunsAudit] = useState(false);
+
 
   const runShadow = useServerFn(runPetriShadowForUnstarted);
   const listRuns = useServerFn(getPetriRunsForDate);
@@ -143,13 +145,26 @@ function PetriShadowLab() {
       <PetriLiveTrackerSection data={trackerQuery.data ?? null} loading={trackerQuery.isLoading} />
 
       <section>
-
-        <h2 className="mb-2 font-display text-lg">Petri Runs · {date}</h2>
-        {runsQuery.isLoading && <div className="text-sm text-zinc-400">Loading…</div>}
-        {runsQuery.data && runsQuery.data.runs.length === 0 && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="font-display text-lg">Petri Runs Audit · {date}</h2>
+          <button
+            type="button"
+            onClick={() => setShowRunsAudit((v) => !v)}
+            className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+          >
+            {showRunsAudit ? "Hide" : "Show"} raw run rows
+          </button>
+        </div>
+        {!showRunsAudit && (
+          <p className="text-xs text-zinc-500">
+            Raw audit table hidden. The Live Tracker above shows one row per game (locked when live).
+          </p>
+        )}
+        {showRunsAudit && runsQuery.isLoading && <div className="text-sm text-zinc-400">Loading…</div>}
+        {showRunsAudit && runsQuery.data && runsQuery.data.runs.length === 0 && (
           <div className="text-sm text-zinc-400">No Petri runs persisted for this date.</div>
         )}
-        {runsQuery.data && runsQuery.data.runs.length > 0 && (
+        {showRunsAudit && runsQuery.data && runsQuery.data.runs.length > 0 && (
           <div className="overflow-x-auto rounded border border-zinc-800">
             <table className="w-full text-sm">
               <thead className="bg-zinc-900 text-xs uppercase tracking-wide text-zinc-400">
@@ -198,6 +213,7 @@ function PetriShadowLab() {
           </div>
         )}
       </section>
+
 
       {openRunId && (
         <RunDrawer
@@ -425,7 +441,7 @@ function PetriLiveTrackerSection({
         </span>
         {data && (
           <span className="text-xs text-zinc-500">
-            {data.games.length} locked game{data.games.length === 1 ? "" : "s"} · refreshed{" "}
+            {data.games.length} game{data.games.length === 1 ? "" : "s"} · auto-locks at first pitch · refreshed{" "}
             {formatDateTimeInAppTz(data.fetchedAt)}
           </span>
         )}
@@ -433,9 +449,10 @@ function PetriLiveTrackerSection({
       {loading && <div className="text-sm text-zinc-400">Loading tracker…</div>}
       {data && data.games.length === 0 && (
         <div className="text-sm text-zinc-400">
-          No locked Petri runs for this date yet. Locking happens at first pitch.
+          No Petri runs for this date yet. They auto-generate from the lineup ingest cycle.
         </div>
       )}
+
       {data?.games.map((g) => (
         <div key={g.run_id} className="rounded border border-zinc-800 bg-zinc-950/40">
           <div className="flex flex-wrap items-center gap-3 border-b border-zinc-800 px-3 py-2">
