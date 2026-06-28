@@ -1013,3 +1013,236 @@ export const getPetriRunDetail = createServerFn({ method: "GET" })
       pitchers,
     };
   });
+
+// ---------- Petri Live Tracker (admin-only) ----------
+//
+// Reads locked Petri runs for the date and joins per-player snapshots with
+// LIVE box-score actuals from MLB. NEVER mutates a Petri forecast — only
+// returns a read model. Locked snapshots are immutable; live data only
+// fills the actuals columns. A late pinch hitter with no locked Petri
+// snapshot is intentionally omitted (the UI labels them "No Petri pregame
+// forecast" if seen elsewhere in actuals).
+
+export type PetriHitterTrackerRow = {
+  mlb_player_id: number;
+  player_name: string;
+  lineup_slot: number | null;
+  team_abbrev: string | null;
+  // locked Petri projections
+  h_mean: number; hit_1plus: number;
+  tb_mean: number; tb_2plus: number;
+  hr_mean: number; hr_1plus: number;
+  hitter_k_mean: number;
+  // live actuals (null until any data lands)
+  actual_pa: number | null;
+  actual_h: number | null;
+  actual_tb: number | null;
+  actual_hr: number | null;
+  actual_k: number | null;
+  // grading
+  final: boolean;
+  grade: {
+    hit_1plus: "Hit" | "Miss" | null;
+    tb_2plus: "Hit" | "Miss" | null;
+    hr_1plus: "Hit" | "Miss" | null;
+  };
+};
+
+export type PetriPitcherTrackerRow = {
+  mlb_player_id: number;
+  player_name: string;
+  team_abbrev: string | null;
+  pk_mean: number; pk_p10: number; pk_p90: number;
+  outs_mean: number; outs_p10: number; outs_p90: number;
+  actual_k: number | null;
+  actual_outs: number | null;
+  actual_bb: number | null;
+  actual_h: number | null;
+  actual_er: number | null;
+  final: boolean;
+};
+
+export type PetriLiveTrackerGame = {
+  run_id: string;
+  game_id: string;
+  mlb_game_id: number;
+  matchup: string;
+  status: string;
+  locked_at: string | null;
+  game_state: "pending" | "live" | "final";
+  hitters: PetriHitterTrackerRow[];
+  pitchers: PetriPitcherTrackerRow[];
+};
+
+export type PetriLiveTrackerPayload = {
+  date: string;
+  fetchedAt: string;
+  label: "Petri v0.2 Shadow — Raw / Not Yet Calibrated";
+  games: PetriLiveTrackerGame[];
+};
+
+export const getPetriLiveTracker = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { date?: string } | undefined) => d ?? {})
+  .handler(async ({ data, context }): Promise<PetriLiveTrackerPayload> => {
+    await ensureAdmin(context as any);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const date = data.date ?? todayInAppTz();
+
+    // Locked Petri runs only — never expose unlocked previews here.
+    const { data: runs } = await supabaseAdmin
+      .from("petri_forecast_runs")
+      .select("id, game_id, mlb_game_id, status, locked_at, created_at")
+      .eq("game_date", date)
+      .eq("status", "locked")
+      .order("created_at", { ascending: false });
+
+    const out: PetriLiveTrackerPayload = {
+      date,
+      fetchedAt: new Date().toISOString(),
+      label: "Petri v0.2 Shadow — Raw / Not Yet Calibrated",
+      games: [],
+    };
+
+    if (!runs?.length) return out;
+
+    const runIds = runs.map((r: any) => r.id);
+    const gameIds = Array.from(new Set(runs.map((r: any) => r.game_id)));
+
+    const [{ data: snaps }, { data: games }] = await Promise.all([
+      supabaseAdmin
+        .from("petri_player_market_snapshots")
+        .select("*")
+        .in("run_id", runIds),
+      supabaseAdmin
+        .from("games")
+        .select("id, home_team_id, away_team_id")
+        .in("id", gameIds),
+    ]);
+
+    const teamIds = Array.from(
+      new Set((games ?? []).flatMap((g: any) => [g.home_team_id, g.away_team_id]).filter(Boolean)),
+    );
+    const [{ data: teams }, { data: players }] = await Promise.all([
+      teamIds.length
+        ? supabaseAdmin.from("teams").select("id, abbreviation").in("id", teamIds)
+        : Promise.resolve({ data: [] as any[] }),
+      (async () => {
+        const pids = Array.from(new Set((snaps ?? []).map((s: any) => s.player_id).filter(Boolean)));
+        if (!pids.length) return { data: [] as any[] };
+        return supabaseAdmin.from("players").select("id, name").in("id", pids);
+      })(),
+    ]);
+
+    const teamById = new Map((teams ?? []).map((t: any) => [t.id, t.abbreviation as string]));
+    const gameById = new Map((games ?? []).map((g: any) => [g.id, g]));
+    const nameById = new Map((players ?? []).map((p: any) => [p.id, p.name as string]));
+
+    // Live actuals (per slate) — does not mutate Petri.
+    let actuals: Awaited<ReturnType<typeof import("@/lib/actuals.functions").getActualsForDate>> | null = null;
+    try {
+      const { getActualsForDate } = await import("@/lib/actuals.functions");
+      actuals = await getActualsForDate({ data: { date } });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[petri.tracker] actuals fetch failed", (e as Error).message);
+    }
+
+    const hittersByMlb = new Map(Object.entries(actuals?.hitters ?? {}).map(([k, v]) => [Number(k), v]));
+    const pitchersByMlb = new Map(Object.entries(actuals?.pitchers ?? {}).map(([k, v]) => [Number(k), v]));
+    const finalSet = new Set(actuals?.finalGames ?? []);
+    const liveSet = new Set(actuals?.liveGames ?? []);
+
+    const snapsByRun = new Map<string, any[]>();
+    for (const s of snaps ?? []) {
+      const arr = snapsByRun.get(s.run_id) ?? [];
+      arr.push(s);
+      snapsByRun.set(s.run_id, arr);
+    }
+
+    for (const r of runs as any[]) {
+      const g = gameById.get(r.game_id);
+      const homeAb = g ? teamById.get(g.home_team_id) ?? "?" : "?";
+      const awayAb = g ? teamById.get(g.away_team_id) ?? "?" : "?";
+      const game_state: "pending" | "live" | "final" = finalSet.has(r.mlb_game_id)
+        ? "final"
+        : liveSet.has(r.mlb_game_id)
+          ? "live"
+          : "pending";
+
+      const rsnaps = snapsByRun.get(r.id) ?? [];
+
+      const hitters: PetriHitterTrackerRow[] = rsnaps
+        .filter((s: any) => s.role === "hitter")
+        .sort((a: any, b: any) => (a.lineup_slot ?? 99) - (b.lineup_slot ?? 99))
+        .map((s: any) => {
+          const act = hittersByMlb.get(Number(s.mlb_player_id)) ?? null;
+          const teamAb = s.team_id ? teamById.get(s.team_id) ?? null : null;
+          const isFinal = game_state === "final";
+          // Grade only at final; "live" rows show progress without grade.
+          const grade = {
+            hit_1plus: isFinal && act ? (act.H >= 1 ? "Hit" as const : "Miss" as const) : null,
+            tb_2plus: isFinal && act ? (act.TB >= 2 ? "Hit" as const : "Miss" as const) : null,
+            hr_1plus: isFinal && act ? (act.HR >= 1 ? "Hit" as const : "Miss" as const) : null,
+          };
+          return {
+            mlb_player_id: Number(s.mlb_player_id),
+            player_name: (s.player_id && nameById.get(s.player_id)) || `MLB#${s.mlb_player_id}`,
+            lineup_slot: s.lineup_slot ?? null,
+            team_abbrev: teamAb,
+            h_mean: Number(s.h_mean ?? 0),
+            hit_1plus: Number(s.hit_1plus ?? 0),
+            tb_mean: Number(s.tb_mean ?? 0),
+            tb_2plus: Number(s.tb_2plus ?? 0),
+            hr_mean: Number(s.hr_mean ?? 0),
+            hr_1plus: Number(s.hr_1plus ?? 0),
+            hitter_k_mean: Number(s.hitter_k_mean ?? 0),
+            actual_pa: act ? (act.H + act.K /* lower bound; UI marks live */) : null,
+            actual_h: act ? act.H : null,
+            actual_tb: act ? act.TB : null,
+            actual_hr: act ? act.HR : null,
+            actual_k: act ? act.K : null,
+            final: isFinal,
+            grade,
+          };
+        });
+
+      const pitchers: PetriPitcherTrackerRow[] = rsnaps
+        .filter((s: any) => s.role === "pitcher")
+        .map((s: any) => {
+          const act = pitchersByMlb.get(Number(s.mlb_player_id)) ?? null;
+          const teamAb = s.team_id ? teamById.get(s.team_id) ?? null : null;
+          return {
+            mlb_player_id: Number(s.mlb_player_id),
+            player_name: (s.player_id && nameById.get(s.player_id)) || `MLB#${s.mlb_player_id}`,
+            team_abbrev: teamAb,
+            pk_mean: Number(s.pk_mean ?? 0),
+            pk_p10: Number(s.pk_p10 ?? 0),
+            pk_p90: Number(s.pk_p90 ?? 0),
+            outs_mean: Number(s.outs_mean ?? 0),
+            outs_p10: Number(s.outs_p10 ?? 0),
+            outs_p90: Number(s.outs_p90 ?? 0),
+            actual_k: act ? act.K : null,
+            actual_outs: act ? act.outs : null,
+            actual_bb: act ? act.BB : null,
+            actual_h: act ? act.H : null,
+            actual_er: act ? act.ER : null,
+            final: game_state === "final",
+          };
+        });
+
+      out.games.push({
+        run_id: r.id,
+        game_id: r.game_id,
+        mlb_game_id: r.mlb_game_id,
+        matchup: `${awayAb}@${homeAb}`,
+        status: r.status,
+        locked_at: r.locked_at,
+        game_state,
+        hitters,
+        pitchers,
+      });
+    }
+
+    return out;
+  });
