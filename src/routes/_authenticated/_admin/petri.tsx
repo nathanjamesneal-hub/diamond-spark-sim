@@ -155,6 +155,7 @@ function PetriShadowLab() {
               <thead className="bg-zinc-900 text-xs uppercase tracking-wide text-zinc-400">
                 <tr>
                   <th className="px-3 py-2 text-left">Matchup</th>
+                  <th className="px-3 py-2 text-left">Class</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-right">Seed</th>
                   <th className="px-3 py-2 text-right">Iters</th>
@@ -169,6 +170,9 @@ function PetriShadowLab() {
                 {runsQuery.data.runs.map((r) => (
                   <tr key={r.id} className="border-t border-zinc-800">
                     <td className="px-3 py-2 font-medium">{r.matchup}</td>
+                    <td className="px-3 py-2">
+                      <ClassPill cls={r.projection_class} />
+                    </td>
                     <td className="px-3 py-2">
                       <StatusPill status={r.status} />
                     </td>
