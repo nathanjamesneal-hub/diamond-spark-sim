@@ -85,7 +85,7 @@ function PetriShadowLab() {
             Admin-only · Isolated from Alpha 0.3
           </span>
           <Link
-            to="/_authenticated/_admin/petri-results"
+            to="/petri-results"
             className="ml-auto rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
           >
             Calibration / Results →
