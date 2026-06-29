@@ -79,11 +79,17 @@ function PetriShadowLab() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 lg:p-6">
       <div className="flex flex-col gap-2 border-b border-zinc-800 pb-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-2xl tracking-wide">Petri v0.2 Shadow Lab</h1>
           <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
             Admin-only · Isolated from Alpha 0.3
           </span>
+          <Link
+            to="/_authenticated/_admin/petri-results"
+            className="ml-auto rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+          >
+            Calibration / Results →
+          </Link>
         </div>
         <p className="text-sm text-zinc-400">
           {SHADOW_LABEL}. Petri runs only against games that have not started. Results never appear
