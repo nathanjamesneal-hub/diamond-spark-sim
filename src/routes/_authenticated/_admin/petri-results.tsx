@@ -44,7 +44,7 @@ function PetriResultsPage() {
             Shadow · Admin only
           </span>
           <Link
-            to="/_authenticated/_admin/petri"
+            to="/petri"
             className="ml-auto rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
           >
             ← Back to Petri Lab
