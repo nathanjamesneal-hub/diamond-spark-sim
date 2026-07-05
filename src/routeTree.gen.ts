@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
 import { Route as AuthenticatedTopPropsRouteImport } from './routes/_authenticated/top-props'
 import { Route as AuthenticatedStandingsRouteImport } from './routes/_authenticated/standings'
 import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/slate'
@@ -67,6 +68,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedWatchlistRoute = AuthenticatedWatchlistRouteImport.update({
+  id: '/watchlist',
+  path: '/watchlist',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTopPropsRoute = AuthenticatedTopPropsRouteImport.update({
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
+  '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
+  '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/_authenticated/slate': typeof AuthenticatedSlateRoute
   '/_authenticated/standings': typeof AuthenticatedStandingsRoute
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
+  '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
@@ -466,6 +475,7 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
+    | '/watchlist'
     | '/admin'
     | '/petri'
     | '/petri-results'
@@ -510,6 +520,7 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
+    | '/watchlist'
     | '/admin'
     | '/petri'
     | '/petri-results'
@@ -555,6 +566,7 @@ export interface FileRouteTypes {
     | '/_authenticated/slate'
     | '/_authenticated/standings'
     | '/_authenticated/top-props'
+    | '/_authenticated/watchlist'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_admin/petri'
@@ -609,6 +621,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/watchlist': {
+      id: '/_authenticated/watchlist'
+      path: '/watchlist'
+      fullPath: '/watchlist'
+      preLoaderRoute: typeof AuthenticatedWatchlistRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/top-props': {
@@ -986,6 +1005,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSlateRoute: typeof AuthenticatedSlateRoute
   AuthenticatedStandingsRoute: typeof AuthenticatedStandingsRoute
   AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
+  AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
   AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
@@ -1017,6 +1037,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSlateRoute: AuthenticatedSlateRoute,
   AuthenticatedStandingsRoute: AuthenticatedStandingsRoute,
   AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,
+  AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
   AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,
