@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/")({
       <p className="mt-2 text-sm text-muted-foreground">{String(error?.message ?? error)}</p>
       <button
         onClick={() => reset()}
-        className="mono mt-6 rounded-sm border border-[var(--brass)] px-3 py-1.5 text-xs uppercase tracking-widest text-[var(--brass)] hover:text-[var(--cream)]"
+        className="mono mt-6 rounded-sm border border-[var(--brass)] px-3 py-1.5 text-xs uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
       >
         Retry
       </button>
@@ -67,8 +67,8 @@ function DiamondLiveHome() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
       {/* Front-page masthead */}
-      <header className="border-b border-[color-mix(in_oklab,var(--brass)_35%,transparent)] pb-5">
-        <div className="mono flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-[var(--brass)]">
+      <header className="border-b border-[var(--border)] pb-5">
+        <div className="mono flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-[var(--primary)]">
           <span>{today}</span>
           <span>
             <span className="mr-1 inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-[var(--field)]" />
@@ -89,7 +89,7 @@ function DiamondLiveHome() {
       <section className="mt-6">
         <div className="mb-2 flex items-baseline justify-between">
           <div className="eyebrow">Today&apos;s Slate</div>
-          <Link to="/mlb-pulse" className="mono text-[10px] uppercase tracking-widest text-[var(--brass)] hover:text-[var(--cream)]">
+          <Link to="/mlb-pulse" className="mono text-[10px] uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]">
             Open Pulse →
           </Link>
         </div>
@@ -142,7 +142,7 @@ function DiamondLiveHome() {
         moreHref="/pitchers"
       />
 
-      <footer className="mt-12 border-t border-[color-mix(in_oklab,var(--brass)_25%,transparent)] pt-4 text-center text-[10px] text-[var(--warm-muted)]">
+      <footer className="mt-12 border-t border-[var(--border)] pt-4 text-center text-[10px] text-[var(--warm-muted)]">
         <span className="mono">
           Considered: {data.hitters.totalConsidered} hitters ({data.hitters.earlySample} early sample) ·{" "}
           {data.pitchers.totalConsidered} pitchers ({data.pitchers.earlySample} early sample) · Source: statsapi.mlb.com
@@ -169,7 +169,7 @@ function MoverSection<T extends { mlbId: number }>({
 }) {
   return (
     <section className="mt-10">
-      <div className="mb-3 flex items-end justify-between gap-3 border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)] pb-2">
+      <div className="mb-3 flex items-end justify-between gap-3 border-b border-[var(--border)] pb-2">
         <div className="min-w-0">
           <h2 className="font-display text-[26px] leading-tight text-[var(--cream)] md:text-[32px]">
             {title}
@@ -180,13 +180,13 @@ function MoverSection<T extends { mlbId: number }>({
         </div>
         <Link
           to={moreHref}
-          className="mono whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-[var(--brass)] hover:text-[var(--cream)]"
+          className="mono whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
         >
           See all →
         </Link>
       </div>
       {items.length === 0 ? (
-        <div className="rounded-sm border border-dashed border-[color-mix(in_oklab,var(--brass)_35%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] px-4 py-6 text-center text-xs text-[var(--warm-muted)]">
+        <div className="rounded-sm border border-dashed border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] px-4 py-6 text-center text-xs text-[var(--warm-muted)]">
           {emptyLabel}
         </div>
       ) : (
@@ -218,7 +218,7 @@ function PulseStrip({ games }: { games: any[] }) {
             className={`min-w-[150px] rounded-sm border px-2.5 py-1.5 ${
               isLive
                 ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_18%,transparent)]"
-                : "border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"
+                : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"
             }`}
           >
             <div className="mono flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">

@@ -36,7 +36,7 @@ const links: Array<{ to: string; title: string; desc: string }> = [
 function LabPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-10">
-      <div className="eyebrow text-[var(--brass)]">Diamond · Secondary</div>
+      <div className="eyebrow text-[var(--primary)]">Diamond · Secondary</div>
       <h1 className="font-display mt-1 text-[32px] leading-tight text-[var(--cream)] md:text-[44px]">
         Lab
       </h1>
@@ -49,7 +49,7 @@ function LabPage() {
           <Link
             key={l.to}
             to={l.to}
-            className="block rounded-sm border border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2.5 transition-colors hover:border-[var(--brass)]"
+            className="block rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2.5 transition-colors hover:border-[var(--brass)]"
           >
             <div className="text-sm font-semibold text-[var(--cream)]">{l.title}</div>
             <div className="mt-0.5 text-[11px] text-[var(--warm-muted)]">{l.desc}</div>

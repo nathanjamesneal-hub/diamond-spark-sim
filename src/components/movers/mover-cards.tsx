@@ -47,7 +47,7 @@ function statusChip(status: HitterMover["status"] | PitcherMover["status"]) {
     return "bg-[var(--field)] text-[var(--cream)]";
   if (status === "faller")
     return "bg-[var(--cardinal)] text-[var(--cream)]";
-  return "bg-[#3A3629] text-[var(--parchment)]";
+  return "bg-[var(--muted)] text-[var(--warm-muted)] border border-[var(--border)]";
 }
 
 function statusLabel(status: HitterMover["status"] | PitcherMover["status"]) {
