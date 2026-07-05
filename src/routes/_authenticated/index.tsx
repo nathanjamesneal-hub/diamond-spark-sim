@@ -194,10 +194,10 @@ function PulseStrip({ games }: { games: any[] }) {
         <div key={g.gamePk} className="rounded border border-border/60 bg-black/30 px-3 py-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-foreground">
-              {g.away?.abbreviation ?? g.away?.name ?? "AWY"} @ {g.home?.abbreviation ?? g.home?.name ?? "HME"}
+              {g.away?.abbreviation ?? "AWY"} @ {g.home?.abbreviation ?? "HME"}
             </span>
             <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              {g.status?.detailedState ?? g.status?.abstractGameState ?? ""}
+              {g.statusText ?? g.status ?? ""}
             </span>
           </div>
           {typeof g.away?.score === "number" && typeof g.home?.score === "number" ? (
