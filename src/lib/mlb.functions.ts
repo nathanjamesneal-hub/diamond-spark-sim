@@ -228,11 +228,7 @@ async function getLiveGameState(gamePk: number): Promise<LiveGameState> {
   };
 }
 
-export const getSchedule = createServerFn({ method: "GET" })
-  .middleware([requireAppMember])
-  .inputValidator((data: { date?: string }) => data ?? {})
-  .handler(async ({ data }): Promise<{ date: string; games: GameSummary[] }> => {
-    const date = data.date ?? todayIsoDate();
+export async function fetchScheduleForDate(date = todayIsoDate()): Promise<{ date: string; games: GameSummary[] }> {
     let json: any;
     try {
       json = await mlbFetch<any>(
@@ -314,6 +310,13 @@ export const getSchedule = createServerFn({ method: "GET" })
       };
     }
     return { date, games };
+}
+
+export const getSchedule = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .inputValidator((data: { date?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<{ date: string; games: GameSummary[] }> => {
+    return fetchScheduleForDate(data.date ?? todayIsoDate());
   });
 
 // ------------------------ Standings ------------------------

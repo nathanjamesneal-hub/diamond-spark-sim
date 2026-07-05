@@ -23,6 +23,12 @@ async function mlbFetch<T>(path: string, base = BASE): Promise<T> {
 
 export type HitterActual = {
   mlb_id: number;
+  gamePk?: number;
+  name?: string;
+  teamAbbrev?: string;
+  position?: string | null;
+  AB: number;
+  PA: number;
   H: number;
   HR: number;
   RBI: number;
@@ -30,15 +36,23 @@ export type HitterActual = {
   TB: number;
   SB: number;
   K: number;
+  BB: number;
 };
 
 export type PitcherActual = {
   mlb_id: number;
+  gamePk?: number;
+  name?: string;
+  teamAbbrev?: string;
+  position?: string | null;
   outs: number;
   K: number;
   BB: number;
   ER: number;
   H: number;
+  HR: number;
+  pitchCount: number | null;
+  inningsPitched: string | null;
   win: boolean;
   qualityStart: boolean; // outs >= 18 AND ER <= 3
 };
@@ -78,11 +92,7 @@ function chicagoToday(): string {
   return fmt.format(new Date());
 }
 
-export const getActualsForDate = createServerFn({ method: "GET" })
-  .middleware([requireAppMember])
-  .inputValidator((data: { date?: string } | undefined) => data ?? {})
-  .handler(async ({ data }): Promise<ActualsPayload> => {
-    const date = data.date ?? chicagoToday();
+export async function fetchActualsForDate(date = chicagoToday()): Promise<ActualsPayload> {
     const hitters: Record<string, HitterActual> = {};
     const pitchers: Record<string, PitcherActual> = {};
     const finalGames: number[] = [];
@@ -147,6 +157,7 @@ export const getActualsForDate = createServerFn({ method: "GET" })
         let pCount = 0;
         for (const side of ["home", "away"] as const) {
           const players = box.teams?.[side]?.players ?? {};
+          const teamAbbrev = box.teams?.[side]?.team?.abbreviation ?? undefined;
           for (const key of Object.keys(players)) {
             const p = players[key];
             const mlbId = p?.person?.id;
@@ -162,6 +173,12 @@ export const getActualsForDate = createServerFn({ method: "GET" })
               const tb = single + 2 * double + 3 * triple + 4 * hr;
               hitters[String(mlbId)] = {
                 mlb_id: mlbId,
+                gamePk: g.gamePk,
+                name: p?.person?.fullName ?? undefined,
+                teamAbbrev,
+                position: p?.position?.abbreviation ?? null,
+                AB: num(bat.atBats),
+                PA: num(bat.plateAppearances),
                 H: h,
                 HR: hr,
                 RBI: num(bat.rbi),
@@ -169,6 +186,7 @@ export const getActualsForDate = createServerFn({ method: "GET" })
                 TB: tb,
                 SB: num(bat.stolenBases),
                 K: num(bat.strikeOuts),
+                BB: num(bat.baseOnBalls),
               };
               hCount += 1;
             }
@@ -179,11 +197,18 @@ export const getActualsForDate = createServerFn({ method: "GET" })
               const er = num(pit.earnedRuns);
               pitchers[String(mlbId)] = {
                 mlb_id: mlbId,
+                gamePk: g.gamePk,
+                name: p?.person?.fullName ?? undefined,
+                teamAbbrev,
+                position: p?.position?.abbreviation ?? null,
                 outs,
                 K: num(pit.strikeOuts),
                 BB: num(pit.baseOnBalls),
                 ER: er,
                 H: num(pit.hits),
+                HR: num(pit.homeRuns),
+                pitchCount: pit.numberOfPitches != null ? num(pit.numberOfPitches) : pit.pitchesThrown != null ? num(pit.pitchesThrown) : null,
+                inningsPitched: pit.inningsPitched != null ? String(pit.inningsPitched) : null,
                 win: winningPitcherId === mlbId,
                 qualityStart: isFinal && outs >= 18 && er <= 3,
               };
@@ -202,5 +227,11 @@ export const getActualsForDate = createServerFn({ method: "GET" })
     );
 
     return { date, fetchedAt: new Date().toISOString(), finalGames, liveGames, pendingGames, hitters, pitchers };
-  });
+}
 
+export const getActualsForDate = createServerFn({ method: "GET" })
+  .middleware([requireAppMember])
+  .inputValidator((data: { date?: string } | undefined) => data ?? {})
+  .handler(async ({ data }): Promise<ActualsPayload> => {
+    return fetchActualsForDate(data.date ?? chicagoToday());
+  });
