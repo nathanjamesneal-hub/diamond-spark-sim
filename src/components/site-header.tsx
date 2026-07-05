@@ -65,27 +65,35 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="relative z-10 border-b border-[var(--border)] bg-[var(--color-background)]/95 backdrop-blur">
+    <header className="relative z-10 border-b border-[color-mix(in_oklab,var(--brass)_15%,var(--border))] bg-[color-mix(in_oklab,var(--ink)_88%,transparent)] backdrop-blur-xl">
       {/* Masthead */}
       <div className="mx-auto max-w-7xl px-4 pt-5 pb-3 md:px-6">
         <div className="flex items-start justify-between gap-4">
-          <Link to="/" className="group flex flex-col leading-none">
-            <span className="wordmark text-4xl md:text-5xl text-[var(--cream)] tracking-[0.08em]">
-              Diamond
+          <Link to="/" className="group flex items-center gap-3 leading-none">
+            <span
+              aria-hidden
+              className="relative flex h-9 w-9 items-center justify-center rounded-md border border-[color-mix(in_oklab,var(--brass)_45%,transparent)] bg-[color-mix(in_oklab,var(--brass)_10%,var(--ink))] shadow-[0_0_18px_color-mix(in_oklab,var(--brass)_35%,transparent)]"
+            >
+              <span className="block h-3.5 w-3.5 rotate-45 border border-[var(--brass)] bg-[color-mix(in_oklab,var(--brass)_25%,transparent)] shadow-[0_0_10px_color-mix(in_oklab,var(--brass)_65%,transparent)]" />
             </span>
-            <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--primary)]">
-              MLB Risers, Fallers &amp; Live Intelligence
+            <span className="flex flex-col leading-none">
+              <span className="wordmark bg-gradient-to-r from-[var(--cream)] via-[var(--primary-glow)] to-[var(--brass)] bg-clip-text text-3xl text-transparent md:text-4xl">
+                Diamond
+              </span>
+              <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--primary)]">
+                Live MLB Intelligence
+              </span>
             </span>
           </Link>
           <div className="flex items-center gap-2 pt-1">
             {user ? (
               <button onClick={signOut}
-                className="rounded-sm border border-[var(--border)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]">
+                className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--warm-muted)] transition-colors hover:border-[color-mix(in_oklab,var(--brass)_55%,var(--border))] hover:text-[var(--cream)]">
                 Sign out
               </button>
             ) : (
               <Link to="/auth"
-                className="rounded-sm bg-[var(--field)] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--cream)] transition-colors hover:brightness-110">
+                className="rounded-md border border-[color-mix(in_oklab,var(--brass)_50%,transparent)] bg-[color-mix(in_oklab,var(--brass)_18%,transparent)] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--cream)] shadow-[0_0_14px_color-mix(in_oklab,var(--brass)_35%,transparent)] transition-all hover:brightness-125">
                 Sign in
               </Link>
             )}

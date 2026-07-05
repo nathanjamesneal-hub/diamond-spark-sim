@@ -18,12 +18,10 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Diamond Live — "Baseball Publication".
- * Ink-black newsprint surfaces, cream/parchment premium cards,
- * field green for verified upward movement, cardinal red for
- * fallers and warnings, brass for quiet metadata detail.
- * Instrument Serif for editorial masthead + display,
- * Inter for UI, JetBrains Mono for tabular stats.
+ * Diamond Live — "Live Intelligence Terminal".
+ * Midnight background, layered glass surfaces, electric cyan for live/active,
+ * emerald glow for risers, hot magenta-red for fallers.
+ * Cohesive, premium, controlled — no rainbow, no odds board.
  */
 
 @theme inline {
@@ -78,68 +76,70 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  /* Graphite terminal palette */
-  --ink:         #0B0F14;   /* app background */
-  --charcoal:    #131922;   /* primary panels */
-  --cream:       #F3F6FA;   /* primary text (renamed role, kept token) */
-  --parchment:   #C9D2DF;   /* secondary text / soft chrome */
-  --field:       #3ECF7A;   /* riser green */
-  --cardinal:    #FF5E67;   /* faller red */
-  --brass:       #6EA8FE;   /* live/active blue (token retained, remapped) */
-  --warm-muted:  #94A1B2;   /* muted text */
+  /* Midnight terminal palette */
+  --ink:         #05080F;   /* deep midnight background */
+  --charcoal:    #0C1220;   /* primary panels */
+  --cream:       #EAF2FF;   /* primary text */
+  --parchment:   #A9B7CC;   /* secondary text */
+  --field:       #22E39B;   /* electric emerald — risers */
+  --cardinal:    #FF3D6E;   /* hot magenta-red — fallers */
+  --brass:       #22D3FF;   /* electric cyan — live/active */
+  --warm-muted:  #6C7A93;   /* muted text */
+  --violet-glow: #6E5BFF;   /* background glow only */
 
   --background:        var(--ink);
   --foreground:        var(--cream);
 
   --surface-panel:     var(--charcoal);
-  --card:              #1A212C;         /* elevated card */
+  --card:              #101828;         /* elevated card */
   --card-foreground:   var(--cream);
 
-  --popover:           #1A212C;
+  --popover:           #101828;
   --popover-foreground: var(--cream);
 
-  --primary:           var(--brass);           /* active/live accent */
-  --primary-foreground: #0B0F14;
-  --primary-glow:      #94BEFF;
+  --primary:           var(--brass);
+  --primary-foreground: #04121A;
+  --primary-glow:      #7FEBFF;
 
-  --secondary:         #1F2734;
+  --secondary:         #131C2E;
   --secondary-foreground: var(--cream);
 
-  --muted:             #1B222D;
+  --muted:             #101828;
   --muted-foreground:  var(--warm-muted);
 
   --accent:            var(--brass);
-  --accent-foreground: #0B0F14;
+  --accent-foreground: #04121A;
 
   --destructive:       var(--cardinal);
-  --destructive-foreground: #F3F6FA;
+  --destructive-foreground: #FFF3F6;
 
-  --border:            #2A3442;
-  --input:             #2A3442;
+  --border:            #1E2A44;
+  --input:             #1E2A44;
   --ring:              var(--brass);
 
   --edge:              var(--brass);
   --edge-foreground:   var(--ink);
   --live:              var(--brass);
   --chalk:             var(--cream);
-  --dirt:              #4A5566;
+  --dirt:              #35415A;
   --grass:             var(--field);
 
   --success:           var(--field);
-  --warning:           #F5B454;
+  --warning:           #FFB84A;
 
-  --shadow-card:        0 1px 0 rgb(255 255 255 / 0.03) inset,
-                        0 6px 18px rgb(0 0 0 / 0.45);
-  --shadow-card-hover:  0 1px 0 rgb(255 255 255 / 0.05) inset,
-                        0 12px 28px rgb(0 0 0 / 0.55),
-                        0 0 0 1px color-mix(in oklab, var(--brass) 35%, transparent);
-  --glow-edge:          0 0 12px color-mix(in oklab, var(--brass) 40%, transparent);
-  --glow-live:          0 0 10px color-mix(in oklab, var(--brass) 45%, transparent);
+  --shadow-card:        0 1px 0 rgb(255 255 255 / 0.04) inset,
+                        0 10px 30px rgb(0 0 0 / 0.55);
+  --shadow-card-hover:  0 1px 0 rgb(255 255 255 / 0.07) inset,
+                        0 18px 40px rgb(0 0 0 / 0.65),
+                        0 0 0 1px color-mix(in oklab, var(--brass) 45%, transparent),
+                        0 0 24px color-mix(in oklab, var(--brass) 22%, transparent);
+  --glow-edge:          0 0 14px color-mix(in oklab, var(--brass) 55%, transparent);
+  --glow-live:          0 0 12px color-mix(in oklab, var(--brass) 60%, transparent);
+  --glow-riser:         0 0 20px color-mix(in oklab, var(--field) 35%, transparent);
+  --glow-faller:        0 0 20px color-mix(in oklab, var(--cardinal) 32%, transparent);
 }
-
-
 
 
 /* Optional light theme preserved for future use; not exposed via UI. */
@@ -177,27 +177,24 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Headings use the sans-serif system; only .wordmark keeps the serif. */
   h1, h2, .display {
     font-family: var(--font-sans);
     font-weight: 700;
     letter-spacing: -0.02em;
   }
 
-
   .wordmark {
-    font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: 0.06em;
+    font-family: var(--font-sans);
+    font-weight: 800;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    font-feature-settings: "liga", "dlig";
   }
 
   .eyebrow {
     font-family: var(--font-sans);
     font-weight: 600;
     font-size: 0.6875rem;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
     color: var(--color-muted-foreground);
   }
@@ -213,7 +210,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Quiet graphite depth: two soft blue washes, no grid or texture. */
+  /* Ambient midnight glow: cyan top-left, violet bottom-right, emerald whisper. */
   body::before {
     content: "";
     position: fixed;
@@ -221,49 +218,92 @@
     pointer-events: none;
     z-index: 0;
     background-image:
-      radial-gradient(1100px 700px at 10% -10%,
-        color-mix(in oklab, var(--brass) 8%, transparent), transparent 65%),
-      radial-gradient(700px 500px at 96% 110%,
-        color-mix(in oklab, var(--brass) 5%, transparent), transparent 65%);
-    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 75%, transparent));
+      radial-gradient(1100px 720px at 8% -12%,
+        color-mix(in oklab, var(--brass) 18%, transparent), transparent 60%),
+      radial-gradient(900px 620px at 100% 108%,
+        color-mix(in oklab, var(--violet-glow) 14%, transparent), transparent 62%),
+      radial-gradient(520px 320px at 50% 100%,
+        color-mix(in oklab, var(--field) 6%, transparent), transparent 65%);
+  }
+
+  /* Very subtle grid to give the surface some 'terminal' texture. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.35;
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--brass) 4%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--brass) 4%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at 50% 20%, black, transparent 75%);
   }
 }
 
 @utility masthead-rule {
-  border-top: 1px solid color-mix(in oklab, var(--border) 100%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  padding-top: 2px;
-  padding-bottom: 2px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--brass) 55%, transparent) 20%,
+    color-mix(in oklab, var(--brass) 55%, transparent) 80%,
+    transparent
+  );
+  box-shadow: 0 0 12px color-mix(in oklab, var(--brass) 35%, transparent);
 }
 
 @utility riser-edge {
-  border-left: 3px solid var(--field);
+  border-left: 2px solid var(--field);
+  box-shadow:
+    inset 6px 0 24px -8px color-mix(in oklab, var(--field) 55%, transparent),
+    0 10px 30px rgb(0 0 0 / 0.55);
 }
 
 @utility faller-edge {
-  border-left: 3px solid var(--cardinal);
+  border-left: 2px solid var(--cardinal);
+  box-shadow:
+    inset 6px 0 24px -8px color-mix(in oklab, var(--cardinal) 55%, transparent),
+    0 10px 30px rgb(0 0 0 / 0.55);
 }
 
+/* Glassy layered card used by movers and panels. */
 @utility scouting-card {
-  background: var(--card);
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--card) 92%, transparent),
+      color-mix(in oklab, var(--charcoal) 88%, transparent));
   color: var(--foreground);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in oklab, var(--brass) 12%, var(--border));
   border-radius: var(--radius-lg);
+  backdrop-filter: blur(6px);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.03) inset,
-    0 8px 20px rgb(0 0 0 / 0.40);
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 10px 30px rgb(0 0 0 / 0.55);
+  transition: border-color 180ms ease, box-shadow 200ms ease, transform 180ms ease;
 
   &:hover {
-    border-color: color-mix(in oklab, var(--brass) 45%, var(--border));
+    border-color: color-mix(in oklab, var(--brass) 55%, var(--border));
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.05) inset,
-      0 14px 28px rgb(0 0 0 / 0.55);
+      0 1px 0 rgb(255 255 255 / 0.06) inset,
+      0 18px 40px rgb(0 0 0 / 0.65),
+      0 0 24px color-mix(in oklab, var(--brass) 22%, transparent);
+    transform: translateY(-1px);
   }
 }
 
-
-
+@utility glass-panel {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--card) 78%, transparent),
+      color-mix(in oklab, var(--ink) 78%, transparent));
+  border: 1px solid color-mix(in oklab, var(--brass) 10%, var(--border));
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+}
 
 @utility card-elevated {
   background: var(--color-card);
@@ -275,24 +315,35 @@
   &:hover {
     box-shadow: var(--shadow-card-hover);
     transform: translateY(-1px);
-    border-color: color-mix(in oklab, var(--color-primary) 35%, var(--color-border));
+    border-color: color-mix(in oklab, var(--color-primary) 45%, var(--color-border));
   }
 }
 
-/* Team-color accent rail. Consumer sets inline border-left-color. */
 @utility team-rail {
   border-left-width: 3px;
   border-left-style: solid;
   border-left-color: var(--color-primary);
 }
 
-/* Subtle Diamond Blue glow used on logos, active accents, hero lines. */
 @utility glow-edge {
   box-shadow: var(--glow-edge);
 }
 
 @utility glow-live {
   box-shadow: var(--glow-live);
+}
+
+@utility glow-riser {
+  box-shadow: var(--glow-riser);
+}
+
+@utility glow-faller {
+  box-shadow: var(--glow-faller);
+}
+
+@utility neon-text {
+  color: var(--brass);
+  text-shadow: 0 0 12px color-mix(in oklab, var(--brass) 55%, transparent);
 }
 
 /* Sweep highlight for "live" / "freshly updated" callouts. */
@@ -305,21 +356,43 @@
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in oklab, var(--color-primary) 8%, transparent) 50%,
+    color-mix(in oklab, var(--brass) 14%, transparent) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
   animation: diamond-sweep 2.4s linear infinite;
 }
 
+@keyframes live-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--brass) 55%, transparent);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--brass) 0%, transparent);
+    opacity: 0.85;
+  }
+}
+
+@utility live-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--brass);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--brass) 70%, transparent);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sweep { animation: none; }
+  .live-dot { animation: none; }
 }
 
 /* Rank weight for Top 25 leaderboards. */
 @utility rank-strong {
-  font-family: var(--font-display);
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-weight: 800;
   font-size: 1.05rem;
   letter-spacing: 0.02em;
   color: var(--color-foreground);
@@ -354,7 +427,7 @@
   }
 
   & tbody tr:hover {
-    background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+    background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   }
 
   & tbody td {
