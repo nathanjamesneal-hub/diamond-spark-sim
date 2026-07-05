@@ -252,9 +252,7 @@
     0 1px 0 rgb(255 255 255 / 0.03) inset,
     0 8px 20px rgb(0 0 0 / 0.40);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
 
-@utility scouting-card {
   &:hover {
     border-color: color-mix(in oklab, var(--brass) 45%, var(--border));
     box-shadow:
@@ -262,6 +260,7 @@
       0 14px 28px rgb(0 0 0 / 0.55);
   }
 }
+
 
 
 
