@@ -245,23 +245,36 @@ function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
   return (
-    <article className={`rounded-sm border p-3 ${live ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_12%,transparent)]" : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className={`mono rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${statusClass(game.status)}`}>
+    <article
+      className={`relative overflow-hidden rounded-lg border p-3 backdrop-blur-sm transition-colors ${
+        live
+          ? "border-[color-mix(in_oklab,var(--brass)_55%,transparent)] bg-[color-mix(in_oklab,var(--brass)_8%,var(--charcoal))] shadow-[0_0_22px_color-mix(in_oklab,var(--brass)_28%,transparent)]"
+          : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] hover:border-[color-mix(in_oklab,var(--brass)_30%,var(--border))]"
+      }`}
+    >
+      {live ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-[color-mix(in_oklab,var(--brass)_35%,transparent)] blur-3xl"
+        />
+      ) : null}
+      <div className="relative flex items-center justify-between gap-2">
+        <span className={`mono inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${statusClass(game.status)}`}>
+          {live ? <span className="live-dot" /> : null}
           {statusLabel(game)}
         </span>
         <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Updated {fmtTime(game.updatedAt)}</span>
       </div>
       {detail ? (
-        <div className="mono mt-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+        <div className="mono relative mt-2 text-[10px] uppercase tracking-widest text-muted-foreground">
           {detail}
         </div>
       ) : null}
-      <div className="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+      <div className="relative mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
         <TeamLine team={game.away.abbreviation} score={game.away.score} />
         <TeamLine team={game.home.abbreviation} score={game.home.score} />
       </div>
-      <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+      <div className="relative mt-3 grid gap-1 text-xs text-muted-foreground">
         <InfoLine label={`${game.away.abbreviation} SP`} value={game.probablePitchers.away.name ?? "Waiting for verified data"} source={game.probablePitchers.away.source} />
         <InfoLine label={`${game.home.abbreviation} SP`} value={game.probablePitchers.home.name ?? "Waiting for verified data"} source={game.probablePitchers.home.source} />
         <InfoLine label={`${game.away.abbreviation} lineup`} value={game.lineupState.away.label} source={game.lineupState.away.source ?? "Unavailable"} />

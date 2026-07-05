@@ -66,24 +66,35 @@ function DiamondLiveHome() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      {/* Front-page masthead */}
-      <header className="border-b border-[var(--border)] pb-5">
-        <div className="mono flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-[var(--primary)]">
-          <span>{today}</span>
-          <span>
-            <span className="mr-1 inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-[var(--field)]" />
-            Verified · Updated {fetchedAt}
-          </span>
+      {/* Front-page hero */}
+      <header className="glass-panel relative overflow-hidden px-5 py-7 md:px-8 md:py-9">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[color-mix(in_oklab,var(--brass)_35%,transparent)] blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-[color-mix(in_oklab,var(--violet-glow)_25%,transparent)] blur-3xl"
+        />
+        <div className="relative">
+          <div className="mono flex items-center justify-between text-[10px] uppercase tracking-[0.28em] text-[var(--primary)]">
+            <span>{today}</span>
+            <span className="inline-flex items-center gap-2">
+              <span className="live-dot" />
+              <span>Verified · Updated {fetchedAt}</span>
+            </span>
+          </div>
+          <h1 className="mt-3 bg-gradient-to-br from-[var(--cream)] via-[var(--primary-glow)] to-[var(--brass)] bg-clip-text text-[42px] leading-[1.02] text-transparent md:text-[68px]">
+            MLB Risers &amp; Fallers
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm text-[var(--parchment)] md:text-base">
+            Verified game data only. Recent {data.window.hitter.recentDays}-day window
+            {" "}({data.recentStartDate} → {data.recentEndDate}) against season-to-date.
+            No projections, probabilities, or odds appear on this page.
+          </p>
         </div>
-        <h1 className="mt-2 text-[40px] leading-[1.05] text-[var(--cream)] md:text-[64px]">
-          MLB Risers &amp; Fallers
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm text-[var(--warm-muted)] md:text-base">
-          Verified game data only. Recent {data.window.hitter.recentDays}-day window
-          {" "}({data.recentStartDate} → {data.recentEndDate}) against season-to-date.
-          No projections, probabilities, or odds appear on this page.
-        </p>
       </header>
+
 
       {/* Live slate strip */}
       <section className="mt-6">
@@ -215,23 +226,26 @@ function PulseStrip({ games }: { games: any[] }) {
         return (
           <div
             key={g.gamePk ?? g.id}
-            className={`min-w-[150px] rounded-sm border px-2.5 py-1.5 ${
+            className={`min-w-[160px] rounded-md border px-3 py-2 backdrop-blur-sm transition-colors ${
               isLive
-                ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_18%,transparent)]"
-                : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"
+                ? "border-[color-mix(in_oklab,var(--brass)_60%,transparent)] bg-[color-mix(in_oklab,var(--brass)_10%,var(--charcoal))] shadow-[0_0_18px_color-mix(in_oklab,var(--brass)_30%,transparent)]"
+                : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] hover:border-[color-mix(in_oklab,var(--brass)_35%,var(--border))]"
             }`}
           >
             <div className="mono flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
-              <span>{g.away?.abbreviation ?? "AWY"} @ {g.home?.abbreviation ?? "HME"}</span>
+              <span className="text-[var(--parchment)]">{g.away?.abbreviation ?? "AWY"} @ {g.home?.abbreviation ?? "HME"}</span>
               {isLive ? (
-                <span className="text-[var(--field)]">● Live</span>
+                <span className="inline-flex items-center gap-1.5 text-[var(--brass)]">
+                  <span className="live-dot" />
+                  Live
+                </span>
               ) : (
                 <span>{g.statusText ?? g.status ?? ""}</span>
               )}
             </div>
             {typeof g.away?.score === "number" && typeof g.home?.score === "number" ? (
-              <div className="mono mt-1 text-[13px] font-bold text-[var(--cream)]">
-                {g.away.score} — {g.home.score}
+              <div className="mono mt-1.5 text-[15px] font-bold text-[var(--cream)]">
+                {g.away.score} <span className="text-[var(--warm-muted)]">—</span> {g.home.score}
               </div>
             ) : null}
           </div>
