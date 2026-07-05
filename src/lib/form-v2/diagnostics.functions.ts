@@ -179,7 +179,7 @@ async function loadPlayersForRun(admin: any, runId: string): Promise<ShadowPlaye
   const { data: players } = playerIds.length
     ? await admin
         .from("players")
-        .select("id, full_name, team_id, teams:team_id(id, name, abbreviation)")
+        .select("id, name, team_id, teams:team_id(id, name, abbreviation)")
         .in("id", playerIds)
     : { data: [] };
   const playerById = new Map<string, any>((players ?? []).map((p: any) => [String(p.id), p]));
