@@ -32,7 +32,7 @@ function PitchersPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
       <div className="eyebrow text-[var(--primary)]">Diamond Live</div>
-      <h1 className="font-display mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
+      <h1 className="mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
         Pitchers
       </h1>
       <p className="mt-2 text-sm text-[var(--warm-muted)]">

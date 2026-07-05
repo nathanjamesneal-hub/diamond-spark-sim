@@ -162,7 +162,7 @@ function Header({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="eyebrow text-[var(--primary)]">Today&apos;s Slate</div>
-          <h1 className="font-display mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
+          <h1 className="mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
             MLB Pulse
           </h1>
           <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.22em] text-[var(--warm-muted)]">
@@ -361,7 +361,7 @@ function PitchersTable({ rows }: { rows: PulsePitcher[] }) {
 function SectionTitle({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-end justify-between">
-      <h2 className="font-display text-xl font-bold tracking-tight">{title}</h2>
+      <h2 className="text-xl font-bold tracking-tight">{title}</h2>
       <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{count} rows</span>
     </div>
   );
@@ -370,7 +370,7 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
 function TeamLine({ team, score }: { team: string; score: number | null }) {
   return (
     <>
-      <div className="font-display text-lg font-semibold">{team}</div>
+      <div className="text-lg font-semibold">{team}</div>
       <div className="mono text-right text-lg font-bold tabular-nums">{score ?? "—"}</div>
     </>
   );
@@ -388,7 +388,7 @@ function InfoLine({ label, value, source }: { label: string; value: string; sour
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-6 text-center">
-      <div className="font-display text-lg font-semibold">{title}</div>
+      <div className="text-lg font-semibold">{title}</div>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>
   );

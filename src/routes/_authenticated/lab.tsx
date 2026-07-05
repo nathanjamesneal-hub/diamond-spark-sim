@@ -37,7 +37,7 @@ function LabPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-10">
       <div className="eyebrow text-[var(--primary)]">Diamond · Secondary</div>
-      <h1 className="font-display mt-1 text-[32px] leading-tight text-[var(--cream)] md:text-[44px]">
+      <h1 className="mt-1 text-[32px] leading-tight text-[var(--cream)] md:text-[44px]">
         Lab
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-[var(--warm-muted)]">

@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(moversQuery),
   errorComponent: ({ error, reset }) => (
     <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-      <h1 className="font-display text-3xl text-foreground">Rain delay.</h1>
+      <h1 className="text-3xl text-foreground">Rain delay.</h1>
       <p className="mt-2 text-sm text-muted-foreground">{String(error?.message ?? error)}</p>
       <button
         onClick={() => reset()}
@@ -75,7 +75,7 @@ function DiamondLiveHome() {
             Verified · Updated {fetchedAt}
           </span>
         </div>
-        <h1 className="font-display mt-2 text-[40px] leading-[1.05] text-[var(--cream)] md:text-[64px]">
+        <h1 className="mt-2 text-[40px] leading-[1.05] text-[var(--cream)] md:text-[64px]">
           MLB Risers &amp; Fallers
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-[var(--warm-muted)] md:text-base">
@@ -171,7 +171,7 @@ function MoverSection<T extends { mlbId: number }>({
     <section className="mt-10">
       <div className="mb-3 flex items-end justify-between gap-3 border-b border-[var(--border)] pb-2">
         <div className="min-w-0">
-          <h2 className="font-display text-[26px] leading-tight text-[var(--cream)] md:text-[32px]">
+          <h2 className="text-[26px] leading-tight text-[var(--cream)] md:text-[32px]">
             {title}
           </h2>
           <p className="mono mt-0.5 text-[10px] uppercase tracking-[0.2em] text-[var(--warm-muted)]">
