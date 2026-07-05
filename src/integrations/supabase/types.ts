@@ -744,6 +744,114 @@ export type Database = {
         }
         Relationships: []
       }
+      monte_carlo_form_shadow_player_outputs: {
+        Row: {
+          actuals: Json | null
+          baseline_distributions: Json | null
+          created_at: string
+          form_adjustments: Json | null
+          form_distributions: Json | null
+          mlb_id: number | null
+          player_id: string
+          role: string
+          shadow_run_id: string
+        }
+        Insert: {
+          actuals?: Json | null
+          baseline_distributions?: Json | null
+          created_at?: string
+          form_adjustments?: Json | null
+          form_distributions?: Json | null
+          mlb_id?: number | null
+          player_id: string
+          role: string
+          shadow_run_id: string
+        }
+        Update: {
+          actuals?: Json | null
+          baseline_distributions?: Json | null
+          created_at?: string
+          form_adjustments?: Json | null
+          form_distributions?: Json | null
+          mlb_id?: number | null
+          player_id?: string
+          role?: string
+          shadow_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monte_carlo_form_shadow_player_outputs_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monte_carlo_form_shadow_player_outputs_shadow_run_id_fkey"
+            columns: ["shadow_run_id"]
+            isOneToOne: false
+            referencedRelation: "monte_carlo_form_shadow_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monte_carlo_form_shadow_runs: {
+        Row: {
+          baseline_forecast_run_id: string
+          created_at: string
+          form_window_days: number
+          game_id: string
+          game_pk: number
+          id: string
+          input_hash: string
+          iterations: number
+          model_version: string
+          seed: number
+          slate_date: string
+        }
+        Insert: {
+          baseline_forecast_run_id: string
+          created_at?: string
+          form_window_days?: number
+          game_id: string
+          game_pk: number
+          id?: string
+          input_hash: string
+          iterations: number
+          model_version: string
+          seed: number
+          slate_date: string
+        }
+        Update: {
+          baseline_forecast_run_id?: string
+          created_at?: string
+          form_window_days?: number
+          game_id?: string
+          game_pk?: number
+          id?: string
+          input_hash?: string
+          iterations?: number
+          model_version?: string
+          seed?: number
+          slate_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monte_carlo_form_shadow_runs_baseline_forecast_run_id_fkey"
+            columns: ["baseline_forecast_run_id"]
+            isOneToOne: false
+            referencedRelation: "forecast_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monte_carlo_form_shadow_runs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       petri_forecast_runs: {
         Row: {
           abstention_reasons: Json | null
@@ -1110,6 +1218,158 @@ export type Database = {
             foreignKeyName: "player_dna_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_recent_event_rates: {
+        Row: {
+          as_of_date: string
+          bb: number | null
+          bf: number | null
+          created_at: string
+          h_1b: number | null
+          h_2b: number | null
+          h_3b: number | null
+          hbp: number | null
+          hr: number | null
+          k: number | null
+          mlb_id: number
+          outs: number | null
+          pa: number | null
+          player_id: string | null
+          role: string
+          source: string
+          source_fetched_at: string
+          window_days: number
+        }
+        Insert: {
+          as_of_date: string
+          bb?: number | null
+          bf?: number | null
+          created_at?: string
+          h_1b?: number | null
+          h_2b?: number | null
+          h_3b?: number | null
+          hbp?: number | null
+          hr?: number | null
+          k?: number | null
+          mlb_id: number
+          outs?: number | null
+          pa?: number | null
+          player_id?: string | null
+          role: string
+          source: string
+          source_fetched_at: string
+          window_days?: number
+        }
+        Update: {
+          as_of_date?: string
+          bb?: number | null
+          bf?: number | null
+          created_at?: string
+          h_1b?: number | null
+          h_2b?: number | null
+          h_3b?: number | null
+          hbp?: number | null
+          hr?: number | null
+          k?: number | null
+          mlb_id?: number
+          outs?: number | null
+          pa?: number | null
+          player_id?: string | null
+          role?: string
+          source?: string
+          source_fetched_at?: string
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_recent_event_rates_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_recent_game_event_counts: {
+        Row: {
+          bb: number | null
+          bf: number | null
+          created_at: string
+          game_date: string
+          game_id: string | null
+          game_pk: number
+          h_1b: number | null
+          h_2b: number | null
+          h_3b: number | null
+          hbp: number | null
+          hr: number | null
+          k: number | null
+          mlb_id: number
+          outs: number | null
+          pa: number | null
+          player_id: string | null
+          role: string
+          source: string
+          source_fetched_at: string
+        }
+        Insert: {
+          bb?: number | null
+          bf?: number | null
+          created_at?: string
+          game_date: string
+          game_id?: string | null
+          game_pk: number
+          h_1b?: number | null
+          h_2b?: number | null
+          h_3b?: number | null
+          hbp?: number | null
+          hr?: number | null
+          k?: number | null
+          mlb_id: number
+          outs?: number | null
+          pa?: number | null
+          player_id?: string | null
+          role: string
+          source: string
+          source_fetched_at: string
+        }
+        Update: {
+          bb?: number | null
+          bf?: number | null
+          created_at?: string
+          game_date?: string
+          game_id?: string | null
+          game_pk?: number
+          h_1b?: number | null
+          h_2b?: number | null
+          h_3b?: number | null
+          hbp?: number | null
+          hr?: number | null
+          k?: number | null
+          mlb_id?: number
+          outs?: number | null
+          pa?: number | null
+          player_id?: string | null
+          role?: string
+          source?: string
+          source_fetched_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_recent_game_event_counts_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_recent_game_event_counts_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
             referencedRelation: "players"
             referencedColumns: ["id"]
           },
