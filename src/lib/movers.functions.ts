@@ -12,7 +12,8 @@
  *
  * Ranking is explainable and requires minimum samples:
  *   Hitters:  season PA >= 100, recent PA >= 25
- *   Pitchers: season IP >= 20, recent IP >= 5
+ *   Pitchers: season IP >= 20, and either recent IP >= 10, or
+ *             recent appearances >= 3 AND recent IP >= 8
  * Players below either bar are labeled "Early sample" and excluded from
  * the true riser/faller lists.
  */
