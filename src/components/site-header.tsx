@@ -87,7 +87,7 @@ export function SiteHeader() {
           <div className="flex flex-col leading-none">
             <span className="wordmark text-2xl text-foreground">Diamond</span>
             <span className="mono mt-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
-              MLB Simulation &amp; Projection Engine
+              Live Baseball Intelligence
             </span>
           </div>
         </Link>
