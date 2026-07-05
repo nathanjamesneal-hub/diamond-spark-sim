@@ -33,7 +33,13 @@ async function mlb<T>(path: string): Promise<T> {
 // ---------- thresholds ----------
 export const MOVER_THRESHOLDS = {
   hitter: { seasonPa: 100, recentPa: 25, recentDays: 14 },
-  pitcher: { seasonIp: 20, recentIp: 5, recentDays: 14 },
+  pitcher: {
+    seasonIp: 20,
+    recentIpMin: 10,
+    recentIpWithApps: 8,
+    recentAppsWithIp: 3,
+    recentDays: 14,
+  },
 } as const;
 
 // ---------- types ----------
