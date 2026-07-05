@@ -93,7 +93,7 @@ function DiamondLiveHome() {
 
         <MoverSection
           title="Pitcher Risers"
-          subtitle={`ERA and WHIP both improving · min ${data.window.pitcher.recentIp} recent IP, ${data.window.pitcher.seasonIp} season IP`}
+          subtitle={`ERA and WHIP both improving · min ${data.window.pitcher.recentIpMin} recent IP (or ${data.window.pitcher.recentAppsWithIp}+ apps & ${data.window.pitcher.recentIpWithApps}+ IP), ${data.window.pitcher.seasonIp} season IP`}
           items={data.pitchers.risers}
           render={(m) => <PitcherCard m={m as PitcherMover} />}
           emptyLabel="No pitchers meet riser criteria yet."
