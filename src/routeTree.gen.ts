@@ -22,6 +22,7 @@ import { Route as AuthenticatedProjectionsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
 import { Route as AuthenticatedModelResultsRouteImport } from './routes/_authenticated/model-results'
 import { Route as AuthenticatedModelRouteImport } from './routes/_authenticated/model'
+import { Route as AuthenticatedMlbPulseRouteImport } from './routes/_authenticated/mlb-pulse'
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeadersRouteImport } from './routes/_authenticated/leaders'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
@@ -116,6 +117,11 @@ const AuthenticatedModelResultsRoute =
 const AuthenticatedModelRoute = AuthenticatedModelRouteImport.update({
   id: '/model',
   path: '/model',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMlbPulseRoute = AuthenticatedMlbPulseRouteImport.update({
+  id: '/mlb-pulse',
+  path: '/mlb-pulse',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLineupStatusRoute =
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/mlb-pulse': typeof AuthenticatedMlbPulseRoute
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
@@ -338,6 +345,7 @@ export interface FileRoutesByTo {
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/mlb-pulse': typeof AuthenticatedMlbPulseRoute
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
@@ -381,6 +389,7 @@ export interface FileRoutesById {
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/leaders': typeof AuthenticatedLeadersRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
+  '/_authenticated/mlb-pulse': typeof AuthenticatedMlbPulseRoute
   '/_authenticated/model': typeof AuthenticatedModelRoute
   '/_authenticated/model-results': typeof AuthenticatedModelResultsRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
+    | '/mlb-pulse'
     | '/model'
     | '/model-results'
     | '/odds'
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
+    | '/mlb-pulse'
     | '/model'
     | '/model-results'
     | '/odds'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leaderboards'
     | '/_authenticated/leaders'
     | '/_authenticated/lineup-status'
+    | '/_authenticated/mlb-pulse'
     | '/_authenticated/model'
     | '/_authenticated/model-results'
     | '/_authenticated/odds'
@@ -643,6 +655,13 @@ declare module '@tanstack/react-router' {
       path: '/model'
       fullPath: '/model'
       preLoaderRoute: typeof AuthenticatedModelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mlb-pulse': {
+      id: '/_authenticated/mlb-pulse'
+      path: '/mlb-pulse'
+      fullPath: '/mlb-pulse'
+      preLoaderRoute: typeof AuthenticatedMlbPulseRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/lineup-status': {
@@ -916,6 +935,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLeadersRoute: typeof AuthenticatedLeadersRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
+  AuthenticatedMlbPulseRoute: typeof AuthenticatedMlbPulseRoute
   AuthenticatedModelRoute: typeof AuthenticatedModelRoute
   AuthenticatedModelResultsRoute: typeof AuthenticatedModelResultsRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
@@ -944,6 +964,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLeadersRoute: AuthenticatedLeadersRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
+  AuthenticatedMlbPulseRoute: AuthenticatedMlbPulseRoute,
   AuthenticatedModelRoute: AuthenticatedModelRoute,
   AuthenticatedModelResultsRoute: AuthenticatedModelResultsRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
