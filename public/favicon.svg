@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="20%" r="90%">
+      <stop offset="0%" stop-color="#22D3FF" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#0C1220"/>
+      <stop offset="100%" stop-color="#05080F"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7FEBFF"/>
+      <stop offset="100%" stop-color="#22D3FF"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="12" fill="url(#bg)"/>
+  <g filter="url(#glow)">
+    <polygon points="32,10 54,32 32,54 10,32" fill="rgba(34,211,255,0.08)" stroke="url(#edge)" stroke-width="2.2" stroke-linejoin="round"/>
+  </g>
+  <text x="32" y="43" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="800" font-size="26" fill="#EAF2FF" letter-spacing="-0.02em">D</text>
+  <circle cx="32" cy="10" r="1.6" fill="#EAF2FF"/>
+</svg>
