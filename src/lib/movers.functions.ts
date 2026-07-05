@@ -373,7 +373,7 @@ export const getMlbMovers = createServerFn({ method: "GET" })
         },
         status,
         reason: belowSample
-          ? `Early sample: ${recentIp.toFixed(1)} IP in last ${recentDays} days (need ${MOVER_THRESHOLDS.pitcher.recentIp}); ${seasonIp.toFixed(1)} season IP`
+          ? `Early sample: ${recentIp.toFixed(1)} IP over ${recentApps} app${recentApps === 1 ? "" : "s"} in last ${recentDays} days (need ${T.recentIpMin}+ IP, or ${T.recentAppsWithIp}+ apps & ${T.recentIpWithApps}+ IP); ${seasonIp.toFixed(1)} season IP`
           : status === "riser"
             ? `${recentIp.toFixed(1)} IP over ${mover_apps(r)} vs season: ERA ${recentEra.toFixed(2)} (${(recentEra - seasonEra).toFixed(2)}), WHIP ${recentWhip.toFixed(2)} (${(recentWhip - seasonWhip).toFixed(2)})`
             : status === "faller"
