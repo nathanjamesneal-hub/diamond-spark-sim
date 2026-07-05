@@ -28,6 +28,7 @@ import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runDiamondEngineForGames } from "@/lib/ingest.functions";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
 import { runPetriAutoForDate } from "@/lib/petri/run.functions";
+import { ensureScheduleForDate } from "@/lib/schedule.server";
 
 import { finishAutomationLog, logAutomation } from "./log";
 
