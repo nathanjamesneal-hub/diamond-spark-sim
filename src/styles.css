@@ -176,18 +176,28 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Oswald reserved for display moments: wordmark, H1, H2, page eyebrows. */
+  /* Instrument Serif for editorial masthead / display / H1-H2. */
   h1, h2, .display {
     font-family: var(--font-display);
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    font-weight: 400;
+    letter-spacing: -0.005em;
   }
 
   .wordmark {
     font-family: var(--font-display);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-weight: 400;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    font-feature-settings: "liga", "dlig";
+  }
+
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
   }
 
   h3, h4, h5, h6 {
@@ -201,7 +211,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Body texture: two radial spotlights + faint scoreboard grid */
+  /* Quiet newsprint texture: a faint parchment wash on ink. */
   body::before {
     content: "";
     position: fixed;
@@ -209,18 +219,42 @@
     pointer-events: none;
     z-index: 0;
     background-image:
-      radial-gradient(900px 600px at 12% -10%,
-        color-mix(in oklab, var(--primary) 9%, transparent), transparent 60%),
-      radial-gradient(700px 500px at 95% 110%,
-        color-mix(in oklab, var(--primary) 6%, transparent), transparent 60%),
-      linear-gradient(to right,
-        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom,
-        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
-    background-size: auto, auto, 48px 48px, 48px 48px;
-    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 60%, transparent));
+      radial-gradient(1100px 700px at 8% -10%,
+        color-mix(in oklab, var(--brass) 6%, transparent), transparent 65%),
+      radial-gradient(700px 500px at 96% 110%,
+        color-mix(in oklab, var(--cardinal) 5%, transparent), transparent 65%);
+    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 70%, transparent));
   }
 }
+
+@utility masthead-rule {
+  border-top: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--brass) 25%, transparent);
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+@utility riser-edge {
+  border-left: 3px solid var(--field);
+}
+
+@utility faller-edge {
+  border-left: 3px solid var(--cardinal);
+}
+
+@utility scouting-card {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--cream) 96%, transparent) 0%,
+      color-mix(in oklab, var(--parchment) 92%, transparent) 100%);
+  color: #24221B;
+  border: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.35) inset,
+    0 10px 22px rgb(0 0 0 / 0.35);
+}
+
 
 @utility card-elevated {
   background: var(--color-card);
