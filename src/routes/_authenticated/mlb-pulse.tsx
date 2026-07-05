@@ -419,13 +419,14 @@ function statusDetail(game: PulseGame): string | null {
 }
 
 function statusClass(status: PulseGame["status"]): string {
-  if (status === "live") return "bg-sky-400/15 text-sky-200";
-  if (status === "final") return "bg-emerald-500/15 text-emerald-200";
-  if (status === "delayed") return "bg-amber-500/15 text-amber-200";
-  if (status === "postponed") return "bg-rose-500/15 text-rose-200";
-  if (status === "unavailable") return "bg-zinc-500/15 text-zinc-300";
-  return "bg-secondary text-muted-foreground";
+  if (status === "live") return "bg-[color-mix(in_oklab,var(--field)_25%,transparent)] text-[var(--cream)] border border-[var(--field)]";
+  if (status === "final") return "bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
+  if (status === "delayed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
+  if (status === "postponed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
+  if (status === "unavailable") return "bg-[color-mix(in_oklab,var(--charcoal)_70%,transparent)] text-[var(--warm-muted)] border border-[color-mix(in_oklab,var(--warm-muted)_35%,transparent)]";
+  return "bg-[color-mix(in_oklab,var(--brass)_15%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
 }
+
 
 function fmtTime(value: string | null | undefined): string {
   if (!value) return "—";
