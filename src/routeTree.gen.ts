@@ -19,6 +19,7 @@ import { Route as AuthenticatedSimLeadersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
 import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
 import { Route as AuthenticatedProjectionsRouteImport } from './routes/_authenticated/projections'
+import { Route as AuthenticatedPitchersRouteImport } from './routes/_authenticated/pitchers'
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
 import { Route as AuthenticatedModelResultsRouteImport } from './routes/_authenticated/model-results'
 import { Route as AuthenticatedModelRouteImport } from './routes/_authenticated/model'
@@ -104,6 +105,11 @@ const AuthenticatedProjectionsRoute =
     path: '/projections',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPitchersRoute = AuthenticatedPitchersRouteImport.update({
+  id: '/pitchers',
+  path: '/pitchers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
   id: '/odds',
   path: '/odds',
@@ -314,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/pitchers': typeof AuthenticatedPitchersRoute
   '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -357,6 +364,7 @@ export interface FileRoutesByTo {
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/pitchers': typeof AuthenticatedPitchersRoute
   '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/_authenticated/model': typeof AuthenticatedModelRoute
   '/_authenticated/model-results': typeof AuthenticatedModelResultsRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
+  '/_authenticated/pitchers': typeof AuthenticatedPitchersRoute
   '/_authenticated/projections': typeof AuthenticatedProjectionsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/scores': typeof AuthenticatedScoresRoute
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/model'
     | '/model-results'
     | '/odds'
+    | '/pitchers'
     | '/projections'
     | '/results'
     | '/scores'
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/model'
     | '/model-results'
     | '/odds'
+    | '/pitchers'
     | '/projections'
     | '/results'
     | '/scores'
@@ -536,6 +547,7 @@ export interface FileRouteTypes {
     | '/_authenticated/model'
     | '/_authenticated/model-results'
     | '/_authenticated/odds'
+    | '/_authenticated/pitchers'
     | '/_authenticated/projections'
     | '/_authenticated/results'
     | '/_authenticated/scores'
@@ -646,6 +658,13 @@ declare module '@tanstack/react-router' {
       path: '/projections'
       fullPath: '/projections'
       preLoaderRoute: typeof AuthenticatedProjectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pitchers': {
+      id: '/_authenticated/pitchers'
+      path: '/pitchers'
+      fullPath: '/pitchers'
+      preLoaderRoute: typeof AuthenticatedPitchersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/odds': {
@@ -959,6 +978,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelRoute: typeof AuthenticatedModelRoute
   AuthenticatedModelResultsRoute: typeof AuthenticatedModelResultsRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
+  AuthenticatedPitchersRoute: typeof AuthenticatedPitchersRoute
   AuthenticatedProjectionsRoute: typeof AuthenticatedProjectionsRoute
   AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
@@ -989,6 +1009,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelRoute: AuthenticatedModelRoute,
   AuthenticatedModelResultsRoute: AuthenticatedModelResultsRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
+  AuthenticatedPitchersRoute: AuthenticatedPitchersRoute,
   AuthenticatedProjectionsRoute: AuthenticatedProjectionsRoute,
   AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedScoresRoute: AuthenticatedScoresRoute,
