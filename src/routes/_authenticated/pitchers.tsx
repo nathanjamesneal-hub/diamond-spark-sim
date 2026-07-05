@@ -31,8 +31,8 @@ function PitchersPage() {
   const list = tab === "risers" ? data.pitchers.risers : data.pitchers.fallers;
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      <div className="eyebrow text-[var(--brass)]">Diamond Live</div>
-      <h1 className="font-display mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
+      <div className="eyebrow text-[var(--primary)]">Diamond Live</div>
+      <h1 className="mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
         Pitchers
       </h1>
       <p className="mt-2 text-sm text-[var(--warm-muted)]">
@@ -40,14 +40,14 @@ function PitchersPage() {
         Min {data.window.pitcher.seasonIp} season IP and either {data.window.pitcher.recentIpMin}+ recent IP,
         or {data.window.pitcher.recentAppsWithIp}+ apps &amp; {data.window.pitcher.recentIpWithApps}+ IP.
       </p>
-      <div className="mt-5 flex gap-1 border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)]">
+      <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
         {(["risers", "fallers"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`mono px-3 py-2 text-xs font-bold uppercase tracking-[0.2em] ${
               tab === t
-                ? "border-b-2 border-[var(--brass)] text-[var(--cream)]"
+                ? "border-b-2 border-[var(--primary)] text-[var(--cream)]"
                 : "text-[var(--warm-muted)] hover:text-[var(--cream)]"
             }`}
           >
@@ -58,7 +58,7 @@ function PitchersPage() {
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {list.map((m) => <PitcherCard key={m.mlbId} m={m} />)}
         {list.length === 0 ? (
-          <div className="col-span-full rounded-sm border border-dashed border-[color-mix(in_oklab,var(--brass)_35%,transparent)] px-4 py-8 text-center text-xs text-[var(--warm-muted)]">
+          <div className="col-span-full rounded-sm border border-dashed border-[var(--border)] px-4 py-8 text-center text-xs text-[var(--warm-muted)]">
             No pitchers currently qualify.
           </div>
         ) : null}

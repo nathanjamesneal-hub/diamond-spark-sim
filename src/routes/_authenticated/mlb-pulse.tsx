@@ -113,10 +113,10 @@ function MlbPulsePage() {
 
 function PulseNav() {
   return (
-    <nav className="flex items-center gap-2 overflow-x-auto border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)] pb-2">
+    <nav className="flex items-center gap-2 overflow-x-auto border-b border-[var(--border)] pb-2">
       <Link
         to="/mlb-pulse"
-        className="mono whitespace-nowrap border-b-2 border-[var(--brass)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--cream)]"
+        className="mono whitespace-nowrap border-b-2 border-[var(--primary)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--cream)]"
       >
         Pulse
       </Link>
@@ -158,11 +158,11 @@ function Header({
   onToday: () => void;
 }) {
   return (
-    <header className="border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)] pb-4">
+    <header className="border-b border-[var(--border)] pb-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="eyebrow text-[var(--brass)]">Today&apos;s Slate</div>
-          <h1 className="font-display mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
+          <div className="eyebrow text-[var(--primary)]">Today&apos;s Slate</div>
+          <h1 className="mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
             MLB Pulse
           </h1>
           <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.22em] text-[var(--warm-muted)]">
@@ -176,7 +176,7 @@ function Header({
           <button
             type="button"
             onClick={onToday}
-            className="mono rounded-sm border border-[color-mix(in_oklab,var(--brass)_35%,transparent)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
+            className="mono rounded-sm border border-[var(--border)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
           >
             Today
           </button>
@@ -245,7 +245,7 @@ function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
   return (
-    <article className={`rounded-sm border p-3 ${live ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_12%,transparent)]" : "border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"}`}>
+    <article className={`rounded-sm border p-3 ${live ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_12%,transparent)]" : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"}`}>
       <div className="flex items-center justify-between gap-2">
         <span className={`mono rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${statusClass(game.status)}`}>
           {statusLabel(game)}
@@ -361,7 +361,7 @@ function PitchersTable({ rows }: { rows: PulsePitcher[] }) {
 function SectionTitle({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-end justify-between">
-      <h2 className="font-display text-xl font-bold tracking-tight">{title}</h2>
+      <h2 className="text-xl font-bold tracking-tight">{title}</h2>
       <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{count} rows</span>
     </div>
   );
@@ -370,7 +370,7 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
 function TeamLine({ team, score }: { team: string; score: number | null }) {
   return (
     <>
-      <div className="font-display text-lg font-semibold">{team}</div>
+      <div className="text-lg font-semibold">{team}</div>
       <div className="mono text-right text-lg font-bold tabular-nums">{score ?? "—"}</div>
     </>
   );
@@ -388,7 +388,7 @@ function InfoLine({ label, value, source }: { label: string; value: string; sour
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-6 text-center">
-      <div className="font-display text-lg font-semibold">{title}</div>
+      <div className="text-lg font-semibold">{title}</div>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>
   );
@@ -420,11 +420,11 @@ function statusDetail(game: PulseGame): string | null {
 
 function statusClass(status: PulseGame["status"]): string {
   if (status === "live") return "bg-[color-mix(in_oklab,var(--field)_25%,transparent)] text-[var(--cream)] border border-[var(--field)]";
-  if (status === "final") return "bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
+  if (status === "final") return "bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] text-[var(--parchment)] border border-[var(--border)]";
   if (status === "delayed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
   if (status === "postponed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
   if (status === "unavailable") return "bg-[color-mix(in_oklab,var(--charcoal)_70%,transparent)] text-[var(--warm-muted)] border border-[color-mix(in_oklab,var(--warm-muted)_35%,transparent)]";
-  return "bg-[color-mix(in_oklab,var(--brass)_15%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
+  return "bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-[var(--parchment)] border border-[var(--border)]";
 }
 
 

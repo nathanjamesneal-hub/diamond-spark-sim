@@ -80,64 +80,65 @@
 :root {
   --radius: 0.625rem;
 
-  /* Publication palette */
-  --ink:         #15140F;   /* ink black — page */
-  --charcoal:    #24221B;   /* charcoal — panels */
-  --cream:       #F3E9D6;   /* baseball-card cream — premium */
-  --parchment:   #D8CBB3;   /* warm parchment — quiet accent */
-  --field:       #4F7042;   /* field green — risers / live */
-  --cardinal:    #BB4338;   /* cardinal — fallers / warnings */
-  --brass:       #B98C44;   /* brass / gold — metadata detail */
-  --warm-muted:  #A89C89;   /* warm muted text */
+  /* Graphite terminal palette */
+  --ink:         #0B0F14;   /* app background */
+  --charcoal:    #131922;   /* primary panels */
+  --cream:       #F3F6FA;   /* primary text (renamed role, kept token) */
+  --parchment:   #C9D2DF;   /* secondary text / soft chrome */
+  --field:       #3ECF7A;   /* riser green */
+  --cardinal:    #FF5E67;   /* faller red */
+  --brass:       #6EA8FE;   /* live/active blue (token retained, remapped) */
+  --warm-muted:  #94A1B2;   /* muted text */
 
   --background:        var(--ink);
   --foreground:        var(--cream);
 
   --surface-panel:     var(--charcoal);
-  --card:              #2A281F;         /* elevated charcoal */
+  --card:              #1A212C;         /* elevated card */
   --card-foreground:   var(--cream);
 
-  --popover:           #2A281F;
+  --popover:           #1A212C;
   --popover-foreground: var(--cream);
 
-  --primary:           var(--field);
-  --primary-foreground: #F3E9D6;
-  --primary-glow:      #6a8c58;
+  --primary:           var(--brass);           /* active/live accent */
+  --primary-foreground: #0B0F14;
+  --primary-glow:      #94BEFF;
 
-  --secondary:         #322F26;
+  --secondary:         #1F2734;
   --secondary-foreground: var(--cream);
 
-  --muted:             #2E2C23;
+  --muted:             #1B222D;
   --muted-foreground:  var(--warm-muted);
 
   --accent:            var(--brass);
-  --accent-foreground: #15140F;
+  --accent-foreground: #0B0F14;
 
   --destructive:       var(--cardinal);
-  --destructive-foreground: #F3E9D6;
+  --destructive-foreground: #F3F6FA;
 
-  --border:            #3A3629;         /* soft parchment-tinted border */
-  --input:             #3A3629;
+  --border:            #2A3442;
+  --input:             #2A3442;
   --ring:              var(--brass);
 
   --edge:              var(--brass);
   --edge-foreground:   var(--ink);
-  --live:              var(--cardinal);
+  --live:              var(--brass);
   --chalk:             var(--cream);
-  --dirt:              #7A5A3A;
+  --dirt:              #4A5566;
   --grass:             var(--field);
 
   --success:           var(--field);
-  --warning:           var(--brass);
+  --warning:           #F5B454;
 
-  --shadow-card:        0 1px 0 rgb(243 233 214 / 0.04) inset,
-                        0 8px 22px rgb(0 0 0 / 0.45);
-  --shadow-card-hover:  0 1px 0 rgb(243 233 214 / 0.06) inset,
-                        0 14px 30px rgb(0 0 0 / 0.55),
-                        0 0 0 1px color-mix(in oklab, var(--brass) 40%, transparent);
-  --glow-edge:          0 0 12px color-mix(in oklab, var(--brass) 45%, transparent);
-  --glow-live:          0 0 10px color-mix(in oklab, var(--cardinal) 55%, transparent);
+  --shadow-card:        0 1px 0 rgb(255 255 255 / 0.03) inset,
+                        0 6px 18px rgb(0 0 0 / 0.45);
+  --shadow-card-hover:  0 1px 0 rgb(255 255 255 / 0.05) inset,
+                        0 12px 28px rgb(0 0 0 / 0.55),
+                        0 0 0 1px color-mix(in oklab, var(--brass) 35%, transparent);
+  --glow-edge:          0 0 12px color-mix(in oklab, var(--brass) 40%, transparent);
+  --glow-live:          0 0 10px color-mix(in oklab, var(--brass) 45%, transparent);
 }
+
 
 
 
@@ -176,12 +177,13 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Instrument Serif for editorial masthead / display / H1-H2. */
+  /* Headings use the sans-serif system; only .wordmark keeps the serif. */
   h1, h2, .display {
-    font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.005em;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
+
 
   .wordmark {
     font-family: var(--font-display);
@@ -211,7 +213,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Quiet newsprint texture: a faint parchment wash on ink. */
+  /* Quiet graphite depth: two soft blue washes, no grid or texture. */
   body::before {
     content: "";
     position: fixed;
@@ -219,17 +221,17 @@
     pointer-events: none;
     z-index: 0;
     background-image:
-      radial-gradient(1100px 700px at 8% -10%,
-        color-mix(in oklab, var(--brass) 6%, transparent), transparent 65%),
+      radial-gradient(1100px 700px at 10% -10%,
+        color-mix(in oklab, var(--brass) 8%, transparent), transparent 65%),
       radial-gradient(700px 500px at 96% 110%,
-        color-mix(in oklab, var(--cardinal) 5%, transparent), transparent 65%);
-    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 70%, transparent));
+        color-mix(in oklab, var(--brass) 5%, transparent), transparent 65%);
+    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 75%, transparent));
   }
 }
 
 @utility masthead-rule {
-  border-top: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, var(--brass) 25%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--border) 100%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   padding-top: 2px;
   padding-bottom: 2px;
 }
@@ -243,17 +245,24 @@
 }
 
 @utility scouting-card {
-  background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--cream) 96%, transparent) 0%,
-      color-mix(in oklab, var(--parchment) 92%, transparent) 100%);
-  color: #24221B;
-  border: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.35) inset,
-    0 10px 22px rgb(0 0 0 / 0.35);
+    0 1px 0 rgb(255 255 255 / 0.03) inset,
+    0 8px 20px rgb(0 0 0 / 0.40);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--brass) 45%, var(--border));
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.05) inset,
+      0 14px 28px rgb(0 0 0 / 0.55);
+  }
 }
+
+
 
 
 @utility card-elevated {

@@ -65,7 +65,7 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="relative z-10 border-b border-[color-mix(in_oklab,var(--brass)_35%,var(--border))] bg-[var(--color-background)]/95 backdrop-blur">
+    <header className="relative z-10 border-b border-[var(--border)] bg-[var(--color-background)]/95 backdrop-blur">
       {/* Masthead */}
       <div className="mx-auto max-w-7xl px-4 pt-5 pb-3 md:px-6">
         <div className="flex items-start justify-between gap-4">
@@ -73,7 +73,7 @@ export function SiteHeader() {
             <span className="wordmark text-4xl md:text-5xl text-[var(--cream)] tracking-[0.08em]">
               Diamond
             </span>
-            <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--brass)]">
+            <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--primary)]">
               MLB Risers, Fallers &amp; Live Intelligence
             </span>
           </Link>
@@ -102,7 +102,7 @@ export function SiteHeader() {
             activeOptions={{ exact: item.to === "/" }}
             activeProps={{
               className:
-                "text-[var(--cream)] border-[var(--brass)]",
+                "text-[var(--cream)] border-[var(--primary)]",
             }}
             className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]"
           >
@@ -111,7 +111,7 @@ export function SiteHeader() {
         ))}
         <div className="ml-auto flex items-center gap-1">
           <Link to="/lab"
-            activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
+            activeProps={{ className: "text-[var(--cream)] border-[var(--primary)]" }}
             className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]"
           >
             Lab
@@ -119,14 +119,14 @@ export function SiteHeader() {
           {isAdmin ? (
             <>
               <Link to="/admin"
-                activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
-                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brass)] transition-colors hover:text-[var(--cream)]"
+                activeProps={{ className: "text-[var(--cream)] border-[var(--primary)]" }}
+                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--primary)] transition-colors hover:text-[var(--cream)]"
               >
                 Admin
               </Link>
               <Link to="/petri"
-                activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
-                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brass)] transition-colors hover:text-[var(--cream)]"
+                activeProps={{ className: "text-[var(--cream)] border-[var(--primary)]" }}
+                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--primary)] transition-colors hover:text-[var(--cream)]"
               >
                 Petri
               </Link>
