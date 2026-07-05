@@ -212,7 +212,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Quiet newsprint texture: a faint parchment wash on ink. */
+  /* Quiet graphite depth: two soft blue washes, no grid or texture. */
   body::before {
     content: "";
     position: fixed;
@@ -220,17 +220,17 @@
     pointer-events: none;
     z-index: 0;
     background-image:
-      radial-gradient(1100px 700px at 8% -10%,
-        color-mix(in oklab, var(--brass) 6%, transparent), transparent 65%),
+      radial-gradient(1100px 700px at 10% -10%,
+        color-mix(in oklab, var(--brass) 8%, transparent), transparent 65%),
       radial-gradient(700px 500px at 96% 110%,
-        color-mix(in oklab, var(--cardinal) 5%, transparent), transparent 65%);
-    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 70%, transparent));
+        color-mix(in oklab, var(--brass) 5%, transparent), transparent 65%);
+    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 75%, transparent));
   }
 }
 
 @utility masthead-rule {
-  border-top: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, var(--brass) 25%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--border) 100%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   padding-top: 2px;
   padding-bottom: 2px;
 }
@@ -244,17 +244,25 @@
 }
 
 @utility scouting-card {
-  background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--cream) 96%, transparent) 0%,
-      color-mix(in oklab, var(--parchment) 92%, transparent) 100%);
-  color: #24221B;
-  border: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.35) inset,
-    0 10px 22px rgb(0 0 0 / 0.35);
+    0 1px 0 rgb(255 255 255 / 0.03) inset,
+    0 8px 20px rgb(0 0 0 / 0.40);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
+
+@utility scouting-card {
+  &:hover {
+    border-color: color-mix(in oklab, var(--brass) 45%, var(--border));
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.05) inset,
+      0 14px 28px rgb(0 0 0 / 0.55);
+  }
+}
+
 
 
 @utility card-elevated {
