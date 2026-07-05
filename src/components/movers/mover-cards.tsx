@@ -44,9 +44,9 @@ function StatBlock({
 
 function statusChip(status: HitterMover["status"] | PitcherMover["status"]) {
   if (status === "riser")
-    return "bg-[var(--field)] text-[var(--cream)]";
+    return "bg-[color-mix(in_oklab,var(--field)_22%,transparent)] text-[var(--field)] border border-[color-mix(in_oklab,var(--field)_55%,transparent)] shadow-[0_0_10px_color-mix(in_oklab,var(--field)_35%,transparent)]";
   if (status === "faller")
-    return "bg-[var(--cardinal)] text-[var(--cream)]";
+    return "bg-[color-mix(in_oklab,var(--cardinal)_22%,transparent)] text-[var(--cardinal)] border border-[color-mix(in_oklab,var(--cardinal)_55%,transparent)] shadow-[0_0_10px_color-mix(in_oklab,var(--cardinal)_35%,transparent)]";
   return "bg-[var(--muted)] text-[var(--warm-muted)] border border-[var(--border)]";
 }
 
