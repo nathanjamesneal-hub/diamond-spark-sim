@@ -322,9 +322,12 @@ export const getMlbMovers = createServerFn({ method: "GET" })
       const recentK = num(r?.stat?.strikeOuts);
       const seasonK9 = seasonIp > 0 ? (seasonK * 9) / seasonIp : 0;
       const recentK9 = recentIp > 0 ? (recentK * 9) / recentIp : 0;
-      const belowSample =
-        seasonIp < MOVER_THRESHOLDS.pitcher.seasonIp ||
-        recentIp < MOVER_THRESHOLDS.pitcher.recentIp;
+      const recentApps = num(r?.stat?.gamesPlayed);
+      const T = MOVER_THRESHOLDS.pitcher;
+      const meetsRecent =
+        recentIp >= T.recentIpMin ||
+        (recentApps >= T.recentAppsWithIp && recentIp >= T.recentIpWithApps);
+      const belowSample = seasonIp < T.seasonIp || !meetsRecent;
       // Riser: recent ERA lower than season AND recent WHIP lower than season.
       // Faller: recent ERA higher AND recent WHIP higher. Otherwise mixed → early_sample.
       let status: PitcherMover["status"] = "early_sample";
