@@ -314,8 +314,15 @@ export async function refreshRecentEventRatesForDate(
 
   let gameEventRows = 0;
   let pitcherHitTypesSourced = true;
+  const skippedGamePks: number[] = [];
   for (const game of games) {
-    const rows = await extractCompletedGameRows(admin, game, dbGameByPk);
+    let rows: GameEventRow[] = [];
+    try {
+      rows = await extractCompletedGameRows(admin, game, dbGameByPk);
+    } catch (e) {
+      skippedGamePks.push(Number(game.gamePk));
+      continue;
+    }
     if (rows.some((r) => r.role === "pitcher" && (r.h_1b == null || r.h_2b == null || r.h_3b == null))) {
       pitcherHitTypesSourced = false;
     }
