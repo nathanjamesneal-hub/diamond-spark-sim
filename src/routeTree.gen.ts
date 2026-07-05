@@ -53,8 +53,8 @@ import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/a
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
 import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
+import { Route as ApiPublicHooksDv2ShadowOneshotRouteImport } from './routes/api/public/hooks/dv2-shadow-oneshot'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
-import { Route as ApiPublicHooksRunFormShadowOneshotRouteImport } from './routes/api/public/hooks/_run-form-shadow-oneshot'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 import { Route as AuthenticatedForecastsLabAlphaRouteImport } from './routes/_authenticated/forecasts.lab.alpha'
 
@@ -297,16 +297,16 @@ const ApiPublicHooksLockLiveForecastsRoute =
     path: '/api/public/hooks/lock-live-forecasts',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksDv2ShadowOneshotRoute =
+  ApiPublicHooksDv2ShadowOneshotRouteImport.update({
+    id: '/api/public/hooks/dv2-shadow-oneshot',
+    path: '/api/public/hooks/dv2-shadow-oneshot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksBeforeUserCreatedRoute =
   ApiPublicHooksBeforeUserCreatedRouteImport.update({
     id: '/api/public/hooks/before-user-created',
     path: '/api/public/hooks/before-user-created',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksRunFormShadowOneshotRoute =
-  ApiPublicHooksRunFormShadowOneshotRouteImport.update({
-    id: '/api/public/hooks/_run-form-shadow-oneshot',
-    path: '/api/public/hooks',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedForecastsLabMeansRoute =
@@ -361,8 +361,8 @@ export interface FileRoutesByFullPath {
   '/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
-  '/api/public/hooks': typeof ApiPublicHooksRunFormShadowOneshotRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/dv2-shadow-oneshot': typeof ApiPublicHooksDv2ShadowOneshotRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
@@ -407,8 +407,8 @@ export interface FileRoutesByTo {
   '/forecasts': typeof AuthenticatedForecastsIndexRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
-  '/api/public/hooks': typeof ApiPublicHooksRunFormShadowOneshotRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/dv2-shadow-oneshot': typeof ApiPublicHooksDv2ShadowOneshotRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
@@ -458,8 +458,8 @@ export interface FileRoutesById {
   '/_authenticated/forecasts/': typeof AuthenticatedForecastsIndexRoute
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
-  '/api/public/hooks/_run-form-shadow-oneshot': typeof ApiPublicHooksRunFormShadowOneshotRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/dv2-shadow-oneshot': typeof ApiPublicHooksDv2ShadowOneshotRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
@@ -508,8 +508,8 @@ export interface FileRouteTypes {
     | '/forecasts/'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
-    | '/api/public/hooks'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/dv2-shadow-oneshot'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
@@ -554,8 +554,8 @@ export interface FileRouteTypes {
     | '/forecasts'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
-    | '/api/public/hooks'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/dv2-shadow-oneshot'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
@@ -604,8 +604,8 @@ export interface FileRouteTypes {
     | '/_authenticated/forecasts/'
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
-    | '/api/public/hooks/_run-form-shadow-oneshot'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/dv2-shadow-oneshot'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/refresh-lineups'
@@ -617,8 +617,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ApiPublicHooksRunFormShadowOneshotRoute: typeof ApiPublicHooksRunFormShadowOneshotRoute
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
+  ApiPublicHooksDv2ShadowOneshotRoute: typeof ApiPublicHooksDv2ShadowOneshotRoute
   ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
   ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
@@ -936,18 +936,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksLockLiveForecastsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/dv2-shadow-oneshot': {
+      id: '/api/public/hooks/dv2-shadow-oneshot'
+      path: '/api/public/hooks/dv2-shadow-oneshot'
+      fullPath: '/api/public/hooks/dv2-shadow-oneshot'
+      preLoaderRoute: typeof ApiPublicHooksDv2ShadowOneshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/before-user-created': {
       id: '/api/public/hooks/before-user-created'
       path: '/api/public/hooks/before-user-created'
       fullPath: '/api/public/hooks/before-user-created'
       preLoaderRoute: typeof ApiPublicHooksBeforeUserCreatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/_run-form-shadow-oneshot': {
-      id: '/api/public/hooks/_run-form-shadow-oneshot'
-      path: '/api/public/hooks'
-      fullPath: '/api/public/hooks'
-      preLoaderRoute: typeof ApiPublicHooksRunFormShadowOneshotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/forecasts/lab/means': {
@@ -1093,9 +1093,8 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  ApiPublicHooksRunFormShadowOneshotRoute:
-    ApiPublicHooksRunFormShadowOneshotRoute,
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
+  ApiPublicHooksDv2ShadowOneshotRoute: ApiPublicHooksDv2ShadowOneshotRoute,
   ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
   ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
@@ -1106,3 +1105,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
