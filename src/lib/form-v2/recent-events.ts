@@ -198,7 +198,7 @@ async function extractCompletedGameRows(admin: any, game: any, dbGameByPk: Map<n
   const gameDate = String(game.gameDate ?? "").slice(0, 10);
   const fetchedAt = new Date().toISOString();
   const [feed, box] = await Promise.all([
-    mlb<any>(`/game/${gamePk}/feed/live`),
+    mlb<any>(`/game/${gamePk}/feed/live`, "v1.1"),
     mlb<any>(`/game/${gamePk}/boxscore`),
   ]);
   if (!finalGame(feed?.gameData?.status ? { status: feed.gameData.status } : game)) return [];
