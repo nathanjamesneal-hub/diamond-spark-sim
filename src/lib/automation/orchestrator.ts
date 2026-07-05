@@ -216,11 +216,12 @@ export async function orchestrateDiamondSlate(
     finished_at: result.finishedAt,
     duration_ms: result.durationMs,
     details: {
+      schedule: result.schedule,
       refresh: result.refresh,
       lock: result.lock,
       petri: result.petri,
     },
-    error: result.refresh.error || result.lock.error || result.petri.error || null,
+    error: result.schedule.error || result.refresh.error || result.lock.error || result.petri.error || null,
   });
 
   return result;
