@@ -1,331 +1,212 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { getSchedule, type GameSummary } from "@/lib/mlb.functions";
-import { getDiamondScores } from "@/lib/projections.functions";
-import { getActualsForDate } from "@/lib/actuals.functions";
-import { mergeLiveActualsIntoDiamondPayload } from "@/lib/forecast/merge-live-actuals";
-import { ScoreCard } from "@/components/score-card";
-import { ForecastBoard } from "@/components/diamond/forecast-board/forecast-board";
+import { queryOptions, useSuspenseQuery, useQuery } from "@tanstack/react-query";
+import { getMlbMovers, type HitterMover, type PitcherMover } from "@/lib/movers.functions";
+import { getMlbPulse } from "@/lib/pulse.functions";
+import { HitterCard, PitcherCard } from "@/components/movers/mover-cards";
 
-
-const scheduleQuery = queryOptions({
-  queryKey: ["schedule", "today"],
-  queryFn: async () => {
-    try {
-      return await getSchedule({ data: {} });
-    } catch (err) {
-      console.error("[index] getSchedule failed; rendering empty slate", err);
-      const today = new Date().toISOString().slice(0, 10);
-      return { date: today, games: [] as GameSummary[] };
-    }
-  },
-  refetchInterval: 15_000,
+const moversQuery = queryOptions({
+  queryKey: ["mlb-movers"],
+  queryFn: () => getMlbMovers({ data: {} }),
+  staleTime: 5 * 60_000,
   refetchOnWindowFocus: false,
-  retry: 2,
-  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-  throwOnError: false,
+});
+
+const pulseQuery = queryOptions({
+  queryKey: ["mlb-pulse", "home-strip"],
+  queryFn: () => getMlbPulse({ data: {} }),
+  staleTime: 30_000,
+  refetchOnWindowFocus: false,
 });
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
-      { title: "Today's MLB — Diamond" },
+      { title: "Diamond Live — MLB Risers & Fallers" },
       {
         name: "description",
         content:
-          "Today's MLB scoreboard with live win probability, projections, and edges vs. sportsbooks.",
+          "See what is changing in baseball before it becomes the story. Live hitter and pitcher movers built from verified MLB game data.",
       },
-      { property: "og:title", content: "Today's MLB — Diamond" },
+      { property: "og:title", content: "Diamond Live — MLB Risers & Fallers" },
       {
         property: "og:description",
-        content: "Live scores, projections, and odds value board.",
+        content: "Live baseball intelligence — hitter and pitcher movers from verified MLB data.",
       },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(scheduleQuery),
-  component: TodayPage,
-  errorComponent: ({ error }) => (
-    <div className="mx-auto max-w-2xl p-8 text-sm">
-      <div className="font-display text-lg text-foreground">Couldn't load today's slate.</div>
-      <div className="mt-1 text-muted-foreground">{error?.message ?? String(error)}</div>
+  loader: ({ context }) => context.queryClient.ensureQueryData(moversQuery),
+  errorComponent: ({ error, reset }) => (
+    <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+      <h1 className="text-xl font-semibold text-foreground">Movers unavailable</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{String(error?.message ?? error)}</p>
+      <button
+        onClick={() => reset()}
+        className="mono mt-6 rounded border border-border px-3 py-1.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+      >
+        Retry
+      </button>
     </div>
   ),
-  notFoundComponent: () => <div className="p-8">No games today.</div>,
+  notFoundComponent: () => <div className="p-8">Not found.</div>,
+  component: DiamondLiveHome,
 });
 
-function TodayPage() {
-  const { data } = useSuspenseQuery(scheduleQuery);
-  const featured = data.games.find((g) => g.isLive) ?? data.games[0];
-  const rest = data.games.filter((g) => g.gamePk !== featured?.gamePk);
-  const liveCount = data.games.filter((g) => g.isLive).length;
-
-  const statusLine = data.games.length === 0
-    ? "No MLB games on the slate today."
-    : liveCount > 0
-      ? `${liveCount} live · ${data.games.length} games on slate`
-      : `Today's simulations are complete · ${data.games.length} games on slate`;
+function DiamondLiveHome() {
+  const { data } = useSuspenseQuery(moversQuery);
+  const pulse = useQuery({ ...pulseQuery, throwOnError: false });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      <DiamondHero date={data.date} statusLine={statusLine} hasLive={liveCount > 0} />
-
-      <DashboardGrid hasLive={liveCount > 0} />
-
-      {featured ? <FeaturedMatchup game={featured} /> : null}
-
-      <TopForecasts />
-
-      <div className="mt-8">
-        <h2 className="display mb-3 text-lg uppercase tracking-wider text-muted-foreground">
-          All games
-        </h2>
-        {rest.length === 0 && !featured ? (
-          <EmptyState />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.map((g) => (
-              <ScoreCard key={g.gamePk} game={g} />
-            ))}
+    <div className="relative min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-200px,rgba(56,89,168,0.18),transparent_60%)]">
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
+        <header className="mb-6 md:mb-8">
+          <div className="mono text-[10px] uppercase tracking-[0.3em] text-primary/80">
+            Diamond Live
           </div>
-        )}
+          <h1 className="mt-1 text-2xl font-semibold leading-tight text-foreground md:text-4xl">
+            See what is changing in baseball
+            <span className="text-muted-foreground"> before it becomes the story.</span>
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
+            Verified MLB game data only. Recent {data.window.hitter.recentDays}-day window
+            {" "}({data.recentStartDate} → {data.recentEndDate}) versus season-to-date. No
+            projections, probabilities, or odds are used on this page.
+          </p>
+        </header>
+
+        <MoverSection
+          title="Hitter Risers"
+          subtitle={`OPS trending up · min ${data.window.hitter.recentPa} recent PA, ${data.window.hitter.seasonPa} season PA`}
+          items={data.hitters.risers}
+          render={(m) => <HitterCard m={m as HitterMover} />}
+          emptyLabel="No hitters meet riser criteria yet."
+          moreHref="/hitters"
+        />
+
+        <MoverSection
+          title="Hitter Fallers"
+          subtitle="OPS trending down vs season"
+          items={data.hitters.fallers}
+          render={(m) => <HitterCard m={m as HitterMover} />}
+          emptyLabel="No hitters meet faller criteria yet."
+          moreHref="/hitters"
+        />
+
+        <MoverSection
+          title="Pitcher Risers"
+          subtitle={`ERA and WHIP both improving · min ${data.window.pitcher.recentIp} recent IP, ${data.window.pitcher.seasonIp} season IP`}
+          items={data.pitchers.risers}
+          render={(m) => <PitcherCard m={m as PitcherMover} />}
+          emptyLabel="No pitchers meet riser criteria yet."
+          moreHref="/pitchers"
+        />
+
+        <MoverSection
+          title="Pitcher Fallers"
+          subtitle="ERA and WHIP both regressing vs season"
+          items={data.pitchers.fallers}
+          render={(m) => <PitcherCard m={m as PitcherMover} />}
+          emptyLabel="No pitchers meet faller criteria yet."
+          moreHref="/pitchers"
+        />
+
+        <section className="mt-10">
+          <div className="mb-3 flex items-baseline justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground md:text-xl">Today's Pulse</h2>
+              <p className="text-xs text-muted-foreground">
+                Live slate with verified lineup labels.
+              </p>
+            </div>
+            <Link to="/mlb-pulse" className="mono text-[10px] uppercase tracking-widest text-primary hover:text-primary/80">
+              Open Pulse →
+            </Link>
+          </div>
+          {pulse.data ? <PulseStrip games={pulse.data.games} /> : pulse.isLoading ? (
+            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Loading slate…</div>
+          ) : (
+            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Slate unavailable.</div>
+          )}
+        </section>
+
+        <footer className="mt-10 text-center text-[10px] text-muted-foreground/70">
+          <span className="mono">
+            Considered: {data.hitters.totalConsidered} hitters ({data.hitters.earlySample} early sample) ·{" "}
+            {data.pitchers.totalConsidered} pitchers ({data.pitchers.earlySample} early sample). Source: statsapi.mlb.com. Fetched{" "}
+            {new Date(data.fetchedAt).toLocaleTimeString()}.
+          </span>
+        </footer>
       </div>
     </div>
   );
 }
 
-function TopForecasts() {
-  const q = useQuery({
-    queryKey: ["diamond-scores", "today"],
-    queryFn: () => getDiamondScores({ data: {} }),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-    retry: 1,
-    throwOnError: false,
-  });
-  const actualsQ = useQuery({
-    queryKey: ["live-actuals", q.data?.date ?? "today"],
-    queryFn: () => getActualsForDate({ data: q.data?.date ? { date: q.data.date } : {} }),
-    enabled: !!q.data,
-    refetchInterval: 45_000,
-    refetchOnWindowFocus: true,
-    staleTime: 30_000,
-    retry: 1,
-    throwOnError: false,
-  });
-  const data = useMemo(
-    () => (q.data ? mergeLiveActualsIntoDiamondPayload(q.data, actualsQ.data) : null),
-    [q.data, actualsQ.data],
-  );
-  if (!data) return null;
-  const hasOfficial = [...data.hitters, ...data.pitchers].some((r) =>
-    ["published", "locked", "live", "final", "preview"].includes(r.forecast_status)
-  );
-  if (!hasOfficial) return null;
+function MoverSection<T extends { mlbId: number }>({
+  title,
+  subtitle,
+  items,
+  render,
+  emptyLabel,
+  moreHref,
+}: {
+  title: string;
+  subtitle: string;
+  items: T[];
+  render: (item: T) => React.ReactNode;
+  emptyLabel: string;
+  moreHref: string;
+}) {
   return (
-    <section className="mt-10">
-      <div className="mb-3 flex items-end justify-between">
-        <h2 className="display text-lg uppercase tracking-wider text-muted-foreground">Top forecasts</h2>
-        <Link to="/diamond-scores" className="mono text-[10px] uppercase tracking-widest text-primary hover:underline">
-          Open full board →
+    <section className="mt-8">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-foreground md:text-xl">{title}</h2>
+          <p className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{subtitle}</p>
+        </div>
+        <Link
+          to={moreHref}
+          className="mono whitespace-nowrap text-[10px] uppercase tracking-widest text-primary hover:text-primary/80"
+        >
+          See all →
         </Link>
       </div>
-      <ForecastBoard payload={data} compact topN={8} />
+      {items.length === 0 ? (
+        <div className="rounded border border-dashed border-border/60 bg-black/20 px-4 py-6 text-center text-xs text-muted-foreground">
+          {emptyLabel}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {items.slice(0, 8).map((it) => (
+            <div key={it.mlbId}>{render(it)}</div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-
-
-const DASHBOARD_CARDS = [
-  {
-    to: "/forecasts",
-    kicker: "Forecasts",
-    title: "Official Diamond Forecasts",
-    desc: "Lineup-confirmed forecasts, rankings, and consensus signals for today.",
-    accent: "text-primary",
-    accentBg: "color-mix(in oklab, var(--color-primary) 22%, transparent)",
-  },
-  {
-    to: "/results",
-    kicker: "Results",
-    title: "Yesterday in Diamond",
-    desc: "Locked official forecasts graded against final box-score actuals.",
-    accent: "text-[var(--color-success)]",
-    accentBg: "color-mix(in oklab, var(--color-success) 22%, transparent)",
-  },
-  {
-    to: "/scores",
-    kicker: "Live",
-    title: "Live Matchups",
-    desc: "Real-time scores, inning state, win probability, and projected lines.",
-    accent: "text-live",
-    accentBg: "color-mix(in oklab, var(--color-live) 22%, transparent)",
-  },
-] as const;
-
-function DashboardGrid({ hasLive }: { hasLive: boolean }) {
+function PulseStrip({ games }: { games: any[] }) {
+  if (!games?.length) {
+    return <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">No games on the slate today.</div>;
+  }
   return (
-    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {DASHBOARD_CARDS.map((c) => (
-        <Link
-          key={c.to}
-          to={c.to}
-          className={`card-elevated group relative flex flex-col overflow-hidden p-5 ${c.to === "/scores" && hasLive ? "sweep" : ""}`}
-        >
-          <div
-            aria-hidden
-            className="absolute inset-x-0 top-0 h-px"
-            style={{ background: c.accentBg }}
-          />
-          <div className={`mono text-[10px] font-semibold uppercase tracking-[0.22em] ${c.accent}`}>
-            {c.kicker}
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {games.slice(0, 12).map((g: any) => (
+        <div key={g.gamePk} className="rounded border border-border/60 bg-black/30 px-3 py-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-foreground">
+              {g.away?.abbreviation ?? "AWY"} @ {g.home?.abbreviation ?? "HME"}
+            </span>
+            <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              {g.statusText ?? g.status ?? ""}
+            </span>
           </div>
-          <div className="display mt-1 text-xl tracking-tight text-foreground">
-            {c.title}
-          </div>
-          <p className="mt-2 flex-1 text-xs text-muted-foreground">{c.desc}</p>
-          <div className="mono mt-4 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-primary">
-            Open →
-          </div>
-        </Link>
+          {typeof g.away?.score === "number" && typeof g.home?.score === "number" ? (
+            <div className="mono mt-1 text-[11px] text-muted-foreground">
+              {g.away.score} — {g.home.score}
+            </div>
+          ) : null}
+        </div>
       ))}
     </div>
   );
 }
-
-function DiamondHero({
-  date, statusLine, hasLive,
-}: { date: string; statusLine: string; hasLive: boolean }) {
-  return (
-    <div className="relative mb-10 overflow-hidden rounded-2xl border border-border bg-[var(--color-surface-panel)] px-5 py-8 md:px-10 md:py-12">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          background:
-            "radial-gradient(600px 240px at 10% 0%, color-mix(in oklab, var(--color-primary) 18%, transparent), transparent 60%), radial-gradient(500px 240px at 95% 100%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 60%)",
-        }}
-      />
-      <div className="relative">
-        <div className="mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
-          {date} {hasLive ? "· LIVE" : ""}
-        </div>
-        <h1 className="wordmark mt-2 text-[clamp(56px,11vw,112px)] leading-[0.95] text-foreground">
-          Diamond
-        </h1>
-        <div className="mt-3 h-px w-24 bg-primary glow-edge" />
-        <p className="mt-4 text-sm uppercase tracking-[0.18em] text-muted-foreground">
-          MLB Simulation &amp; Projection Engine
-        </p>
-        <p className="mono mt-1 text-xs text-foreground/80">{statusLine}</p>
-      </div>
-    </div>
-  );
-}
-
-
-
-function FeaturedMatchup({ game }: { game: GameSummary }) {
-  const seed = game.gamePk;
-  const homeWinPct = 38 + ((seed * 7) % 25); // 38–62%
-  const awayWinPct = 100 - homeWinPct;
-  const projHome = (3.8 + ((seed % 23) / 10)).toFixed(1);
-  const projAway = (3.8 + (((seed * 3) % 23) / 10)).toFixed(1);
-
-  return (
-    <Link
-      to="/matchups/$gamePk"
-      params={{ gamePk: String(game.gamePk) }}
-      className="block overflow-hidden rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-secondary/40 p-5 transition-colors hover:border-primary/50 md:p-7"
-    >
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="mono rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
-          Featured matchup
-        </span>
-        <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {game.venue}
-        </span>
-        {game.isLive ? (
-          <span className="mono inline-flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-live">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-live" />
-            Live
-          </span>
-        ) : null}
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-[1fr_auto_1fr] md:items-center">
-        <TeamBlock side="away" abbrev={game.away.abbreviation} name={game.away.name}
-                   record={game.away.record} score={game.away.score} proj={projAway} />
-        <div className="hidden text-center md:block">
-          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">VS</div>
-          <div className="font-display text-3xl text-muted-foreground">@</div>
-        </div>
-        <TeamBlock side="home" abbrev={game.home.abbreviation} name={game.home.name}
-                   record={game.home.record} score={game.home.score} proj={projHome} />
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Diamond win probability
-          </span>
-          <span className="mono text-[10px] uppercase tracking-widest text-edge">
-            est. · sim engine v0
-          </span>
-        </div>
-        <div className="flex h-2 overflow-hidden rounded-full bg-secondary">
-          <div className="bg-edge transition-all" style={{ width: `${awayWinPct}%` }} />
-          <div className="bg-primary transition-all" style={{ width: `${homeWinPct}%` }} />
-        </div>
-        <div className="mt-1 flex justify-between text-xs">
-          <span className="mono text-edge">{game.away.abbreviation} {awayWinPct}%</span>
-          <span className="mono text-primary">{homeWinPct}% {game.home.abbreviation}</span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-
-
-function TeamBlock({
-  abbrev, name, record, score, proj,
-}: {
-  side: "home" | "away";
-  abbrev: string; name: string; record: string;
-  score: number | null; proj: string;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-3">
-        <div className="flex h-12 w-14 items-center justify-center rounded-md bg-secondary font-display text-xl font-bold">
-          {abbrev || "?"}
-        </div>
-        <div>
-          <div className="font-display text-lg font-semibold leading-tight">{name}</div>
-          <div className="mono text-xs text-muted-foreground">{record}</div>
-        </div>
-      </div>
-      <div className="flex items-baseline gap-4">
-        <div className="mono text-4xl font-bold tabular-nums">{score ?? "—"}</div>
-        <div className="mono text-xs uppercase tracking-widest text-edge">
-          proj <span className="text-foreground">{proj}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-lg border border-dashed border-border/70 bg-card/40 p-10 text-center">
-      <div className="mono text-xs uppercase tracking-widest text-muted-foreground">Off day</div>
-      <p className="mt-2 text-sm text-muted-foreground">
-        No MLB games on this date. Check back tomorrow.
-      </p>
-    </div>
-  );
-}
-

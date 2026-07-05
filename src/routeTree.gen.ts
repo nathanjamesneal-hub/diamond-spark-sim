@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
 import { Route as AuthenticatedTopPropsRouteImport } from './routes/_authenticated/top-props'
 import { Route as AuthenticatedStandingsRouteImport } from './routes/_authenticated/standings'
 import { Route as AuthenticatedSlateRouteImport } from './routes/_authenticated/slate'
@@ -19,6 +20,7 @@ import { Route as AuthenticatedSimLeadersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedScoresRouteImport } from './routes/_authenticated/scores'
 import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
 import { Route as AuthenticatedProjectionsRouteImport } from './routes/_authenticated/projections'
+import { Route as AuthenticatedPitchersRouteImport } from './routes/_authenticated/pitchers'
 import { Route as AuthenticatedOddsRouteImport } from './routes/_authenticated/odds'
 import { Route as AuthenticatedModelResultsRouteImport } from './routes/_authenticated/model-results'
 import { Route as AuthenticatedModelRouteImport } from './routes/_authenticated/model'
@@ -26,6 +28,8 @@ import { Route as AuthenticatedMlbPulseRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeadersRouteImport } from './routes/_authenticated/leaders'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
+import { Route as AuthenticatedLabRouteImport } from './routes/_authenticated/lab'
+import { Route as AuthenticatedHittersRouteImport } from './routes/_authenticated/hitters'
 import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
@@ -67,6 +71,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWatchlistRoute = AuthenticatedWatchlistRouteImport.update({
+  id: '/watchlist',
+  path: '/watchlist',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTopPropsRoute = AuthenticatedTopPropsRouteImport.update({
   id: '/top-props',
   path: '/top-props',
@@ -103,6 +112,11 @@ const AuthenticatedProjectionsRoute =
     path: '/projections',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPitchersRoute = AuthenticatedPitchersRouteImport.update({
+  id: '/pitchers',
+  path: '/pitchers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOddsRoute = AuthenticatedOddsRouteImport.update({
   id: '/odds',
   path: '/odds',
@@ -141,6 +155,16 @@ const AuthenticatedLeaderboardsRoute =
     path: '/leaderboards',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLabRoute = AuthenticatedLabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHittersRoute = AuthenticatedHittersRouteImport.update({
+  id: '/hitters',
+  path: '/hitters',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedForecastsRoute = AuthenticatedForecastsRouteImport.update({
   id: '/forecasts',
   path: '/forecasts',
@@ -300,6 +324,8 @@ export interface FileRoutesByFullPath {
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
+  '/hitters': typeof AuthenticatedHittersRoute
+  '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -307,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/pitchers': typeof AuthenticatedPitchersRoute
   '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -314,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
+  '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
@@ -342,6 +370,8 @@ export interface FileRoutesByTo {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/hitters': typeof AuthenticatedHittersRoute
+  '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -349,6 +379,7 @@ export interface FileRoutesByTo {
   '/model': typeof AuthenticatedModelRoute
   '/model-results': typeof AuthenticatedModelResultsRoute
   '/odds': typeof AuthenticatedOddsRoute
+  '/pitchers': typeof AuthenticatedPitchersRoute
   '/projections': typeof AuthenticatedProjectionsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/scores': typeof AuthenticatedScoresRoute
@@ -356,6 +387,7 @@ export interface FileRoutesByTo {
   '/slate': typeof AuthenticatedSlateRoute
   '/standings': typeof AuthenticatedStandingsRoute
   '/top-props': typeof AuthenticatedTopPropsRoute
+  '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
@@ -386,6 +418,8 @@ export interface FileRoutesById {
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
+  '/_authenticated/hitters': typeof AuthenticatedHittersRoute
+  '/_authenticated/lab': typeof AuthenticatedLabRoute
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/leaders': typeof AuthenticatedLeadersRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -393,6 +427,7 @@ export interface FileRoutesById {
   '/_authenticated/model': typeof AuthenticatedModelRoute
   '/_authenticated/model-results': typeof AuthenticatedModelResultsRoute
   '/_authenticated/odds': typeof AuthenticatedOddsRoute
+  '/_authenticated/pitchers': typeof AuthenticatedPitchersRoute
   '/_authenticated/projections': typeof AuthenticatedProjectionsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/scores': typeof AuthenticatedScoresRoute
@@ -400,6 +435,7 @@ export interface FileRoutesById {
   '/_authenticated/slate': typeof AuthenticatedSlateRoute
   '/_authenticated/standings': typeof AuthenticatedStandingsRoute
   '/_authenticated/top-props': typeof AuthenticatedTopPropsRoute
+  '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
@@ -432,6 +468,8 @@ export interface FileRouteTypes {
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/forecasts'
+    | '/hitters'
+    | '/lab'
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
@@ -439,6 +477,7 @@ export interface FileRouteTypes {
     | '/model'
     | '/model-results'
     | '/odds'
+    | '/pitchers'
     | '/projections'
     | '/results'
     | '/scores'
@@ -446,6 +485,7 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
+    | '/watchlist'
     | '/admin'
     | '/petri'
     | '/petri-results'
@@ -474,6 +514,8 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/hitters'
+    | '/lab'
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
@@ -481,6 +523,7 @@ export interface FileRouteTypes {
     | '/model'
     | '/model-results'
     | '/odds'
+    | '/pitchers'
     | '/projections'
     | '/results'
     | '/scores'
@@ -488,6 +531,7 @@ export interface FileRouteTypes {
     | '/slate'
     | '/standings'
     | '/top-props'
+    | '/watchlist'
     | '/admin'
     | '/petri'
     | '/petri-results'
@@ -517,6 +561,8 @@ export interface FileRouteTypes {
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
     | '/_authenticated/forecasts'
+    | '/_authenticated/hitters'
+    | '/_authenticated/lab'
     | '/_authenticated/leaderboards'
     | '/_authenticated/leaders'
     | '/_authenticated/lineup-status'
@@ -524,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authenticated/model'
     | '/_authenticated/model-results'
     | '/_authenticated/odds'
+    | '/_authenticated/pitchers'
     | '/_authenticated/projections'
     | '/_authenticated/results'
     | '/_authenticated/scores'
@@ -531,6 +578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/slate'
     | '/_authenticated/standings'
     | '/_authenticated/top-props'
+    | '/_authenticated/watchlist'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_admin/petri'
@@ -587,6 +635,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/watchlist': {
+      id: '/_authenticated/watchlist'
+      path: '/watchlist'
+      fullPath: '/watchlist'
+      preLoaderRoute: typeof AuthenticatedWatchlistRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/top-props': {
       id: '/_authenticated/top-props'
       path: '/top-props'
@@ -636,6 +691,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/pitchers': {
+      id: '/_authenticated/pitchers'
+      path: '/pitchers'
+      fullPath: '/pitchers'
+      preLoaderRoute: typeof AuthenticatedPitchersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/odds': {
       id: '/_authenticated/odds'
       path: '/odds'
@@ -683,6 +745,20 @@ declare module '@tanstack/react-router' {
       path: '/leaderboards'
       fullPath: '/leaderboards'
       preLoaderRoute: typeof AuthenticatedLeaderboardsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/lab': {
+      id: '/_authenticated/lab'
+      path: '/lab'
+      fullPath: '/lab'
+      preLoaderRoute: typeof AuthenticatedLabRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hitters': {
+      id: '/_authenticated/hitters'
+      path: '/hitters'
+      fullPath: '/hitters'
+      preLoaderRoute: typeof AuthenticatedHittersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/forecasts': {
@@ -932,6 +1008,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
   AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
+  AuthenticatedHittersRoute: typeof AuthenticatedHittersRoute
+  AuthenticatedLabRoute: typeof AuthenticatedLabRoute
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLeadersRoute: typeof AuthenticatedLeadersRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
@@ -939,6 +1017,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelRoute: typeof AuthenticatedModelRoute
   AuthenticatedModelResultsRoute: typeof AuthenticatedModelResultsRoute
   AuthenticatedOddsRoute: typeof AuthenticatedOddsRoute
+  AuthenticatedPitchersRoute: typeof AuthenticatedPitchersRoute
   AuthenticatedProjectionsRoute: typeof AuthenticatedProjectionsRoute
   AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedScoresRoute: typeof AuthenticatedScoresRoute
@@ -946,6 +1025,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSlateRoute: typeof AuthenticatedSlateRoute
   AuthenticatedStandingsRoute: typeof AuthenticatedStandingsRoute
   AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
+  AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
   AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
@@ -961,6 +1041,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
   AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
+  AuthenticatedHittersRoute: AuthenticatedHittersRoute,
+  AuthenticatedLabRoute: AuthenticatedLabRoute,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLeadersRoute: AuthenticatedLeadersRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
@@ -968,6 +1050,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelRoute: AuthenticatedModelRoute,
   AuthenticatedModelResultsRoute: AuthenticatedModelResultsRoute,
   AuthenticatedOddsRoute: AuthenticatedOddsRoute,
+  AuthenticatedPitchersRoute: AuthenticatedPitchersRoute,
   AuthenticatedProjectionsRoute: AuthenticatedProjectionsRoute,
   AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedScoresRoute: AuthenticatedScoresRoute,
@@ -975,6 +1058,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSlateRoute: AuthenticatedSlateRoute,
   AuthenticatedStandingsRoute: AuthenticatedStandingsRoute,
   AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,
+  AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
   AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,
@@ -999,3 +1083,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

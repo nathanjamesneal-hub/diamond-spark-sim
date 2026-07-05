@@ -4,12 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const nav = [
-  { to: "/", label: "Today" },
-  { to: "/mlb-pulse", label: "MLB Pulse" },
-  { to: "/today/live", label: "Live" },
-  { to: "/forecasts", label: "Forecasts" },
-  { to: "/results", label: "Results" },
-  { to: "/model", label: "Model" },
+  { to: "/mlb-pulse", label: "Pulse" },
+  { to: "/hitters", label: "Hitters" },
+  { to: "/pitchers", label: "Pitchers" },
+  { to: "/watchlist", label: "Watchlist" },
+  { to: "/lab", label: "Lab" },
 ] as const;
 
 export function SiteHeader() {
@@ -88,7 +87,7 @@ export function SiteHeader() {
           <div className="flex flex-col leading-none">
             <span className="wordmark text-2xl text-foreground">Diamond</span>
             <span className="mono mt-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
-              MLB Simulation &amp; Projection Engine
+              Live Baseball Intelligence
             </span>
           </div>
         </Link>
@@ -96,7 +95,7 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-1 md:flex">
           {nav.map((item) => (
             <Link key={item.to} to={item.to}
-              activeOptions={{ exact: item.to === "/" }}
+              activeOptions={{ exact: false }}
               activeProps={{ className: "text-foreground border-primary" }}
               className="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -139,7 +138,7 @@ export function SiteHeader() {
       <nav className="flex items-center gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden">
         {nav.map((item) => (
           <Link key={item.to} to={item.to}
-            activeOptions={{ exact: item.to === "/" }}
+            activeOptions={{ exact: false }}
             activeProps={{ className: "text-foreground border-primary" }}
             className="whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
