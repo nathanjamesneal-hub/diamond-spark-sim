@@ -28,6 +28,7 @@ import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runDiamondEngineForGames } from "@/lib/ingest.functions";
 import { gameHasStartedOrPastStart } from "@/lib/forecast/window";
 import { runPetriAutoForDate } from "@/lib/petri/run.functions";
+import { ensureScheduleForDate } from "@/lib/schedule.server";
 
 import { finishAutomationLog, logAutomation } from "./log";
 
@@ -38,6 +39,14 @@ export type OrchestrateResult = {
   startedAt: string;
   finishedAt: string;
   durationMs: number;
+  schedule: {
+    gamesFetched: number;
+    gamesUpserted: number;
+    inserted: number;
+    updated: number;
+    teamsUpserted: number;
+    error?: string;
+  };
   refresh: {
     changedGameIds: number;
     publicationGapGameIds: number;
@@ -96,6 +105,13 @@ export async function orchestrateDiamondSlate(
     startedAt: startedAt.toISOString(),
     finishedAt: startedAt.toISOString(),
     durationMs: 0,
+    schedule: {
+      gamesFetched: 0,
+      gamesUpserted: 0,
+      inserted: 0,
+      updated: 0,
+      teamsUpserted: 0,
+    },
     refresh: {
       changedGameIds: 0,
       publicationGapGameIds: 0,
@@ -119,6 +135,28 @@ export async function orchestrateDiamondSlate(
       locked: 0,
     },
   };
+
+  // 0) Schedule readiness — ensure public.games has rows for this slate before
+  //    any lineup/probable-pitcher/player ingestion. Idempotent on mlb_game_id.
+  try {
+    const s = await ensureScheduleForDate(supabaseAdmin, date);
+    result.schedule.gamesFetched = s.gamesFetched;
+    result.schedule.gamesUpserted = s.gamesUpserted;
+    result.schedule.inserted = s.inserted;
+    result.schedule.updated = s.updated;
+    result.schedule.teamsUpserted = s.teamsUpserted;
+    if (s.error) {
+      result.schedule.error = s.error;
+      result.ok = false;
+    } else if (s.gamesFetched > 0 && s.gamesUpserted === 0) {
+      // MLB returned games but nothing stored — never silently continue.
+      result.schedule.error = `MLB returned ${s.gamesFetched} games for ${date} but 0 were upserted`;
+      result.ok = false;
+    }
+  } catch (e: any) {
+    result.ok = false;
+    result.schedule.error = e?.message ?? String(e);
+  }
 
   // 1) Refresh lineups + run engine for changed/gap games (today only).
   try {
@@ -178,11 +216,12 @@ export async function orchestrateDiamondSlate(
     finished_at: result.finishedAt,
     duration_ms: result.durationMs,
     details: {
+      schedule: result.schedule,
       refresh: result.refresh,
       lock: result.lock,
       petri: result.petri,
     },
-    error: result.refresh.error || result.lock.error || result.petri.error || null,
+    error: result.schedule.error || result.refresh.error || result.lock.error || result.petri.error || null,
   });
 
   return result;
