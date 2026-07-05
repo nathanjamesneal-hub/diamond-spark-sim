@@ -35,25 +35,28 @@ const links: Array<{ to: string; title: string; desc: string }> = [
 
 function LabPage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      <div className="mono text-[10px] uppercase tracking-[0.3em] text-primary/80">Diamond Lab</div>
-      <h1 className="mt-1 text-2xl font-semibold text-foreground md:text-3xl">Model Research</h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        Secondary surfaces for simulation, forecasting, and back-testing. These no longer define
-        the main Diamond experience.
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-10">
+      <div className="eyebrow text-[var(--brass)]">Diamond · Secondary</div>
+      <h1 className="font-display mt-1 text-[32px] leading-tight text-[var(--cream)] md:text-[44px]">
+        Lab
+      </h1>
+      <p className="mt-2 max-w-2xl text-sm text-[var(--warm-muted)]">
+        Research surfaces — simulations, forecasts, calibration, back-tests. These sit behind Diamond Live
+        and are for exploration only.
       </p>
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {links.map((l) => (
           <Link
             key={l.to}
             to={l.to}
-            className="block rounded-lg border border-border/70 bg-gradient-to-b from-[#0d1220] to-[#080b14] p-4 transition-colors hover:border-primary/40"
+            className="block rounded-sm border border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2.5 transition-colors hover:border-[var(--brass)]"
           >
-            <div className="text-sm font-semibold text-foreground">{l.title}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{l.desc}</div>
+            <div className="text-sm font-semibold text-[var(--cream)]">{l.title}</div>
+            <div className="mt-0.5 text-[11px] text-[var(--warm-muted)]">{l.desc}</div>
           </Link>
         ))}
       </div>
     </div>
   );
 }
+

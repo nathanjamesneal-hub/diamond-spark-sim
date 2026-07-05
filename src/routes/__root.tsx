@@ -92,24 +92,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Diamond — MLB simulation & projection engine" },
+      { title: "Diamond — MLB Risers, Fallers & Live Intelligence" },
       {
         name: "description",
         content:
-          "Built for baseball. Monte Carlo simulations, daily projections, and calibration intelligence for every MLB game.",
+          "The daily front page of Major League Baseball. Verified hitter and pitcher movers, live slate, and lineup intelligence.",
       },
       { name: "author", content: "Diamond" },
-      { property: "og:title", content: "Diamond — Built for baseball" },
+      { property: "og:title", content: "Diamond — MLB Risers & Fallers" },
       {
         property: "og:description",
         content:
-          "MLB simulation & projection engine. Mean projections, prediction drivers, and model calibration.",
+          "See what's changing in baseball before it becomes the story. Verified game data — no projections, probabilities, or odds.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
+
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

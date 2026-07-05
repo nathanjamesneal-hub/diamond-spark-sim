@@ -6,6 +6,7 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+@import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/oswald/500.css";
 @import "@fontsource/oswald/600.css";
 @import "@fontsource/oswald/700.css";
@@ -13,18 +14,22 @@
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/700.css";
 
+
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Diamond Design System 2.0 — "MLB Broadcast Energy".
- * Dark, electric, baseball-obsessed. Layered navy surfaces,
- * Oswald broadcast display, Inter UI, JetBrains Mono stats,
- * Diamond Blue accent + team-color identity rails.
+ * Diamond Live — "Baseball Publication".
+ * Ink-black newsprint surfaces, cream/parchment premium cards,
+ * field green for verified upward movement, cardinal red for
+ * fallers and warnings, brass for quiet metadata detail.
+ * Instrument Serif for editorial masthead + display,
+ * Inter for UI, JetBrains Mono for tabular stats.
  */
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Oswald", "Inter", ui-sans-serif, sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", "Georgia", serif;
+  --font-condensed: "Oswald", "Inter", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -62,60 +67,79 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-surface-panel: var(--surface-panel);
+
+  --color-ink: var(--ink);
+  --color-charcoal: var(--charcoal);
+  --color-cream: var(--cream);
+  --color-parchment: var(--parchment);
+  --color-field: var(--field);
+  --color-cardinal: var(--cardinal);
+  --color-brass: var(--brass);
 }
 
 :root {
-  --radius: 0.875rem;
+  --radius: 0.625rem;
 
-  /* Dark broadcast surfaces */
-  --background:        oklch(0.16 0.035 260);    /* #0A0F1C midnight navy */
-  --foreground:        oklch(0.96 0.012 250);    /* #E6EAF2 off-white */
+  /* Publication palette */
+  --ink:         #15140F;   /* ink black — page */
+  --charcoal:    #24221B;   /* charcoal — panels */
+  --cream:       #F3E9D6;   /* baseball-card cream — premium */
+  --parchment:   #D8CBB3;   /* warm parchment — quiet accent */
+  --field:       #4F7042;   /* field green — risers / live */
+  --cardinal:    #BB4338;   /* cardinal — fallers / warnings */
+  --brass:       #B98C44;   /* brass / gold — metadata detail */
+  --warm-muted:  #A89C89;   /* warm muted text */
 
-  --surface-panel:     oklch(0.20 0.038 260);    /* #0F1626 graphite-navy */
-  --card:              oklch(0.235 0.042 260);   /* #131C30 slate-navy elevated */
-  --card-foreground:   oklch(0.96 0.012 250);
+  --background:        var(--ink);
+  --foreground:        var(--cream);
 
-  --popover:           oklch(0.235 0.042 260);
-  --popover-foreground: oklch(0.96 0.012 250);
+  --surface-panel:     var(--charcoal);
+  --card:              #2A281F;         /* elevated charcoal */
+  --card-foreground:   var(--cream);
 
-  --primary:           oklch(0.66 0.20 258);     /* #2F7BFF Diamond Blue */
-  --primary-foreground: oklch(0.99 0 0);
-  --primary-glow:      oklch(0.76 0.16 258);     /* #5BA0FF */
+  --popover:           #2A281F;
+  --popover-foreground: var(--cream);
 
-  --secondary:         oklch(0.28 0.04 260);
-  --secondary-foreground: oklch(0.96 0.012 250);
+  --primary:           var(--field);
+  --primary-foreground: #F3E9D6;
+  --primary-glow:      #6a8c58;
 
-  --muted:             oklch(0.26 0.038 260);    /* #182238 */
-  --muted-foreground:  oklch(0.72 0.025 250);    /* #94A3B8 cool gray */
+  --secondary:         #322F26;
+  --secondary-foreground: var(--cream);
 
-  --accent:            oklch(0.30 0.05 260);
-  --accent-foreground: oklch(0.96 0.012 250);
+  --muted:             #2E2C23;
+  --muted-foreground:  var(--warm-muted);
 
-  --destructive:       oklch(0.66 0.23 18);      /* #F43F5E rose */
-  --destructive-foreground: oklch(0.99 0 0);
+  --accent:            var(--brass);
+  --accent-foreground: #15140F;
 
-  --border:            oklch(0.30 0.04 260);     /* #1F2A44 blue-gray */
-  --input:             oklch(0.30 0.04 260);
-  --ring:              oklch(0.66 0.20 258);
+  --destructive:       var(--cardinal);
+  --destructive-foreground: #F3E9D6;
 
-  --edge:              oklch(0.66 0.20 258);
-  --edge-foreground:   oklch(0.16 0.035 260);
-  --live:              oklch(0.66 0.23 18);
-  --chalk:             oklch(0.96 0.012 250);
-  --dirt:              oklch(0.55 0.11 60);
-  --grass:             oklch(0.72 0.18 155);
+  --border:            #3A3629;         /* soft parchment-tinted border */
+  --input:             #3A3629;
+  --ring:              var(--brass);
 
-  --success:           oklch(0.72 0.18 155);     /* #10B981 emerald */
-  --warning:           oklch(0.78 0.16 75);      /* #F59E0B amber */
+  --edge:              var(--brass);
+  --edge-foreground:   var(--ink);
+  --live:              var(--cardinal);
+  --chalk:             var(--cream);
+  --dirt:              #7A5A3A;
+  --grass:             var(--field);
 
-  --shadow-card:        0 1px 0 rgb(255 255 255 / 0.03) inset,
-                        0 8px 24px rgb(0 0 0 / 0.35);
-  --shadow-card-hover:  0 1px 0 rgb(255 255 255 / 0.05) inset,
-                        0 12px 32px rgb(0 0 0 / 0.45),
-                        0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
-  --glow-edge:          0 0 14px color-mix(in oklab, var(--primary) 55%, transparent);
-  --glow-live:          0 0 10px color-mix(in oklab, var(--live) 55%, transparent);
+  --success:           var(--field);
+  --warning:           var(--brass);
+
+  --shadow-card:        0 1px 0 rgb(243 233 214 / 0.04) inset,
+                        0 8px 22px rgb(0 0 0 / 0.45);
+  --shadow-card-hover:  0 1px 0 rgb(243 233 214 / 0.06) inset,
+                        0 14px 30px rgb(0 0 0 / 0.55),
+                        0 0 0 1px color-mix(in oklab, var(--brass) 40%, transparent);
+  --glow-edge:          0 0 12px color-mix(in oklab, var(--brass) 45%, transparent);
+  --glow-live:          0 0 10px color-mix(in oklab, var(--cardinal) 55%, transparent);
 }
+
+
 
 /* Optional light theme preserved for future use; not exposed via UI. */
 .light {
@@ -152,18 +176,28 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Oswald reserved for display moments: wordmark, H1, H2, page eyebrows. */
+  /* Instrument Serif for editorial masthead / display / H1-H2. */
   h1, h2, .display {
     font-family: var(--font-display);
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    font-weight: 400;
+    letter-spacing: -0.005em;
   }
 
   .wordmark {
     font-family: var(--font-display);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-weight: 400;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    font-feature-settings: "liga", "dlig";
+  }
+
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
   }
 
   h3, h4, h5, h6 {
@@ -177,7 +211,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Body texture: two radial spotlights + faint scoreboard grid */
+  /* Quiet newsprint texture: a faint parchment wash on ink. */
   body::before {
     content: "";
     position: fixed;
@@ -185,18 +219,42 @@
     pointer-events: none;
     z-index: 0;
     background-image:
-      radial-gradient(900px 600px at 12% -10%,
-        color-mix(in oklab, var(--primary) 9%, transparent), transparent 60%),
-      radial-gradient(700px 500px at 95% 110%,
-        color-mix(in oklab, var(--primary) 6%, transparent), transparent 60%),
-      linear-gradient(to right,
-        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom,
-        color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
-    background-size: auto, auto, 48px 48px, 48px 48px;
-    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 60%, transparent));
+      radial-gradient(1100px 700px at 8% -10%,
+        color-mix(in oklab, var(--brass) 6%, transparent), transparent 65%),
+      radial-gradient(700px 500px at 96% 110%,
+        color-mix(in oklab, var(--cardinal) 5%, transparent), transparent 65%);
+    mask-image: linear-gradient(to bottom, black, color-mix(in oklab, black 70%, transparent));
   }
 }
+
+@utility masthead-rule {
+  border-top: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--brass) 25%, transparent);
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+@utility riser-edge {
+  border-left: 3px solid var(--field);
+}
+
+@utility faller-edge {
+  border-left: 3px solid var(--cardinal);
+}
+
+@utility scouting-card {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--cream) 96%, transparent) 0%,
+      color-mix(in oklab, var(--parchment) 92%, transparent) 100%);
+  color: #24221B;
+  border: 1px solid color-mix(in oklab, var(--brass) 55%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.35) inset,
+    0 10px 22px rgb(0 0 0 / 0.35);
+}
+
 
 @utility card-elevated {
   background: var(--color-card);

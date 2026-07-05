@@ -113,30 +113,30 @@ function MlbPulsePage() {
 
 function PulseNav() {
   return (
-    <nav className="flex items-center gap-2 overflow-x-auto border-b border-border/60 pb-2">
+    <nav className="flex items-center gap-2 overflow-x-auto border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)] pb-2">
       <Link
         to="/mlb-pulse"
-        className="mono whitespace-nowrap border-b-2 border-primary px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-foreground"
+        className="mono whitespace-nowrap border-b-2 border-[var(--brass)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--cream)]"
       >
-        MLB Pulse
+        Pulse
       </Link>
       <Link
         to="/"
-        className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
       >
-        Today
+        Live
       </Link>
       <Link
-        to="/scores"
-        className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        to="/hitters"
+        className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
       >
-        Scores
+        Hitters
       </Link>
       <Link
-        to="/forecasts"
-        className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        to="/pitchers"
+        className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
       >
-        Forecasts
+        Pitchers
       </Link>
     </nav>
   );
@@ -158,23 +158,25 @@ function Header({
   onToday: () => void;
 }) {
   return (
-    <header className="rounded-lg border border-border/60 bg-card/40 p-4 md:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <header className="border-b border-[color-mix(in_oklab,var(--brass)_30%,transparent)] pb-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="mono text-[11px] uppercase tracking-[0.25em] text-primary">MLB Pulse</div>
-          <h1 className="font-display mt-1 text-3xl font-bold tracking-tight">Today&apos;s MLB Pulse</h1>
-          <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <div className="eyebrow text-[var(--brass)]">Today&apos;s Slate</div>
+          <h1 className="font-display mt-1 text-[36px] leading-tight text-[var(--cream)] md:text-[52px]">
+            MLB Pulse
+          </h1>
+          <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.22em] text-[var(--warm-muted)]">
             <span>{date}</span>
             <span>Updated {fmtTime(data?.overallUpdatedAt)}</span>
-            <span>{data?.hasLiveGames ? "Live refresh every 60s" : "Auto-refresh paused"}</span>
-            {hasError ? <span className="text-amber-300">Data may be delayed</span> : null}
+            <span>{data?.hasLiveGames ? "Live refresh · 60s" : "Auto-refresh paused"}</span>
+            {hasError ? <span className="text-[var(--cardinal)]">Data may be delayed</span> : null}
           </div>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onToday}
-            className="mono rounded-md border border-border/70 px-3 py-2 text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            className="mono rounded-sm border border-[color-mix(in_oklab,var(--brass)_35%,transparent)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--warm-muted)] hover:text-[var(--cream)]"
           >
             Today
           </button>
@@ -182,7 +184,7 @@ function Header({
             type="button"
             onClick={onRefresh}
             disabled={isFetching}
-            className="mono rounded-md bg-primary px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-primary-foreground disabled:opacity-60"
+            className="mono rounded-sm bg-[var(--field)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--cream)] disabled:opacity-60 hover:brightness-110"
           >
             {isFetching ? "Refreshing" : "Refresh"}
           </button>
@@ -191,6 +193,7 @@ function Header({
     </header>
   );
 }
+
 
 function GameStrip({
   games,
@@ -242,7 +245,7 @@ function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
   return (
-    <article className={`rounded-lg border p-3 ${live ? "border-sky-400/50 bg-sky-400/10" : "border-border/60 bg-card/40"}`}>
+    <article className={`rounded-sm border p-3 ${live ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_12%,transparent)]" : "border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"}`}>
       <div className="flex items-center justify-between gap-2">
         <span className={`mono rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${statusClass(game.status)}`}>
           {statusLabel(game)}
@@ -416,13 +419,14 @@ function statusDetail(game: PulseGame): string | null {
 }
 
 function statusClass(status: PulseGame["status"]): string {
-  if (status === "live") return "bg-sky-400/15 text-sky-200";
-  if (status === "final") return "bg-emerald-500/15 text-emerald-200";
-  if (status === "delayed") return "bg-amber-500/15 text-amber-200";
-  if (status === "postponed") return "bg-rose-500/15 text-rose-200";
-  if (status === "unavailable") return "bg-zinc-500/15 text-zinc-300";
-  return "bg-secondary text-muted-foreground";
+  if (status === "live") return "bg-[color-mix(in_oklab,var(--field)_25%,transparent)] text-[var(--cream)] border border-[var(--field)]";
+  if (status === "final") return "bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
+  if (status === "delayed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
+  if (status === "postponed") return "bg-[color-mix(in_oklab,var(--cardinal)_20%,transparent)] text-[var(--cream)] border border-[var(--cardinal)]";
+  if (status === "unavailable") return "bg-[color-mix(in_oklab,var(--charcoal)_70%,transparent)] text-[var(--warm-muted)] border border-[color-mix(in_oklab,var(--warm-muted)_35%,transparent)]";
+  return "bg-[color-mix(in_oklab,var(--brass)_15%,transparent)] text-[var(--parchment)] border border-[color-mix(in_oklab,var(--brass)_35%,transparent)]";
 }
+
 
 function fmtTime(value: string | null | undefined): string {
   if (!value) return "—";
