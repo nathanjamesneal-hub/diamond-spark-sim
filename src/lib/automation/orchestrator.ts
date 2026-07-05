@@ -40,20 +40,13 @@ export type OrchestrateResult = {
   finishedAt: string;
   durationMs: number;
   schedule: {
-    gamesFetched: 0,
-    gamesUpserted: 0,
-    inserted: 0,
-    updated: 0,
-    teamsUpserted: 0,
-    error: undefined as string | undefined,
-  } as {
     gamesFetched: number;
     gamesUpserted: number;
     inserted: number;
     updated: number;
     teamsUpserted: number;
     error?: string;
-  },
+  };
   refresh: {
     changedGameIds: number;
     publicationGapGameIds: number;
