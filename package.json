@@ -8,7 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/lib/engines/alpha_0_3/engine.test.ts src/lib/engines/registry.test.ts src/lib/sim/shrinkage.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/engines/alpha_0_3/engine.test.ts src/lib/engines/registry.test.ts src/lib/sim/shrinkage.test.ts src/lib/form-v2/adjustment.test.ts src/lib/form-v2/shadow-architecture.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

@@ -432,6 +432,18 @@ export async function publishForecastIfEligible(
     }
   }
 
+  // Diamond V2 form-adjusted Monte Carlo runs in shadow only. It is isolated
+  // from public forecast tables and must never block baseline publication.
+  if (forecastClass === "official") {
+    try {
+      const { runFormShadowForForecastRun } = await import("@/lib/form-v2/shadow");
+      await runFormShadowForForecastRun(ctx.admin as any, newRunId);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[diamond-v2-form-shadow] shadow run failed:", (e as Error).message);
+    }
+  }
+
   const decision: LifecycleDecision = latest?.status === "published" ? "superseded" : "published";
   const log = baseLog(decision, latest, inputHash, newVersionNumber);
   logLine(log);

@@ -54,6 +54,13 @@ export type OrchestrateResult = {
     engineRan: boolean;
     error?: string;
   };
+  recentEvents: {
+    finalGames: number;
+    gameEventRows: number;
+    rollupRows: number;
+    pitcherHitTypesSourced: boolean;
+    error?: string;
+  };
   preview: {
     candidateGames: number;
     projectionsRegenerated: number;
@@ -118,6 +125,12 @@ export async function orchestrateDiamondSlate(
       projectionsRegenerated: 0,
       engineRan: false,
     },
+    recentEvents: {
+      finalGames: 0,
+      gameEventRows: 0,
+      rollupRows: 0,
+      pitcherHitTypesSourced: false,
+    },
     preview: {
       candidateGames: 0,
       projectionsRegenerated: 0,
@@ -165,6 +178,11 @@ export async function orchestrateDiamondSlate(
     result.refresh.publicationGapGameIds = r.publicationGapGameIds?.length ?? 0;
     result.refresh.projectionsRegenerated = r.projectionsRegenerated;
     result.refresh.engineRan = r.engineRan;
+    result.recentEvents.finalGames = r.recentEvents.finalGames;
+    result.recentEvents.gameEventRows = r.recentEvents.gameEventRows;
+    result.recentEvents.rollupRows = r.recentEvents.rollupRows;
+    result.recentEvents.pitcherHitTypesSourced = r.recentEvents.pitcherHitTypesSourced;
+    if (r.recentEvents.error) result.recentEvents.error = r.recentEvents.error;
     if (!r.ok && r.error) result.refresh.error = r.error;
   } catch (e: any) {
     result.ok = false;
@@ -218,10 +236,11 @@ export async function orchestrateDiamondSlate(
     details: {
       schedule: result.schedule,
       refresh: result.refresh,
+      recentEvents: result.recentEvents,
       lock: result.lock,
       petri: result.petri,
     },
-    error: result.schedule.error || result.refresh.error || result.lock.error || result.petri.error || null,
+    error: result.schedule.error || result.refresh.error || result.recentEvents.error || result.lock.error || result.petri.error || null,
   });
 
   return result;

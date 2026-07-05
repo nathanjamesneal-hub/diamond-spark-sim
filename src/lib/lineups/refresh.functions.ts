@@ -30,6 +30,13 @@ export type RefreshSummary = {
   publicationGapGameIds: string[];
   playersChanged: number;
   pitchersChanged: number;
+  recentEvents: {
+    finalGames: number;
+    gameEventRows: number;
+    rollupRows: number;
+    pitcherHitTypesSourced: boolean;
+    error?: string;
+  };
   projectionsRegenerated: number;
   engineRan: boolean;
   durationMs: number;
@@ -69,6 +76,12 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
     publicationGapGameIds: [],
     playersChanged: 0,
     pitchersChanged: 0,
+    recentEvents: {
+      finalGames: 0,
+      gameEventRows: 0,
+      rollupRows: 0,
+      pitcherHitTypesSourced: false,
+    },
     projectionsRegenerated: 0,
     engineRan: false,
     durationMs: 0,
@@ -168,6 +181,21 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
       for (const id of pitcherChanges) {
         if (!summary.changedGameIds.includes(id)) summary.changedGameIds.push(id);
       }
+    }
+
+    // 3b. Refresh Diamond V2 shadow raw recent event counts before any
+    // baseline publish can trigger a form-shadow run. This writes only to
+    // V2 raw/rollup tables and reads completed official MLB games only.
+    try {
+      const { refreshRecentEventRatesForDate } = await import("@/lib/form-v2/recent-events");
+      const recent = await refreshRecentEventRatesForDate(supabaseAdmin as any, date, 14);
+      summary.recentEvents.finalGames = recent.finalGames;
+      summary.recentEvents.gameEventRows = recent.gameEventRows;
+      summary.recentEvents.rollupRows = recent.rollupRows;
+      summary.recentEvents.pitcherHitTypesSourced = recent.pitcherHitTypesSourced;
+      if (!recent.ok && recent.error) summary.recentEvents.error = recent.error;
+    } catch (e: any) {
+      summary.recentEvents.error = e?.message ?? String(e);
     }
 
     // 4. Drop locked, Final, OR live/started games from the changed set.
@@ -293,11 +321,13 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
             finished_at: new Date().toISOString(),
             duration_ms: summary.durationMs,
             providers: summary.providers as any,
+            notes: summary.recentEvents.error
+              ? `No lineup changes detected. V2 recent events error: ${summary.recentEvents.error}`
+              : "No lineup changes detected.",
             games_changed: 0,
             players_changed: summary.playersChanged,
             projections_regenerated: 0,
             engine_ran: false,
-            notes: "No lineup changes detected.",
           })
           .eq("id", cronRunId);
       }
@@ -333,6 +363,7 @@ export async function runRefresh(date: string): Promise<RefreshSummary> {
           projections_regenerated: summary.projectionsRegenerated,
           affected_game_ids: summary.changedGameIds,
           engine_ran: true,
+          notes: summary.recentEvents.error ? `V2 recent events error: ${summary.recentEvents.error}` : null,
         })
         .eq("id", cronRunId);
     }
