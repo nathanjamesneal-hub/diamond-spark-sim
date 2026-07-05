@@ -2,7 +2,7 @@
 // for one baseline forecast run. Auth: SUPABASE_PUBLISHABLE_KEY.
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/api/public/hooks/_run-form-shadow-oneshot")({
+export const Route = createFileRoute("/api/public/hooks/dv2-shadow-oneshot")({
   server: {
     handlers: {
       POST: async ({ request }) => {
