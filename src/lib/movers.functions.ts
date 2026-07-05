@@ -12,7 +12,8 @@
  *
  * Ranking is explainable and requires minimum samples:
  *   Hitters:  season PA >= 100, recent PA >= 25
- *   Pitchers: season IP >= 20, recent IP >= 5
+ *   Pitchers: season IP >= 20, and either recent IP >= 10, or
+ *             recent appearances >= 3 AND recent IP >= 8
  * Players below either bar are labeled "Early sample" and excluded from
  * the true riser/faller lists.
  */
@@ -32,7 +33,13 @@ async function mlb<T>(path: string): Promise<T> {
 // ---------- thresholds ----------
 export const MOVER_THRESHOLDS = {
   hitter: { seasonPa: 100, recentPa: 25, recentDays: 14 },
-  pitcher: { seasonIp: 20, recentIp: 5, recentDays: 14 },
+  pitcher: {
+    seasonIp: 20,
+    recentIpMin: 10,
+    recentIpWithApps: 8,
+    recentAppsWithIp: 3,
+    recentDays: 14,
+  },
 } as const;
 
 // ---------- types ----------
@@ -315,9 +322,12 @@ export const getMlbMovers = createServerFn({ method: "GET" })
       const recentK = num(r?.stat?.strikeOuts);
       const seasonK9 = seasonIp > 0 ? (seasonK * 9) / seasonIp : 0;
       const recentK9 = recentIp > 0 ? (recentK * 9) / recentIp : 0;
-      const belowSample =
-        seasonIp < MOVER_THRESHOLDS.pitcher.seasonIp ||
-        recentIp < MOVER_THRESHOLDS.pitcher.recentIp;
+      const recentApps = num(r?.stat?.gamesPlayed);
+      const T = MOVER_THRESHOLDS.pitcher;
+      const meetsRecent =
+        recentIp >= T.recentIpMin ||
+        (recentApps >= T.recentAppsWithIp && recentIp >= T.recentIpWithApps);
+      const belowSample = seasonIp < T.seasonIp || !meetsRecent;
       // Riser: recent ERA lower than season AND recent WHIP lower than season.
       // Faller: recent ERA higher AND recent WHIP higher. Otherwise mixed → early_sample.
       let status: PitcherMover["status"] = "early_sample";
@@ -363,7 +373,7 @@ export const getMlbMovers = createServerFn({ method: "GET" })
         },
         status,
         reason: belowSample
-          ? `Early sample: ${recentIp.toFixed(1)} IP in last ${recentDays} days (need ${MOVER_THRESHOLDS.pitcher.recentIp}); ${seasonIp.toFixed(1)} season IP`
+          ? `Early sample: ${recentIp.toFixed(1)} IP over ${recentApps} app${recentApps === 1 ? "" : "s"} in last ${recentDays} days (need ${T.recentIpMin}+ IP, or ${T.recentAppsWithIp}+ apps & ${T.recentIpWithApps}+ IP); ${seasonIp.toFixed(1)} season IP`
           : status === "riser"
             ? `${recentIp.toFixed(1)} IP over ${mover_apps(r)} vs season: ERA ${recentEra.toFixed(2)} (${(recentEra - seasonEra).toFixed(2)}), WHIP ${recentWhip.toFixed(2)} (${(recentWhip - seasonWhip).toFixed(2)})`
             : status === "faller"

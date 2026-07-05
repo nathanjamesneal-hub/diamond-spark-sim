@@ -35,7 +35,7 @@ function PitchersPage() {
       <h1 className="mt-1 text-2xl font-semibold text-foreground md:text-3xl">Pitchers</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Last {data.window.pitcher.recentDays} days ({data.recentStartDate} → {data.recentEndDate}) vs season.
-        Min {data.window.pitcher.recentIp} recent IP, {data.window.pitcher.seasonIp} season IP.
+        Min {data.window.pitcher.seasonIp} season IP and either {data.window.pitcher.recentIpMin}+ recent IP, or {data.window.pitcher.recentAppsWithIp}+ apps & {data.window.pitcher.recentIpWithApps}+ IP.
       </p>
       <div className="mt-5 flex gap-1 border-b border-border/60">
         {(["risers", "fallers"] as const).map((t) => (
