@@ -136,6 +136,28 @@ export async function orchestrateDiamondSlate(
     },
   };
 
+  // 0) Schedule readiness — ensure public.games has rows for this slate before
+  //    any lineup/probable-pitcher/player ingestion. Idempotent on mlb_game_id.
+  try {
+    const s = await ensureScheduleForDate(supabaseAdmin, date);
+    result.schedule.gamesFetched = s.gamesFetched;
+    result.schedule.gamesUpserted = s.gamesUpserted;
+    result.schedule.inserted = s.inserted;
+    result.schedule.updated = s.updated;
+    result.schedule.teamsUpserted = s.teamsUpserted;
+    if (s.error) {
+      result.schedule.error = s.error;
+      result.ok = false;
+    } else if (s.gamesFetched > 0 && s.gamesUpserted === 0) {
+      // MLB returned games but nothing stored — never silently continue.
+      result.schedule.error = `MLB returned ${s.gamesFetched} games for ${date} but 0 were upserted`;
+      result.ok = false;
+    }
+  } catch (e: any) {
+    result.ok = false;
+    result.schedule.error = e?.message ?? String(e);
+  }
+
   // 1) Refresh lineups + run engine for changed/gap games (today only).
   try {
     const r = await runRefresh(date);
