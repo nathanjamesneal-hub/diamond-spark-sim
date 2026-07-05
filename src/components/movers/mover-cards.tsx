@@ -28,11 +28,11 @@ function StatBlock({
 }) {
   const delta = recent - season;
   return (
-    <div className="rounded-sm border border-[color-mix(in_oklab,var(--brass)_35%,transparent)] bg-[color-mix(in_oklab,var(--cream)_60%,white)] px-2 py-1.5">
-      <div className="mono text-[9px] uppercase tracking-[0.18em] text-[#8a7f68]">{label}</div>
+    <div className="rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_55%,var(--card))] px-2 py-1.5">
+      <div className="mono text-[9px] uppercase tracking-[0.18em] text-[var(--warm-muted)]">{label}</div>
       <div className="mt-0.5 flex items-baseline justify-between gap-2">
-        <span className="mono text-[15px] font-bold text-[#1e1c15]">{formatter(recent)}</span>
-        <span className="mono text-[10px] text-[#8a7f68]">vs {formatter(season)}</span>
+        <span className="mono text-[15px] font-bold text-[var(--cream)]">{formatter(recent)}</span>
+        <span className="mono text-[10px] text-[var(--warm-muted)]">vs {formatter(season)}</span>
       </div>
       <div className={`mono text-[10px] font-semibold ${trendClass(delta, positiveIsGood)}`}>
         {delta > 0 ? "+" : ""}
@@ -72,10 +72,10 @@ export function HitterCard({ m }: { m: HitterMover }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-display text-[20px] leading-tight text-[#1e1c15]">
+          <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-[var(--cream)]">
             {m.name}
           </div>
-          <div className="mono mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8a7f68]">
+          <div className="mono mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--warm-muted)]">
             {m.team ?? "—"} · {m.position ?? "H"}
           </div>
         </div>
@@ -97,12 +97,12 @@ export function HitterCard({ m }: { m: HitterMover }) {
         <MiniStat label="RBI" season={m.season.rbi} recent={m.recent.rbi} />
       </div>
 
-      <div className="mono mt-2 flex items-center justify-between border-t border-[color-mix(in_oklab,var(--brass)_35%,transparent)] pt-1.5 text-[10px] text-[#8a7f68]">
+      <div className="mono mt-2 flex items-center justify-between border-t border-[var(--border)] pt-1.5 text-[10px] text-[var(--warm-muted)]">
         <span>Recent {m.recent.games}G · {m.recent.pa} PA</span>
         <span>Season {m.season.games}G · {m.season.pa} PA</span>
       </div>
 
-      <p className={`mt-1.5 text-[11px] leading-snug ${early ? "text-[#8a7f68]" : "text-[#2b271d]"}`}>
+      <p className={`mt-1.5 text-[11px] leading-snug ${early ? "text-[var(--warm-muted)]" : "text-[var(--parchment)]"}`}>
         {m.reason}
       </p>
     </Link>
@@ -111,10 +111,10 @@ export function HitterCard({ m }: { m: HitterMover }) {
 
 function MiniStat({ label, season, recent }: { label: string; season: number; recent: number }) {
   return (
-    <div className="rounded-sm border border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--cream)_50%,white)] px-1.5 py-1 text-center">
-      <div className="mono text-[9px] uppercase tracking-[0.16em] text-[#8a7f68]">{label}</div>
-      <div className="mono text-[12px] font-bold text-[#1e1c15]">{recent}</div>
-      <div className="mono text-[9px] text-[#8a7f68]">·{season}</div>
+    <div className="rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_45%,var(--card))] px-1.5 py-1 text-center">
+      <div className="mono text-[9px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">{label}</div>
+      <div className="mono text-[12px] font-bold text-[var(--cream)]">{recent}</div>
+      <div className="mono text-[9px] text-[var(--warm-muted)]">·{season}</div>
     </div>
   );
 }
@@ -128,10 +128,10 @@ export function PitcherCard({ m }: { m: PitcherMover }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-display text-[20px] leading-tight text-[#1e1c15]">
+          <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-[var(--cream)]">
             {m.name}
           </div>
-          <div className="mono mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8a7f68]">
+          <div className="mono mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--warm-muted)]">
             {m.team ?? "—"} · P
           </div>
         </div>
@@ -155,12 +155,12 @@ export function PitcherCard({ m }: { m: PitcherMover }) {
           formatter={(v) => v.toFixed(2)}
           positiveIsGood={false}
         />
-        <div className="rounded-sm border border-[color-mix(in_oklab,var(--brass)_35%,transparent)] bg-[color-mix(in_oklab,var(--cream)_60%,white)] px-2 py-1.5">
-          <div className="mono text-[9px] uppercase tracking-[0.18em] text-[#8a7f68]">K/9</div>
-          <div className="mono mt-0.5 text-[15px] font-bold text-[#1e1c15]">
+        <div className="rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_55%,var(--card))] px-2 py-1.5">
+          <div className="mono text-[9px] uppercase tracking-[0.18em] text-[var(--warm-muted)]">K/9</div>
+          <div className="mono mt-0.5 text-[15px] font-bold text-[var(--cream)]">
             {m.recent.ip > 0 ? ((m.recent.so * 9) / m.recent.ip).toFixed(1) : "—"}
           </div>
-          <div className="mono text-[10px] text-[#8a7f68]">
+          <div className="mono text-[10px] text-[var(--warm-muted)]">
             vs {m.season.ip > 0 ? ((m.season.so * 9) / m.season.ip).toFixed(1) : "—"}
           </div>
         </div>
@@ -173,12 +173,12 @@ export function PitcherCard({ m }: { m: PitcherMover }) {
         <MiniStat label="HR" season={m.season.hr} recent={m.recent.hr} />
       </div>
 
-      <div className="mono mt-2 flex items-center justify-between border-t border-[color-mix(in_oklab,var(--brass)_35%,transparent)] pt-1.5 text-[10px] text-[#8a7f68]">
+      <div className="mono mt-2 flex items-center justify-between border-t border-[var(--border)] pt-1.5 text-[10px] text-[var(--warm-muted)]">
         <span>Recent {m.recent.starts}GS · {m.recent.ip.toFixed(1)} IP</span>
         <span>Season {m.season.starts}GS · {m.season.ip.toFixed(1)} IP</span>
       </div>
 
-      <p className="mt-1.5 text-[11px] leading-snug text-[#2b271d]">{m.reason}</p>
+      <p className="mt-1.5 text-[11px] leading-snug text-[var(--parchment)]">{m.reason}</p>
     </Link>
   );
 }
