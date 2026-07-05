@@ -245,7 +245,7 @@ function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
   return (
-    <article className={`rounded-lg border p-3 ${live ? "border-sky-400/50 bg-sky-400/10" : "border-border/60 bg-card/40"}`}>
+    <article className={`rounded-sm border p-3 ${live ? "border-[var(--field)] bg-[color-mix(in_oklab,var(--field)_12%,transparent)]" : "border-[color-mix(in_oklab,var(--brass)_25%,transparent)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]"}`}>
       <div className="flex items-center justify-between gap-2">
         <span className={`mono rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest ${statusClass(game.status)}`}>
           {statusLabel(game)}
