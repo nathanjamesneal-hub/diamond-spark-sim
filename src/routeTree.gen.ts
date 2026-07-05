@@ -56,6 +56,7 @@ import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/ap
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 import { Route as AuthenticatedForecastsLabAlphaRouteImport } from './routes/_authenticated/forecasts.lab.alpha'
+import { Route as AuthenticatedAdminLabFormShadowRouteImport } from './routes/_authenticated/_admin/lab.form-shadow'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -314,6 +315,12 @@ const AuthenticatedForecastsLabAlphaRoute =
     path: '/alpha',
     getParentRoute: () => AuthenticatedForecastsLabRoute,
   } as any)
+const AuthenticatedAdminLabFormShadowRoute =
+  AuthenticatedAdminLabFormShadowRouteImport.update({
+    id: '/lab/form-shadow',
+    path: '/lab/form-shadow',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -352,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/today/live': typeof AuthenticatedTodayLiveRoute
   '/forecasts/': typeof AuthenticatedForecastsIndexRoute
+  '/lab/form-shadow': typeof AuthenticatedAdminLabFormShadowRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
@@ -397,6 +405,7 @@ export interface FileRoutesByTo {
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/today/live': typeof AuthenticatedTodayLiveRoute
   '/forecasts': typeof AuthenticatedForecastsIndexRoute
+  '/lab/form-shadow': typeof AuthenticatedAdminLabFormShadowRoute
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/_authenticated/today/live': typeof AuthenticatedTodayLiveRoute
   '/_authenticated/forecasts/': typeof AuthenticatedForecastsIndexRoute
+  '/_authenticated/_admin/lab/form-shadow': typeof AuthenticatedAdminLabFormShadowRoute
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
@@ -496,6 +506,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/today/live'
     | '/forecasts/'
+    | '/lab/form-shadow'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
@@ -541,6 +552,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/today/live'
     | '/forecasts'
+    | '/lab/form-shadow'
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
@@ -590,6 +602,7 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/today/live'
     | '/_authenticated/forecasts/'
+    | '/_authenticated/_admin/lab/form-shadow'
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
@@ -943,6 +956,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsLabAlphaRouteImport
       parentRoute: typeof AuthenticatedForecastsLabRoute
     }
+    '/_authenticated/_admin/lab/form-shadow': {
+      id: '/_authenticated/_admin/lab/form-shadow'
+      path: '/lab/form-shadow'
+      fullPath: '/lab/form-shadow'
+      preLoaderRoute: typeof AuthenticatedAdminLabFormShadowRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
   }
 }
 
@@ -950,6 +970,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
+  AuthenticatedAdminLabFormShadowRoute: typeof AuthenticatedAdminLabFormShadowRoute
 }
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
@@ -957,6 +978,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
     AuthenticatedAdminPetriRoute: AuthenticatedAdminPetriRoute,
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
+    AuthenticatedAdminLabFormShadowRoute: AuthenticatedAdminLabFormShadowRoute,
   }
 
 const AuthenticatedAdminRouteRouteWithChildren =
