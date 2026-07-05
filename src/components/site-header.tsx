@@ -4,11 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const nav = [
-  { to: "/mlb-pulse", label: "Pulse" },
+  { to: "/", label: "Live" },
   { to: "/hitters", label: "Hitters" },
   { to: "/pitchers", label: "Pitchers" },
+  { to: "/mlb-pulse", label: "Pulse" },
   { to: "/watchlist", label: "Watchlist" },
-  { to: "/lab", label: "Lab" },
 ] as const;
 
 export function SiteHeader() {
@@ -50,111 +50,89 @@ export function SiteHeader() {
     Promise.resolve(supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }))
       .then(({ data, error }) => {
         if (!active) return;
-        if (error) {
-          console.warn("[site-header] has_role failed", error);
-          setIsAdmin(false);
-          return;
-        }
+        if (error) { setIsAdmin(false); return; }
         setIsAdmin(!!data);
       })
-      .catch((e: unknown) => {
-        console.warn("[site-header] has_role threw", e);
-        if (active) setIsAdmin(false);
-      });
+      .catch(() => { if (active) setIsAdmin(false); });
     return () => { active = false; };
   }, [user]);
 
   async function signOut() {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn("[site-header] signOut failed", e);
-    }
-    try {
-      navigate({ to: "/" });
-    } catch {
+    try { await supabase.auth.signOut(); } catch {}
+    try { navigate({ to: "/" }); } catch {
       if (typeof window !== "undefined") window.location.href = "/";
     }
   }
 
   return (
-    <header className="relative z-10 border-b border-border bg-[var(--color-surface-panel)]/95 backdrop-blur shadow-[0_1px_0_rgb(255_255_255/0.04)_inset]">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="glow-edge flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-primary">
-            <span className="text-xl leading-none">◆</span>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="wordmark text-2xl text-foreground">Diamond</span>
-            <span className="mono mt-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
-              Live Baseball Intelligence
+    <header className="relative z-10 border-b border-[color-mix(in_oklab,var(--brass)_35%,var(--border))] bg-[var(--color-background)]/95 backdrop-blur">
+      {/* Masthead */}
+      <div className="mx-auto max-w-7xl px-4 pt-5 pb-3 md:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <Link to="/" className="group flex flex-col leading-none">
+            <span className="wordmark text-4xl md:text-5xl text-[var(--cream)] tracking-[0.08em]">
+              Diamond
             </span>
+            <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--brass)]">
+              MLB Risers, Fallers &amp; Live Intelligence
+            </span>
+          </Link>
+          <div className="flex items-center gap-2 pt-1">
+            {user ? (
+              <button onClick={signOut}
+                className="rounded-sm border border-[var(--border)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]">
+                Sign out
+              </button>
+            ) : (
+              <Link to="/auth"
+                className="rounded-sm bg-[var(--field)] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--cream)] transition-colors hover:brightness-110">
+                Sign in
+              </Link>
+            )}
           </div>
-        </Link>
+        </div>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {nav.map((item) => (
-            <Link key={item.to} to={item.to}
-              activeOptions={{ exact: false }}
-              activeProps={{ className: "text-foreground border-primary" }}
-              className="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
+        <div className="masthead-rule mt-4" />
+      </div>
+
+      {/* Primary nav — publication tab bar */}
+      <nav className="mx-auto flex max-w-7xl items-center gap-0 overflow-x-auto px-4 pb-2 md:px-6">
+        {nav.map((item) => (
+          <Link key={item.to} to={item.to}
+            activeOptions={{ exact: item.to === "/" }}
+            activeProps={{
+              className:
+                "text-[var(--cream)] border-[var(--brass)]",
+            }}
+            className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]"
+          >
+            {item.label}
+          </Link>
+        ))}
+        <div className="ml-auto flex items-center gap-1">
+          <Link to="/lab"
+            activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
+            className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--warm-muted)] transition-colors hover:text-[var(--cream)]"
+          >
+            Lab
+          </Link>
           {isAdmin ? (
             <>
               <Link to="/admin"
-                activeProps={{ className: "text-foreground border-primary" }}
-                className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-primary transition-colors hover:text-foreground"
+                activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
+                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brass)] transition-colors hover:text-[var(--cream)]"
               >
                 Admin
               </Link>
               <Link to="/petri"
-                activeProps={{ className: "text-foreground border-amber-400" }}
-                className="mono border-b-2 border-transparent px-3 py-2 text-xs font-bold uppercase tracking-widest text-amber-400 transition-colors hover:text-foreground"
+                activeProps={{ className: "text-[var(--cream)] border-[var(--brass)]" }}
+                className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brass)] transition-colors hover:text-[var(--cream)]"
               >
                 Petri
               </Link>
             </>
           ) : null}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          {user ? (
-            <button onClick={signOut}
-              className="mono rounded-md border border-border px-2.5 py-1 text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground">
-              Sign out
-            </button>
-          ) : (
-            <Link to="/auth"
-              className="mono rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
-              Sign in
-            </Link>
-          )}
         </div>
-      </div>
-
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden">
-        {nav.map((item) => (
-          <Link key={item.to} to={item.to}
-            activeOptions={{ exact: false }}
-            activeProps={{ className: "text-foreground border-primary" }}
-            className="whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            {item.label}
-          </Link>
-        ))}
-        {isAdmin ? (
-          <>
-            <Link to="/admin" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
-              Admin
-            </Link>
-            <Link to="/petri" className="mono whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-amber-400">
-              Petri
-            </Link>
-          </>
-        ) : null}
       </nav>
     </header>
   );
