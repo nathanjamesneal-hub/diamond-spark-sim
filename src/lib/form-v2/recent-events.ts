@@ -310,7 +310,7 @@ export async function refreshRecentEventRatesForDate(
   const { data: dbGames } = gamePks.length
     ? await admin.from("games").select("id, mlb_game_id").in("mlb_game_id", gamePks)
     : { data: [] };
-  const dbGameByPk = new Map((dbGames ?? []).map((g: any) => [Number(g.mlb_game_id), g]));
+  const dbGameByPk = new Map<number, any>((dbGames ?? []).map((g: any) => [Number(g.mlb_game_id), g]));
 
   let gameEventRows = 0;
   let pitcherHitTypesSourced = true;
