@@ -200,9 +200,9 @@ function PulseStrip({ games }: { games: any[] }) {
               {g.status?.detailedState ?? g.status?.abstractGameState ?? ""}
             </span>
           </div>
-          {typeof g.awayScore === "number" && typeof g.homeScore === "number" ? (
+          {typeof g.away?.score === "number" && typeof g.home?.score === "number" ? (
             <div className="mono mt-1 text-[11px] text-muted-foreground">
-              {g.awayScore} — {g.homeScore}
+              {g.away.score} — {g.home.score}
             </div>
           ) : null}
         </div>
