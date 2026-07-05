@@ -142,12 +142,19 @@ async function loadRunSummary(admin: any, runId: string): Promise<ShadowRunSumma
 
   const { data: game } = await admin
     .from("games")
-    .select("id, home_team_id, away_team_id, teams_home:teams!games_home_team_id_fkey(id, name, abbreviation), teams_away:teams!games_away_team_id_fkey(id, name, abbreviation)")
+    .select("id, home_team_id, away_team_id")
     .eq("id", run.game_id)
     .maybeSingle();
 
-  const home = game?.teams_home?.abbreviation ?? game?.teams_home?.name ?? null;
-  const away = game?.teams_away?.abbreviation ?? game?.teams_away?.name ?? null;
+  const teamIds = [game?.home_team_id, game?.away_team_id].filter(Boolean);
+  const { data: teamRows } = teamIds.length
+    ? await admin.from("teams").select("id, name, abbreviation").in("id", teamIds)
+    : { data: [] };
+  const teamById = new Map<string, any>((teamRows ?? []).map((t: any) => [String(t.id), t]));
+  const homeTeam = game?.home_team_id ? teamById.get(String(game.home_team_id)) : null;
+  const awayTeam = game?.away_team_id ? teamById.get(String(game.away_team_id)) : null;
+  const home = homeTeam?.abbreviation ?? homeTeam?.name ?? null;
+  const away = awayTeam?.abbreviation ?? awayTeam?.name ?? null;
   const matchup = home && away ? `${away} @ ${home}` : `MLB ${run.game_pk}`;
 
   return {
