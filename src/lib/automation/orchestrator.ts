@@ -105,6 +105,13 @@ export async function orchestrateDiamondSlate(
     startedAt: startedAt.toISOString(),
     finishedAt: startedAt.toISOString(),
     durationMs: 0,
+    schedule: {
+      gamesFetched: 0,
+      gamesUpserted: 0,
+      inserted: 0,
+      updated: 0,
+      teamsUpserted: 0,
+    },
     refresh: {
       changedGameIds: 0,
       publicationGapGameIds: 0,
