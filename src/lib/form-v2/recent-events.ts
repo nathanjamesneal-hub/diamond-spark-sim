@@ -58,8 +58,9 @@ export type RecentEventRefreshResult = {
   error?: string;
 };
 
-async function mlb<T>(path: string): Promise<T> {
-  const res = await fetch(`${MLB}${path}`, { headers: { accept: "application/json" } });
+async function mlb<T>(path: string, apiVersion: "v1" | "v1.1" = "v1"): Promise<T> {
+  const base = apiVersion === "v1.1" ? "https://statsapi.mlb.com/api/v1.1" : MLB;
+  const res = await fetch(`${base}${path}`, { headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`MLB ${res.status}: ${path}`);
   return (await res.json()) as T;
 }
