@@ -187,7 +187,7 @@ async function loadPlayersForRun(admin: any, runId: string): Promise<ShadowPlaye
   return (outputs as any[]).map((row) => {
     const role = (row.role as "hitter" | "pitcher") ?? "hitter";
     const player = playerById.get(String(row.player_id));
-    const name = player?.full_name ?? `MLB ${row.mlb_id ?? "?"}`;
+    const name = player?.name ?? `MLB ${row.mlb_id ?? "?"}`;
     const team = player?.teams?.name ?? null;
     const teamAbbr = player?.teams?.abbreviation ?? null;
 
