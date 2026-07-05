@@ -4,12 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const nav = [
-  { to: "/", label: "Today" },
-  { to: "/mlb-pulse", label: "MLB Pulse" },
-  { to: "/today/live", label: "Live" },
-  { to: "/forecasts", label: "Forecasts" },
-  { to: "/results", label: "Results" },
-  { to: "/model", label: "Model" },
+  { to: "/mlb-pulse", label: "Pulse" },
+  { to: "/hitters", label: "Hitters" },
+  { to: "/pitchers", label: "Pitchers" },
+  { to: "/watchlist", label: "Watchlist" },
+  { to: "/lab", label: "Lab" },
 ] as const;
 
 export function SiteHeader() {

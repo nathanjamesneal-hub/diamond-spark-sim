@@ -28,6 +28,7 @@ import { Route as AuthenticatedMlbPulseRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedLineupStatusRouteImport } from './routes/_authenticated/lineup-status'
 import { Route as AuthenticatedLeadersRouteImport } from './routes/_authenticated/leaders'
 import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authenticated/leaderboards'
+import { Route as AuthenticatedLabRouteImport } from './routes/_authenticated/lab'
 import { Route as AuthenticatedHittersRouteImport } from './routes/_authenticated/hitters'
 import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
@@ -154,6 +155,11 @@ const AuthenticatedLeaderboardsRoute =
     path: '/leaderboards',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLabRoute = AuthenticatedLabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedHittersRoute = AuthenticatedHittersRouteImport.update({
   id: '/hitters',
   path: '/hitters',
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/hitters': typeof AuthenticatedHittersRoute
+  '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -364,6 +371,7 @@ export interface FileRoutesByTo {
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/hitters': typeof AuthenticatedHittersRoute
+  '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/leaders': typeof AuthenticatedLeadersRoute
   '/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -411,6 +419,7 @@ export interface FileRoutesById {
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/_authenticated/hitters': typeof AuthenticatedHittersRoute
+  '/_authenticated/lab': typeof AuthenticatedLabRoute
   '/_authenticated/leaderboards': typeof AuthenticatedLeaderboardsRoute
   '/_authenticated/leaders': typeof AuthenticatedLeadersRoute
   '/_authenticated/lineup-status': typeof AuthenticatedLineupStatusRoute
@@ -460,6 +469,7 @@ export interface FileRouteTypes {
     | '/diamond-scores'
     | '/forecasts'
     | '/hitters'
+    | '/lab'
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
@@ -505,6 +515,7 @@ export interface FileRouteTypes {
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/hitters'
+    | '/lab'
     | '/leaderboards'
     | '/leaders'
     | '/lineup-status'
@@ -551,6 +562,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diamond-scores'
     | '/_authenticated/forecasts'
     | '/_authenticated/hitters'
+    | '/_authenticated/lab'
     | '/_authenticated/leaderboards'
     | '/_authenticated/leaders'
     | '/_authenticated/lineup-status'
@@ -733,6 +745,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboards'
       fullPath: '/leaderboards'
       preLoaderRoute: typeof AuthenticatedLeaderboardsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/lab': {
+      id: '/_authenticated/lab'
+      path: '/lab'
+      fullPath: '/lab'
+      preLoaderRoute: typeof AuthenticatedLabRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/hitters': {
@@ -990,6 +1009,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
   AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
   AuthenticatedHittersRoute: typeof AuthenticatedHittersRoute
+  AuthenticatedLabRoute: typeof AuthenticatedLabRoute
   AuthenticatedLeaderboardsRoute: typeof AuthenticatedLeaderboardsRoute
   AuthenticatedLeadersRoute: typeof AuthenticatedLeadersRoute
   AuthenticatedLineupStatusRoute: typeof AuthenticatedLineupStatusRoute
@@ -1022,6 +1042,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
   AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
   AuthenticatedHittersRoute: AuthenticatedHittersRoute,
+  AuthenticatedLabRoute: AuthenticatedLabRoute,
   AuthenticatedLeaderboardsRoute: AuthenticatedLeaderboardsRoute,
   AuthenticatedLeadersRoute: AuthenticatedLeadersRoute,
   AuthenticatedLineupStatusRoute: AuthenticatedLineupStatusRoute,
