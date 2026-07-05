@@ -28,6 +28,27 @@ type CacheEntry = {
 const CACHE = new Map<number, CacheEntry>();
 const TTL_MS = 10 * 60 * 1000;
 
+export type MonteCarloProfileAdjuster = (input: {
+  gamePk: number;
+  season: number;
+  homeLineup: BatterProfile[];
+  awayLineup: BatterProfile[];
+  homeStarter: PitcherProfile;
+  awayStarter: PitcherProfile;
+}) => Promise<{
+  homeLineup?: BatterProfile[];
+  awayLineup?: BatterProfile[];
+  homeStarter?: PitcherProfile;
+  awayStarter?: PitcherProfile;
+  metadata?: Record<string, unknown>;
+}> | {
+  homeLineup?: BatterProfile[];
+  awayLineup?: BatterProfile[];
+  homeStarter?: PitcherProfile;
+  awayStarter?: PitcherProfile;
+  metadata?: Record<string, unknown>;
+};
+
 export type SimMeta = {
   gamePk: number;
   date: string;
@@ -200,10 +221,11 @@ export async function buildMonteCarloGameEnvironment(
   gamePk: number,
   iterations?: number,
   seed?: number,
-): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null }> {
+  profileAdjuster?: MonteCarloProfileAdjuster,
+): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null; formAdjustments?: Record<string, unknown> | null }> {
   const cached = CACHE.get(gamePk);
-  if (cached && Date.now() - cached.at < TTL_MS && !iterations && seed === undefined) {
-    return { meta: cached.meta, result: cached.data, gameEnvironment: cached.gameEnvironment, venueId: cached.meta.venueId };
+  if (!profileAdjuster && cached && Date.now() - cached.at < TTL_MS && !iterations && seed === undefined) {
+    return { meta: cached.meta, result: cached.data, gameEnvironment: cached.gameEnvironment, venueId: cached.meta.venueId, formAdjustments: null };
   }
 
 
@@ -254,6 +276,27 @@ export async function buildMonteCarloGameEnvironment(
     while (homeLineup.length < 9) homeLineup.push({ id: -homeLineup.length - 1, name: "Bench bat", pa: 400, K: 96, BB: 32, HBP: 4, HR: 10, H_1B: 60, H_2B: 18, H_3B: 1 });
     while (awayLineup.length < 9) awayLineup.push({ id: -awayLineup.length - 1, name: "Bench bat", pa: 400, K: 96, BB: 32, HBP: 4, HR: 10, H_1B: 60, H_2B: 18, H_3B: 1 });
 
+    let simHomeLineup = homeLineup;
+    let simAwayLineup = awayLineup;
+    let simHomeStarter = homeStarter;
+    let simAwayStarter = awayStarter;
+    let formAdjustments: Record<string, unknown> | null = null;
+    if (profileAdjuster) {
+      const adjusted = await profileAdjuster({
+        gamePk,
+        season,
+        homeLineup,
+        awayLineup,
+        homeStarter,
+        awayStarter,
+      });
+      simHomeLineup = adjusted.homeLineup ?? homeLineup;
+      simAwayLineup = adjusted.awayLineup ?? awayLineup;
+      simHomeStarter = adjusted.homeStarter ?? homeStarter;
+      simAwayStarter = adjusted.awayStarter ?? awayStarter;
+      formAdjustments = adjusted.metadata ?? null;
+    }
+
     const [homeBullpen, awayBullpen] = await Promise.all([
       getBullpenAggregate(homeTeamId, season, new Set([homeStarter.id])),
       getBullpenAggregate(awayTeamId, season, new Set([awayStarter.id])),
@@ -262,15 +305,15 @@ export async function buildMonteCarloGameEnvironment(
     const homeTeam: TeamSim = {
       name: game.teams.home.team.name,
       abbreviation: game.teams.home.team.abbreviation ?? "",
-      lineup: homeLineup,
-      starter: homeStarter,
+      lineup: simHomeLineup,
+      starter: simHomeStarter,
       bullpen: homeBullpen,
     };
     const awayTeam: TeamSim = {
       name: game.teams.away.team.name,
       abbreviation: game.teams.away.team.abbreviation ?? "",
-      lineup: awayLineup,
-      starter: awayStarter,
+      lineup: simAwayLineup,
+      starter: simAwayStarter,
       bullpen: awayBullpen,
     };
 
@@ -300,7 +343,7 @@ export async function buildMonteCarloGameEnvironment(
     const gameEnvironment = toMonteCarloGameEnvironment(gamePk, result);
 
   CACHE.set(gamePk, { at: Date.now(), data: result, meta, gameEnvironment });
-  return { meta, result, gameEnvironment, venueId: game.venue?.id ?? null };
+  return { meta, result, gameEnvironment, venueId: game.venue?.id ?? null, formAdjustments };
 }
 
 /**
@@ -314,6 +357,15 @@ export async function buildMonteCarloGameEnvironmentWithSeed(
 ): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null }> {
   CACHE.delete(gamePk);
   return buildMonteCarloGameEnvironment(gamePk, undefined, seed);
+}
+
+export async function buildMonteCarloGameEnvironmentWithSeedAndProfileAdjuster(
+  gamePk: number,
+  seed: number,
+  profileAdjuster: MonteCarloProfileAdjuster,
+): Promise<{ meta: SimMeta; result: SimResult; gameEnvironment: MonteCarloGameEnvironment; venueId: number | null; formAdjustments?: Record<string, unknown> | null }> {
+  CACHE.delete(gamePk);
+  return buildMonteCarloGameEnvironment(gamePk, undefined, seed, profileAdjuster);
 }
 
 export const simulateGame = createServerFn({ method: "GET" })
