@@ -45,7 +45,7 @@ const LIMITS = [5, 10, 25, 50, 9999] as const;
 const LIMIT_LABELS: Record<number, string> = { 5: "Top 5", 10: "Top 10", 25: "Top 25", 50: "Top 50", 9999: "All" };
 
 function EngineBetaPage() {
-  const [date, setDate] = useState(todayIsoUtc());
+  const [date, setDate] = useState(todayInAppTz());
   const [category, setCategory] = useState<EngineBetaCategoryKey>("H");
   const [limit, setLimit] = useState<number>(25);
   const [teamFilter, setTeamFilter] = useState<string>("all");

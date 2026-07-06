@@ -179,7 +179,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin: any = supabaseAdmin;
 
-    const date = data.date ?? todayIsoUtc();
+    const date = data.date ?? todayInAppTz();
     const catKey: EngineBetaCategoryKey = data.category ?? "H";
     const category = findCategory(catKey);
     if (!category) throw new Error(`Unsupported category ${catKey}`);
@@ -450,7 +450,7 @@ export const lockEngineBetaBoard = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin: any = supabaseAdmin;
-    const date = data.date ?? todayIsoUtc();
+    const date = data.date ?? todayInAppTz();
 
     // Immutability guard: refuse to write a new snapshot for the same slate
     // unless the caller explicitly asks for a new version. Existing snapshots
@@ -551,7 +551,7 @@ export const getEngineBetaGrading = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin: any = supabaseAdmin;
-    const date = data.date ?? todayIsoUtc();
+    const date = data.date ?? todayInAppTz();
 
     // Pick most recent snapshot for date (or requested id)
     let snap: any = null;
