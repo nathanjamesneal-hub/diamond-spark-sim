@@ -66,6 +66,7 @@ function EngineBetaPage() {
   const snapListFn = useServerFn(listEngineBetaSnapshots);
   const lockStatusFn = useServerFn(getEngineBetaLockStatus);
   const lockGameFn = useServerFn(lockSingleGameNow);
+  const healthFn = useServerFn(getEngineBetaDataHealth);
   const qc = useQueryClient();
 
   const boardQ = useQuery({
