@@ -130,7 +130,7 @@ export const getSlateReconciliation = createServerFn({ method: "POST" })
     const teamAbbr = new Map(
       (teamsRes.data ?? []).map((t: any) => [String(t.id), t.abbreviation as string]),
     );
-    const lineupByGame = new Map(
+    const lineupByGame = new Map<string, any>(
       (lineupRes.data ?? []).map((r: any) => [String(r.game_id), r]),
     );
     // Prefer the *best* forecast per game: locked > published > awaiting_lineups > superseded.
@@ -138,19 +138,20 @@ export const getSlateReconciliation = createServerFn({ method: "POST" })
       locked: 4, published: 3, awaiting_lineups: 2, superseded: 1, legacy_unverified: 0,
     };
     const bestForecast = new Map<string, any>();
-    for (const f of forecastRes.data ?? []) {
+    for (const f of (forecastRes.data ?? []) as any[]) {
       const key = String(f.game_id);
       const prev = bestForecast.get(key);
       if (!prev || (rank[f.status] ?? -1) > (rank[prev.status] ?? -1)) {
         bestForecast.set(key, f);
       }
     }
-    const shadowByGame = new Map(
+    const shadowByGame = new Map<string, any>(
       (shadowRes.data ?? []).map((r: any) => [String(r.game_id), r]),
     );
-    const snapshotByGame = new Map(
+    const snapshotByGame = new Map<string, any>(
       (snapshotRes.data ?? []).map((r: any) => [String(r.game_id), r]),
     );
+
     const snapshotIds = (snapshotRes.data ?? []).map((r: any) => r.id);
     let snapshotRowsCount = new Map<string, number>();
     if (snapshotIds.length) {
