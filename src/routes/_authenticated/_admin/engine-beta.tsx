@@ -174,6 +174,8 @@ function EngineBetaPage() {
           setGameFilter={setGameFilter}
           confirmedOnly={confirmedOnly}
           setConfirmedOnly={setConfirmedOnly}
+          readinessFilter={readinessFilter}
+          setReadinessFilter={setReadinessFilter}
           board={board}
           allRows={allRows}
           filteredRows={filteredRows}
@@ -181,7 +183,10 @@ function EngineBetaPage() {
           error={boardQ.error as Error | null}
           openPlayer={openPlayer}
           setOpenPlayer={setOpenPlayer}
-          currentCategoryLabel={currentCategory.label}
+          currentCategory={currentCategory}
+          readyCount={readyCount}
+          watchCount={watchCount}
+          notReadyCount={notReadyCount}
         />
       ) : (
         <GradingView data={gradingQ.data} isLoading={gradingQ.isLoading} />
