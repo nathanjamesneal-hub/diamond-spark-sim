@@ -262,7 +262,9 @@ export const getSlateReconciliation = createServerFn({ method: "POST" })
         actualsCount: actualsCountByGame.get(gid) ?? 0,
         gradeable: isGradeable,
         gradeableLabel,
+        pipelineReason,
       });
+
     }
 
     return {
