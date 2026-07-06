@@ -21,10 +21,8 @@ export const Route = createFileRoute("/_authenticated/_admin/engine-beta")({
   component: EngineBetaPage,
 });
 
-function todayIsoUtc(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
+import { todayInAppTz } from "@/lib/timezone";
+
 
 function fmt(n: number | null | undefined, d = 2): string {
   if (n == null || !Number.isFinite(Number(n))) return "—";
