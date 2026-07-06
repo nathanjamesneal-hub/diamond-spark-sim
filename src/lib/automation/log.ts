@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type AutomationStatus = "started" | "ok" | "skipped" | "partial" | "failed";
+export type AutomationStatus = "started" | "ok" | "skipped" | "partial" | "failed" | "blocked" | "timed_out";
 
 export type AutomationLogInput = {
   job: string;

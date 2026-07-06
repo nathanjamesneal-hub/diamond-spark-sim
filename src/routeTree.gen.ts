@@ -55,6 +55,7 @@ import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_au
 import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
 import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
+import { Route as ApiPublicHooksOrchestrateTestRouteImport } from './routes/api/public/hooks/orchestrate-test'
 import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
 import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
@@ -311,6 +312,12 @@ const ApiPublicHooksRefreshLineupsRoute =
     path: '/api/public/hooks/refresh-lineups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksOrchestrateTestRoute =
+  ApiPublicHooksOrchestrateTestRouteImport.update({
+    id: '/api/public/hooks/orchestrate-test',
+    path: '/api/public/hooks/orchestrate-test',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksOrchestrateSlateRoute =
   ApiPublicHooksOrchestrateSlateRouteImport.update({
     id: '/api/public/hooks/orchestrate-slate',
@@ -395,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
+  '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
@@ -445,6 +453,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
+  '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
@@ -500,6 +509,7 @@ export interface FileRoutesById {
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
+  '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
@@ -554,6 +564,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
+    | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
@@ -604,6 +615,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
+    | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
@@ -658,6 +670,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/before-user-created'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
+    | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
@@ -670,6 +683,7 @@ export interface RootRouteChildren {
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
   ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
   ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
+  ApiPublicHooksOrchestrateTestRoute: typeof ApiPublicHooksOrchestrateTestRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
   ApiPublicHooksRefreshLiveActualsRoute: typeof ApiPublicHooksRefreshLiveActualsRoute
   ApiPublicHooksReplaceInflatedAlphaRoute: typeof ApiPublicHooksReplaceInflatedAlphaRoute
@@ -999,6 +1013,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksRefreshLineupsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/orchestrate-test': {
+      id: '/api/public/hooks/orchestrate-test'
+      path: '/api/public/hooks/orchestrate-test'
+      fullPath: '/api/public/hooks/orchestrate-test'
+      preLoaderRoute: typeof ApiPublicHooksOrchestrateTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/orchestrate-slate': {
       id: '/api/public/hooks/orchestrate-slate'
       path: '/api/public/hooks/orchestrate-slate'
@@ -1183,6 +1204,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
   ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
   ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
+  ApiPublicHooksOrchestrateTestRoute: ApiPublicHooksOrchestrateTestRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
   ApiPublicHooksRefreshLiveActualsRoute: ApiPublicHooksRefreshLiveActualsRoute,
   ApiPublicHooksReplaceInflatedAlphaRoute:
