@@ -47,6 +47,7 @@ import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authe
 import { Route as AuthenticatedGameGamePkRouteImport } from './routes/_authenticated/game.$gamePk'
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
+import { Route as AuthenticatedAdminReconciliationRouteImport } from './routes/_authenticated/_admin/reconciliation'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
 import { Route as AuthenticatedAdminEngineBetaRouteImport } from './routes/_authenticated/_admin/engine-beta'
@@ -266,6 +267,12 @@ const AuthenticatedForecastsConsensusRoute =
     path: '/consensus',
     getParentRoute: () => AuthenticatedForecastsRoute,
   } as any)
+const AuthenticatedAdminReconciliationRoute =
+  AuthenticatedAdminReconciliationRouteImport.update({
+    id: '/reconciliation',
+    path: '/reconciliation',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminPetriResultsRoute =
   AuthenticatedAdminPetriResultsRouteImport.update({
     id: '/petri-results',
@@ -387,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
+  '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
@@ -439,6 +447,7 @@ export interface FileRoutesByTo {
   '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
+  '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
@@ -494,6 +503,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
+  '/_authenticated/_admin/reconciliation': typeof AuthenticatedAdminReconciliationRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
   '/_authenticated/game/$gamePk': typeof AuthenticatedGameGamePkRoute
@@ -549,6 +559,7 @@ export interface FileRouteTypes {
     | '/engine-beta'
     | '/petri'
     | '/petri-results'
+    | '/reconciliation'
     | '/forecasts/consensus'
     | '/forecasts/lab'
     | '/game/$gamePk'
@@ -601,6 +612,7 @@ export interface FileRouteTypes {
     | '/engine-beta'
     | '/petri'
     | '/petri-results'
+    | '/reconciliation'
     | '/forecasts/consensus'
     | '/game/$gamePk'
     | '/matchups/$gamePk'
@@ -655,6 +667,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/engine-beta'
     | '/_authenticated/_admin/petri'
     | '/_authenticated/_admin/petri-results'
+    | '/_authenticated/_admin/reconciliation'
     | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
     | '/_authenticated/game/$gamePk'
@@ -957,6 +970,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsConsensusRouteImport
       parentRoute: typeof AuthenticatedForecastsRoute
     }
+    '/_authenticated/_admin/reconciliation': {
+      id: '/_authenticated/_admin/reconciliation'
+      path: '/reconciliation'
+      fullPath: '/reconciliation'
+      preLoaderRoute: typeof AuthenticatedAdminReconciliationRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/petri-results': {
       id: '/_authenticated/_admin/petri-results'
       path: '/petri-results'
@@ -1070,6 +1090,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminEngineBetaRoute: typeof AuthenticatedAdminEngineBetaRoute
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
+  AuthenticatedAdminReconciliationRoute: typeof AuthenticatedAdminReconciliationRoute
   AuthenticatedAdminLabFormShadowRoute: typeof AuthenticatedAdminLabFormShadowRoute
 }
 
@@ -1079,6 +1100,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminEngineBetaRoute: AuthenticatedAdminEngineBetaRoute,
     AuthenticatedAdminPetriRoute: AuthenticatedAdminPetriRoute,
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
+    AuthenticatedAdminReconciliationRoute:
+      AuthenticatedAdminReconciliationRoute,
     AuthenticatedAdminLabFormShadowRoute: AuthenticatedAdminLabFormShadowRoute,
   }
 
