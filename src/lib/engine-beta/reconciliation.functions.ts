@@ -127,9 +127,10 @@ export const getSlateReconciliation = createServerFn({ method: "POST" })
         .in("game_id", gameIds),
     ]);
 
-    const teamAbbr = new Map(
-      (teamsRes.data ?? []).map((t: any) => [String(t.id), t.abbreviation as string]),
+    const teamAbbr = new Map<string, string>(
+      (teamsRes.data ?? []).map((t: any) => [String(t.id), String(t.abbreviation)]),
     );
+
     const lineupByGame = new Map<string, any>(
       (lineupRes.data ?? []).map((r: any) => [String(r.game_id), r]),
     );
