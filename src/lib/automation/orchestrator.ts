@@ -391,6 +391,7 @@ export async function orchestrateDiamondSlate(
         stages: result.stages,
         schedule: result.schedule, refresh: result.refresh, recentEvents: result.recentEvents,
         lock: result.lock, petri: result.petri, engineBetaAutoLock: result.engineBetaAutoLock,
+        simEnqueue: result.simEnqueue,
         lease: result.lease,
       },
       error: result.stages.find(s => s.error)?.error ?? null,
