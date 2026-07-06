@@ -143,17 +143,21 @@ function EngineBetaPage() {
         <div className="ml-auto flex items-center gap-2">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="rounded-sm border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--cream)]" />
-          <button onClick={() => lockMut.mutate()}
+          <button onClick={handleLock}
             disabled={lockMut.isPending}
             className="rounded-sm border border-[var(--brass)] px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-[var(--cream)] transition-colors hover:bg-[color-mix(in_oklab,var(--brass)_20%,transparent)] disabled:opacity-50">
-            {lockMut.isPending ? "Locking…" : "Lock Beta Board"}
+            {lockMut.isPending ? "Locking…" : priorSnapshotForDate ? "Lock New Version" : "Lock Beta Board"}
           </button>
         </div>
       </div>
 
-      {lockMut.data ? (
+      {lockMut.error ? (
+        <div className="mt-3 rounded-sm border border-rose-500/40 bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-rose-300">
+          {(lockMut.error as Error).message}
+        </div>
+      ) : lockMut.data ? (
         <div className="mt-3 rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-[var(--warm-muted)]">
-          Snapshot locked · {lockMut.data.rowsWritten} rows across {lockMut.data.categories.length} categories.
+          Snapshot locked · v{lockMut.data.version} · {lockMut.data.rowsWritten} rows across {lockMut.data.categories.length} categories.
         </div>
       ) : null}
 
