@@ -27,6 +27,7 @@ import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runPetriAutoForDate } from "@/lib/petri/run.functions";
 import { ensureScheduleForDate } from "@/lib/schedule.server";
 import { autoLockPregameForDate } from "@/lib/engine-beta/autolock";
+import { enqueueSimJobsForDate } from "@/lib/sim-queue/enqueue.server";
 
 import { finishAutomationLog, logAutomation } from "./log";
 import {
