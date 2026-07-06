@@ -50,7 +50,7 @@ const LEASE_TTL_MS = 5 * 60_000;
 // ---------- Fault injection (test-only) ----------
 
 export type FaultInjection = Partial<Record<
-  "schedule" | "refresh" | "lock" | "petri" | "autolock",
+  "schedule" | "refresh" | "lock" | "petri" | "autolock" | "enqueueSims",
   "throw" | "timeout"
 >>;
 
