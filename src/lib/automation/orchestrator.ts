@@ -85,7 +85,8 @@ export type OrchestrateResult = {
   recentEvents: { finalGames: number; gameEventRows: number; rollupRows: number; pitcherHitTypesSourced: boolean; error?: string };
   lock: { today: number; yesterday: number; error?: string };
   petri: { previewGenerated: number; officialGenerated: number; abstained: number; skipped: number; locked: number; error?: string };
-  engineBetaAutoLock: { processed: number; locked: number; missed: number; skipped: number; error?: string };
+  engineBetaAutoLock: { processed: 0, locked: 0, missed: 0, skipped: 0 };
+  simEnqueue: { gamesConsidered: number; rowsEnqueued: number; error?: string };
   error?: string;
 };
 
