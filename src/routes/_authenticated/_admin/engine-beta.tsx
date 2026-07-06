@@ -12,6 +12,7 @@ import {
   type BoardRow,
   type GameLockStatus,
 } from "@/lib/engine-beta/board.functions";
+import { getEngineBetaDataHealth, type HealthCard, type HealthStatus } from "@/lib/engine-beta/health.functions";
 import { ENGINE_BETA_CATEGORIES, EXCLUDED_CATEGORIES, type EngineBetaCategoryKey } from "@/lib/engine-beta/categories";
 
 
@@ -65,6 +66,7 @@ function EngineBetaPage() {
   const snapListFn = useServerFn(listEngineBetaSnapshots);
   const lockStatusFn = useServerFn(getEngineBetaLockStatus);
   const lockGameFn = useServerFn(lockSingleGameNow);
+  const healthFn = useServerFn(getEngineBetaDataHealth);
   const qc = useQueryClient();
 
   const boardQ = useQuery({
@@ -83,6 +85,11 @@ function EngineBetaPage() {
   const lockStatusQ = useQuery({
     queryKey: ["engine-beta-lock-status", date],
     queryFn: () => lockStatusFn({ data: { date } }),
+    refetchInterval: 60_000,
+  });
+  const healthQ = useQuery({
+    queryKey: ["engine-beta-health", date],
+    queryFn: () => healthFn({ data: { date } }),
     refetchInterval: 60_000,
   });
 
@@ -179,6 +186,10 @@ function EngineBetaPage() {
           Snapshot locked · v{lockMut.data.version} · {lockMut.data.rowsWritten} rows across {lockMut.data.categories.length} categories.
         </div>
       ) : null}
+
+      {/* Data Health — pipeline stage status for this slate */}
+      <DataHealthStrip data={healthQ.data} isLoading={healthQ.isLoading} error={healthQ.error as Error | null} />
+
 
       {/* Today's Lock Status — per-game pregame auto-lock visibility */}
       <LockStatusPanel
@@ -725,6 +736,81 @@ function LockStatusPanel(props: {
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Data Health strip — compact per-stage pipeline status.
+// ============================================================================
+
+const HEALTH_TONE: Record<HealthStatus, { border: string; text: string; dot: string; label: string }> = {
+  ready:            { border: "border-emerald-500/50", text: "text-emerald-300", dot: "bg-emerald-400", label: "Ready" },
+  delayed:          { border: "border-amber-500/50",   text: "text-amber-300",   dot: "bg-amber-400",   label: "Delayed" },
+  missing:          { border: "border-rose-500/50",    text: "text-rose-300",    dot: "bg-rose-400",    label: "Missing" },
+  failed:           { border: "border-rose-500/60",    text: "text-rose-300",    dot: "bg-rose-500",    label: "Failed" },
+  not_expected_yet: { border: "border-[var(--border)]", text: "text-[var(--warm-muted)]", dot: "bg-slate-500", label: "Not expected yet" },
+};
+
+function fmtAge(sec: number | null): string {
+  if (sec == null) return "—";
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m`;
+  if (sec < 86400) return `${Math.round(sec / 3600)}h`;
+  return `${Math.round(sec / 86400)}d`;
+}
+function fmtTs(iso: string | null): string {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function DataHealthStrip(props: { data: { slateDate: string; now: string; cards: HealthCard[] } | undefined; isLoading: boolean; error: Error | null }) {
+  const { data, isLoading, error } = props;
+  const [openKey, setOpenKey] = useState<string | null>(null);
+
+  return (
+    <div className="mt-4">
+      <div className="mono flex items-baseline justify-between text-[10px] uppercase tracking-[0.2em] text-[var(--warm-muted)]">
+        <span>Data health · {data?.slateDate ?? "—"}</span>
+        {data ? <span>Refreshed {new Date(data.now).toLocaleTimeString()}</span> : null}
+      </div>
+      {error ? (
+        <div className="mt-2 rounded-sm border border-rose-500/50 px-3 py-2 text-xs text-rose-300">
+          Failed to load health signals: {error.message}
+        </div>
+      ) : null}
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8">
+        {isLoading && !data
+          ? Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-[74px] rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)]" />
+            ))
+          : (data?.cards ?? []).map((c) => {
+              const tone = HEALTH_TONE[c.status];
+              const isOpen = openKey === c.key;
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setOpenKey(isOpen ? null : c.key)}
+                  className={`rounded-sm border ${tone.border} bg-[color-mix(in_oklab,var(--charcoal)_88%,transparent)] px-2.5 py-2 text-left transition-colors hover:bg-[color-mix(in_oklab,var(--charcoal)_78%,transparent)]`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+                    <span className={`mono text-[9px] uppercase tracking-[0.16em] ${tone.text}`}>{tone.label}</span>
+                    <span className="ml-auto mono text-[9px] text-[var(--warm-muted)]">{fmtAge(c.ageSeconds)}</span>
+                  </div>
+                  <div className="mt-1 truncate text-[11px] text-[var(--cream)]">{c.label}</div>
+                  <div className="mt-0.5 truncate text-[10px] text-[var(--warm-muted)]" title={c.reason}>{c.detail ?? c.reason}</div>
+                  {isOpen ? (
+                    <div className="mt-2 border-t border-[var(--border)] pt-1.5 text-[10px] text-[var(--warm-muted)]">
+                      <div>{c.reason}</div>
+                      <div className="mono mt-1 text-[9px]">Latest: {fmtTs(c.latestAt)}</div>
+                    </div>
+                  ) : null}
+                </button>
+              );
+            })}
       </div>
     </div>
   );
