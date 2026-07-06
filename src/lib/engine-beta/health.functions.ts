@@ -112,20 +112,6 @@ export const getEngineBetaDataHealth = createServerFn({ method: "POST" })
         .not("game_id", "is", null),
       admin
         .from("automation_log")
-        .select("started_at, finished_at, status, error, job")
-        .eq("status", "ok")
-        .eq("slate_date", slate)
-        .order("started_at", { ascending: false })
-        .limit(1),
-      admin
-        .from("automation_log")
-        .select("started_at, finished_at, status, error, job")
-        .eq("status", "failed")
-        .eq("slate_date", slate)
-        .order("started_at", { ascending: false })
-        .limit(1),
-      admin
-        .from("automation_log")
         .select("started_at, finished_at, status, job")
         .eq("status", "ok")
         .eq("job", "refresh-live-actuals")
