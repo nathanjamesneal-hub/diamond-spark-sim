@@ -23,6 +23,7 @@ import {
   type EngineBetaCategoryKey,
 } from "./categories";
 import { computeEngineBetaScore, ENGINE_BETA_WEIGHTS, type ScoreComponents } from "./score";
+import { todayInAppTz } from "@/lib/timezone";
 
 const RECENT_WINDOW_DAYS = 14;
 
@@ -43,10 +44,11 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
   if (!data) throw new Error("Forbidden: admin role required");
 }
 
-function todayIsoUtc(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
+// Slate date follows the app timezone (America/Chicago), matching the
+// convention used by `games.date`, forecast_runs.slate_date, Pulse, and
+// the rest of Diamond. Do NOT use UTC — late-evening UTC rolls a day
+// early relative to the live MLB slate and would empty the board.
+
 
 function extractDistEntry(distributions: any, distKey: string): any | null {
   if (!distributions || typeof distributions !== "object") return null;
