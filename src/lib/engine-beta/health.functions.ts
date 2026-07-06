@@ -69,8 +69,6 @@ export const getEngineBetaDataHealth = createServerFn({ method: "POST" })
       recentEventsRes,
       glsRes,
       autoLockRes,
-      orchOkRes,
-      orchFailRes,
       liveActualsOkRes,
       liveActualsFailRes,
     ] = await Promise.all([
