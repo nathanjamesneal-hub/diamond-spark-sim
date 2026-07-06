@@ -1828,6 +1828,104 @@ export type Database = {
           },
         ]
       }
+      sim_jobs: {
+        Row: {
+          chunk_size: number
+          chunks_done: number
+          chunks_total: number
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          failure_reason: string | null
+          game_id: string
+          game_pk: number
+          id: string
+          inputs_hash: string
+          label: string
+          last_progress_at: string | null
+          material_change_summary: Json | null
+          model_version: string
+          notes: string | null
+          queued_at: string
+          seed: string | null
+          seed_meta: Json
+          sim_count: number
+          slate_date: string
+          started_at: string | null
+          status: string
+          tier: string
+          updated_at: string
+          worker_lease_expires_at: string | null
+          worker_lease_id: string | null
+        }
+        Insert: {
+          chunk_size: number
+          chunks_done?: number
+          chunks_total: number
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          failure_reason?: string | null
+          game_id: string
+          game_pk: number
+          id?: string
+          inputs_hash: string
+          label: string
+          last_progress_at?: string | null
+          material_change_summary?: Json | null
+          model_version: string
+          notes?: string | null
+          queued_at?: string
+          seed?: string | null
+          seed_meta?: Json
+          sim_count: number
+          slate_date: string
+          started_at?: string | null
+          status?: string
+          tier: string
+          updated_at?: string
+          worker_lease_expires_at?: string | null
+          worker_lease_id?: string | null
+        }
+        Update: {
+          chunk_size?: number
+          chunks_done?: number
+          chunks_total?: number
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          failure_reason?: string | null
+          game_id?: string
+          game_pk?: number
+          id?: string
+          inputs_hash?: string
+          label?: string
+          last_progress_at?: string | null
+          material_change_summary?: Json | null
+          model_version?: string
+          notes?: string | null
+          queued_at?: string
+          seed?: string | null
+          seed_meta?: Json
+          sim_count?: number
+          slate_date?: string
+          started_at?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string
+          worker_lease_expires_at?: string | null
+          worker_lease_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sim_jobs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       starting_pitchers: {
         Row: {
           confirmed: boolean
