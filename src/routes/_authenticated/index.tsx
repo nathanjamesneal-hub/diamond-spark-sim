@@ -5,6 +5,7 @@ import { getMlbPulse, type PulseGame } from "@/lib/pulse.functions";
 import { HitterCard, PitcherCard } from "@/components/movers/mover-cards";
 import { supabase } from "@/integrations/supabase/client";
 import { todayInAppTz, formatTimeInAppTz } from "@/lib/timezone";
+import { getEngineBetaDataHealth } from "@/lib/engine-beta/health.functions";
 
 const moversQuery = queryOptions({
   queryKey: ["mlb-movers"],
