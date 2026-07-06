@@ -87,6 +87,11 @@ function EngineBetaPage() {
     queryFn: () => lockStatusFn({ data: { date } }),
     refetchInterval: 60_000,
   });
+  const healthQ = useQuery({
+    queryKey: ["engine-beta-health", date],
+    queryFn: () => healthFn({ data: { date } }),
+    refetchInterval: 60_000,
+  });
 
   const lockMut = useMutation({
     mutationFn: (opts: { newVersion?: boolean } = {}) => lockFn({ data: { date, newVersion: opts.newVersion } }),
