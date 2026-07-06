@@ -130,13 +130,11 @@ export const getEngineBetaDataHealth = createServerFn({ method: "POST" })
 
     const games: any[] = gamesRes.data ?? [];
     const nGames = games.length;
-    const finalRx = /final|game over|completed/i;
     const startedRx = /live|in progress|final|game over|completed/i;
     const startedGames = games.filter(
       (g) => (g.game_status && startedRx.test(g.game_status)) ||
              (g.first_pitch_at && Date.parse(g.first_pitch_at) <= nowMs),
     );
-    const gameIds = new Set(games.map((g) => String(g.id)));
 
     // ---------------- Schedule readiness ----------------
     const scheduleMaxUpd = games.reduce((m: string | null, g: any) => (!m || g.updated_at > m) ? g.updated_at : m, null as string | null);
