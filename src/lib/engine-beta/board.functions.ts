@@ -166,8 +166,8 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const { data: teamsRows } = teamIds.length
       ? await admin.from("teams").select("id, name, abbreviation").in("id", teamIds)
       : { data: [] };
-    const teamById = new Map((teamsRows ?? []).map((t: any) => [String(t.id), t]));
-    const gameById = new Map(gamesList.map((g: any) => [String(g.id), g]));
+    const teamById = new Map<string, any>((teamsRows ?? []).map((t: any) => [String(t.id), t]));
+    const gameById = new Map<string, any>(gamesList.map((g: any) => [String(g.id), g]));
     const matchupOf = (gid: string) => {
       const g: any = gameById.get(gid); if (!g) return "—";
       const home = teamById.get(String(g.home_team_id))?.abbreviation ?? "HOM";
