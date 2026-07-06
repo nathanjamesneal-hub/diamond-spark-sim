@@ -46,6 +46,7 @@ import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authent
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
+import { Route as AuthenticatedAdminEngineBetaRouteImport } from './routes/_authenticated/_admin/engine-beta'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
@@ -256,6 +257,12 @@ const AuthenticatedAdminPetriRoute = AuthenticatedAdminPetriRouteImport.update({
   path: '/petri',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const AuthenticatedAdminEngineBetaRoute =
+  AuthenticatedAdminEngineBetaRouteImport.update({
+    id: '/engine-beta',
+    path: '/engine-beta',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -350,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -397,6 +405,7 @@ export interface FileRoutesByTo {
   '/top-props': typeof AuthenticatedTopPropsRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
+  '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
+  '/_authenticated/_admin/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -497,6 +507,7 @@ export interface FileRouteTypes {
     | '/top-props'
     | '/watchlist'
     | '/admin'
+    | '/engine-beta'
     | '/petri'
     | '/petri-results'
     | '/forecasts/consensus'
@@ -544,6 +555,7 @@ export interface FileRouteTypes {
     | '/top-props'
     | '/watchlist'
     | '/admin'
+    | '/engine-beta'
     | '/petri'
     | '/petri-results'
     | '/forecasts/consensus'
@@ -593,6 +605,7 @@ export interface FileRouteTypes {
     | '/_authenticated/watchlist'
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
+    | '/_authenticated/_admin/engine-beta'
     | '/_authenticated/_admin/petri'
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/forecasts/consensus'
@@ -886,6 +899,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPetriRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/_admin/engine-beta': {
+      id: '/_authenticated/_admin/engine-beta'
+      path: '/engine-beta'
+      fullPath: '/engine-beta'
+      preLoaderRoute: typeof AuthenticatedAdminEngineBetaRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/admin': {
       id: '/_authenticated/_admin/admin'
       path: '/admin'
@@ -968,6 +988,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
+  AuthenticatedAdminEngineBetaRoute: typeof AuthenticatedAdminEngineBetaRoute
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
   AuthenticatedAdminLabFormShadowRoute: typeof AuthenticatedAdminLabFormShadowRoute
@@ -976,6 +997,7 @@ interface AuthenticatedAdminRouteRouteChildren {
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
     AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
+    AuthenticatedAdminEngineBetaRoute: AuthenticatedAdminEngineBetaRoute,
     AuthenticatedAdminPetriRoute: AuthenticatedAdminPetriRoute,
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
     AuthenticatedAdminLabFormShadowRoute: AuthenticatedAdminLabFormShadowRoute,

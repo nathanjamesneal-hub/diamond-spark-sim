@@ -220,6 +220,113 @@ export type Database = {
         }
         Relationships: []
       }
+      engine_beta_snapshot_rows: {
+        Row: {
+          actuals: Json | null
+          baseline: Json | null
+          batting_order: number | null
+          category: string
+          created_at: string
+          forecast_run_id: string | null
+          form: Json | null
+          game_id: string | null
+          game_pk: number | null
+          id: string
+          lineup_status: string | null
+          mlb_id: number | null
+          player_id: string | null
+          player_name: string | null
+          role: string
+          score: number | null
+          score_components: Json | null
+          shadow: Json | null
+          shadow_run_id: string | null
+          snapshot_id: string
+          team_abbr: string | null
+        }
+        Insert: {
+          actuals?: Json | null
+          baseline?: Json | null
+          batting_order?: number | null
+          category: string
+          created_at?: string
+          forecast_run_id?: string | null
+          form?: Json | null
+          game_id?: string | null
+          game_pk?: number | null
+          id?: string
+          lineup_status?: string | null
+          mlb_id?: number | null
+          player_id?: string | null
+          player_name?: string | null
+          role: string
+          score?: number | null
+          score_components?: Json | null
+          shadow?: Json | null
+          shadow_run_id?: string | null
+          snapshot_id: string
+          team_abbr?: string | null
+        }
+        Update: {
+          actuals?: Json | null
+          baseline?: Json | null
+          batting_order?: number | null
+          category?: string
+          created_at?: string
+          forecast_run_id?: string | null
+          form?: Json | null
+          game_id?: string | null
+          game_pk?: number | null
+          id?: string
+          lineup_status?: string | null
+          mlb_id?: number | null
+          player_id?: string | null
+          player_name?: string | null
+          role?: string
+          score?: number | null
+          score_components?: Json | null
+          shadow?: Json | null
+          shadow_run_id?: string | null
+          snapshot_id?: string
+          team_abbr?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engine_beta_snapshot_rows_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engine_beta_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          meta: Json
+          notes: string | null
+          slate_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          slate_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          slate_date?: string
+        }
+        Relationships: []
+      }
       favorites: {
         Row: {
           created_at: string
