@@ -48,6 +48,7 @@ import { Route as AuthenticatedGameGamePkRouteImport } from './routes/_authentic
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminSimQueueSmokeRouteImport } from './routes/_authenticated/_admin/sim-queue-smoke'
+import { Route as AuthenticatedAdminResearchLeadersRouteImport } from './routes/_authenticated/_admin/research-leaders'
 import { Route as AuthenticatedAdminReconciliationRouteImport } from './routes/_authenticated/_admin/reconciliation'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
@@ -274,6 +275,12 @@ const AuthenticatedAdminSimQueueSmokeRoute =
     path: '/sim-queue-smoke',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminResearchLeadersRoute =
+  AuthenticatedAdminResearchLeadersRouteImport.update({
+    id: '/research-leaders',
+    path: '/research-leaders',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminReconciliationRoute =
   AuthenticatedAdminReconciliationRouteImport.update({
     id: '/reconciliation',
@@ -402,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
@@ -456,6 +464,7 @@ export interface FileRoutesByTo {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
@@ -513,6 +522,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/_admin/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/_authenticated/_admin/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/_authenticated/_admin/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
@@ -570,6 +580,7 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
+    | '/research-leaders'
     | '/sim-queue-smoke'
     | '/forecasts/consensus'
     | '/forecasts/lab'
@@ -624,6 +635,7 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
+    | '/research-leaders'
     | '/sim-queue-smoke'
     | '/forecasts/consensus'
     | '/game/$gamePk'
@@ -680,6 +692,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/petri'
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/_admin/reconciliation'
+    | '/_authenticated/_admin/research-leaders'
     | '/_authenticated/_admin/sim-queue-smoke'
     | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
@@ -990,6 +1003,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSimQueueSmokeRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/_admin/research-leaders': {
+      id: '/_authenticated/_admin/research-leaders'
+      path: '/research-leaders'
+      fullPath: '/research-leaders'
+      preLoaderRoute: typeof AuthenticatedAdminResearchLeadersRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/reconciliation': {
       id: '/_authenticated/_admin/reconciliation'
       path: '/reconciliation'
@@ -1111,6 +1131,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
   AuthenticatedAdminReconciliationRoute: typeof AuthenticatedAdminReconciliationRoute
+  AuthenticatedAdminResearchLeadersRoute: typeof AuthenticatedAdminResearchLeadersRoute
   AuthenticatedAdminSimQueueSmokeRoute: typeof AuthenticatedAdminSimQueueSmokeRoute
   AuthenticatedAdminLabFormShadowRoute: typeof AuthenticatedAdminLabFormShadowRoute
 }
@@ -1123,6 +1144,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
     AuthenticatedAdminReconciliationRoute:
       AuthenticatedAdminReconciliationRoute,
+    AuthenticatedAdminResearchLeadersRoute:
+      AuthenticatedAdminResearchLeadersRoute,
     AuthenticatedAdminSimQueueSmokeRoute: AuthenticatedAdminSimQueueSmokeRoute,
     AuthenticatedAdminLabFormShadowRoute: AuthenticatedAdminLabFormShadowRoute,
   }
