@@ -574,7 +574,7 @@ function TodayCard({
     tone === "live"
       ? "border-[color-mix(in_oklab,var(--brass)_60%,transparent)] bg-[color-mix(in_oklab,var(--brass)_10%,var(--charcoal))] shadow-[0_0_22px_color-mix(in_oklab,var(--brass)_25%,transparent)]"
       : tone === "riser"
-      ? "border-[color-mix(in_oklab,var(--riser,#10b981)_45%,transparent)] bg-[color-mix(in_oklab,var(--riser,#10b981)_8%,var(--charcoal))]"
+      ? "border-[color-mix(in_oklab,var(--field)_45%,transparent)] bg-[color-mix(in_oklab,var(--field)_8%,var(--charcoal))]"
       : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_82%,transparent)]";
   return (
     <Link
@@ -619,7 +619,7 @@ function MoverGrid<T extends { mlbId: number }>({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div>
-        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--riser,#10b981)_75%,var(--cream))]">
+        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--field)_75%,var(--cream))]">
           Risers
         </div>
         {risers.length === 0 ? (
@@ -633,7 +633,7 @@ function MoverGrid<T extends { mlbId: number }>({
         )}
       </div>
       <div>
-        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--faller,#ec4899)_75%,var(--cream))]">
+        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--cardinal)_75%,var(--cream))]">
           Fallers
         </div>
         {fallers.length === 0 ? (
@@ -691,10 +691,10 @@ function EngineBetaStatusPanel() {
 
   const toneCls =
     tone === "ready"
-      ? "border-[color-mix(in_oklab,var(--riser,#10b981)_50%,transparent)]"
+      ? "border-[color-mix(in_oklab,var(--field)_50%,transparent)]"
       : tone === "warn"
       ? "border-[color-mix(in_oklab,var(--brass)_55%,transparent)]"
-      : "border-[color-mix(in_oklab,var(--faller,#ec4899)_55%,transparent)]";
+      : "border-[color-mix(in_oklab,var(--cardinal)_55%,transparent)]";
 
   return (
     <section className="mt-12">
