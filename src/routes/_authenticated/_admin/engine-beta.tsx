@@ -7,9 +7,13 @@ import {
   lockEngineBetaBoard,
   getEngineBetaGrading,
   listEngineBetaSnapshots,
+  getEngineBetaLockStatus,
+  lockSingleGameNow,
   type BoardRow,
+  type GameLockStatus,
 } from "@/lib/engine-beta/board.functions";
 import { ENGINE_BETA_CATEGORIES, EXCLUDED_CATEGORIES, type EngineBetaCategoryKey } from "@/lib/engine-beta/categories";
+
 
 export const Route = createFileRoute("/_authenticated/_admin/engine-beta")({
   head: () => ({
@@ -59,6 +63,8 @@ function EngineBetaPage() {
   const lockFn = useServerFn(lockEngineBetaBoard);
   const gradingFn = useServerFn(getEngineBetaGrading);
   const snapListFn = useServerFn(listEngineBetaSnapshots);
+  const lockStatusFn = useServerFn(getEngineBetaLockStatus);
+  const lockGameFn = useServerFn(lockSingleGameNow);
   const qc = useQueryClient();
 
   const boardQ = useQuery({
@@ -74,14 +80,29 @@ function EngineBetaPage() {
     queryKey: ["engine-beta-snapshots"],
     queryFn: () => snapListFn(),
   });
+  const lockStatusQ = useQuery({
+    queryKey: ["engine-beta-lock-status", date],
+    queryFn: () => lockStatusFn({ data: { date } }),
+    refetchInterval: 60_000,
+  });
 
   const lockMut = useMutation({
     mutationFn: (opts: { newVersion?: boolean } = {}) => lockFn({ data: { date, newVersion: opts.newVersion } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
       qc.invalidateQueries({ queryKey: ["engine-beta-grading", date] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-lock-status", date] });
     },
   });
+  const lockGameMut = useMutation({
+    mutationFn: (gameId: string) => lockGameFn({ data: { gameId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-lock-status", date] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-board", date] });
+    },
+  });
+
 
   const priorSnapshotForDate = (snapQ.data?.snapshots ?? []).some((s) => s.slate_date === date);
 
