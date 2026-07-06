@@ -1,104 +1,162 @@
-## Official Simulation System — merged spec
+## Diamond Leaderboards — Form Movers + Prop Leaders + Consensus
 
-Combines the earlier amendment (two-wave 20K: Early Slate + Confirmed refresh) with the fuller queue/model/diagnostics spec. Heavy simulation work is fully isolated from `orchestrate-slate` — the orchestrator only reads simulation status and enqueues jobs, never runs sims inline.
+Two-layer leaderboard system that reads from the completed 20K Official Lineup Run once per game. Depends on the sim-queue Phase 3 worker and its per-player output table — neither exists yet — so this plan is spec + schema now, code after the worker lands.
 
-Nothing in this plan changes public forecast math, existing engine outputs, cron cadence, auto-lock policy semantics, Data Health cards, or Engine Beta admin behavior until the new tables/queue are populated and the board switches to them behind a flag.
+### Dependencies (must exist first)
 
-### 1. Simulation tiers
+- `sim_jobs` — done (Phase 1).
+- `sim_worker` route + `sim_player_outputs` table — Phase 3, not started. This is where per-player projected means, event probabilities, and uncertainty come from. All leaderboards read from that table filtered to the current eligible run per game (`tier='20k'`, current `inputs_hash`, `status='completed'`).
+- Optional: a market snapshot table (sportsbook lines + timestamps). We already have `petri_player_market_snapshots`; the Prop Leader flow will reuse it. If it's missing required fields for a market, that market silently degrades to Projection Leader.
 
-- **2K Preview — provisional.** May run before lineups are confirmed. Useful for early context; never the preferred lock source when a valid 20K exists. Kept as lightweight fallback.
-- **20K Early Slate — projected lineup inputs.** Queued per game as soon as: official schedule row, probable/confirmed starters, projected lineup + batting order with confidence metadata, park, weather, opponent, and recent-form inputs are all present. Target: complete several hours before first pitch. Never labeled as locked/final.
-- **20K Confirmed Lineup — current inputs.** Queued when confirmed lineups arrive AND a material input actually changed vs the Early Slate input hash (hitter add/remove, order change, SP change, weather beyond threshold, opener/bullpen change). If nothing material changed, promote the existing Early Slate run as "current" rather than re-running 20K.
+Nothing in this plan touches locked snapshots, changes engine math, or ships new public forecast semantics until the worker fills `sim_player_outputs`.
 
-### 2. Model requirements (unchanged for existing engines; enforced for new runs)
+### New schema
 
-- One coherent shared game path per iteration; hitter and pitcher outcomes derive from the same paths (no independent per-card sims).
-- Inputs: long-term baseline, recent form (sample-size weighted, shrunk to baseline), handedness/matchup, projected lineup spot + PA, park, weather, bullpen/opponent context, confirmed starters/lineups when available.
+Two additive tables. Both admin-read, service-role write.
 
-### 3. Durable queue + worker
+**`sim_player_outputs`** — Phase-3 dependency, listed here so the leaderboard queries are pinned:
+```
+sim_job_id, game_id, slate_date, player_id, side ('bat'|'pit'),
+proj_mean jsonb,        -- e.g. { hits: 1.02, tb: 1.71, hr: 0.14, ... }
+event_probs jsonb,      -- e.g. { "1plus_hit": 0.71, "2plus_hits": 0.31, "hr": 0.14, ... }
+uncertainty jsonb,      -- per-event stderr + a scalar confidence_0_1
+recent_form jsonb,      -- { sample_pa, shrinkage_weight, contribution_by_event }
+inputs_hash, model_version, sim_count, completed_at
+```
 
-- New table `sim_jobs` (queued, running, completed, failed, cancelled, stale) with `game_id, slate_date, model_version, inputs_hash, tier (2k|20k), sim_count, seed, chunk_size, chunks_total, chunks_done, queued_at, started_at, completed_at, duration_ms, status, failure_reason, notes`.
-- Idempotency key: `(game_id, model_version, inputs_hash, tier)`. Re-enqueueing the same key while queued/running is a no-op.
-- Worker route `POST /api/public/hooks/sim-worker` (cron every minute, capped concurrency). Uses the existing per-stage lease pattern from the orchestrator fix so it cannot double-run or hang invisibly.
-- 20K runs execute in 5 chunks of 4,000 with progress persisted after every chunk. On timeout/failure the row closes as `failed`/`timed_out` with `failure_reason`; never blocks other jobs and never touches the orchestrator lease.
-- Cancellation: when a newer input hash arrives, older queued/running jobs for the same game+tier are marked `stale` (running jobs are asked to stop at next chunk boundary; already-completed runs are retained for audit).
+**`leaderboard_snapshots`** — the materialized boards, one row per (slate, board, market, player):
+```
+slate_date, board ('form_movers'|'projection_leaders'|'prop_leaders'|'diamond_consensus'),
+market text,              -- 'form_mover' | '1plus_hit' | '2plus_hits' | 'total_bases' | 'hr' | 'rbi' | 'runs' | 'sb' | 'k' | 'outs' | 'er' | 'hits_allowed' | 'consensus'
+threshold numeric,        -- market threshold when applicable
+game_id, player_id, side,
+sim_job_id, inputs_hash, sim_tier ('20k'|'2k'),
+label ('form_mover'|'projection_leader'|'qualified_prop_leader'|'watchlist'|'not_eligible'),
+projected_mean numeric, event_probability numeric, confidence numeric,
+fair_odds_american int, fair_odds_decimal numeric,
+book_line numeric, book_price_american int, book_source text,
+novig_implied_prob numeric, prob_delta numeric,
+edge_score numeric,        -- confidence-adjusted edge used for ranking
+form_adjustment numeric, form_direction ('riser'|'neutral'|'faller'),
+form_sample_size int, form_reliability numeric,
+prior_run_delta numeric,   -- vs previous eligible run for this (game,player,market)
+driver_summary text,       -- plain-language, generated from the top contributors
+market_timestamp timestamptz, freshness_seconds int,
+locked bool, snapshot_id uuid,  -- pregame lock reference when applicable
+rank int, computed_at timestamptz
+```
 
-### 4. Enqueue triggers (orchestrator changes are minimal)
+Unique per (slate_date, board, market, player). Recomputed after each completed 20K run for that game.
 
-`orchestrate-slate` gains one new stage `enqueue_sims` (budget ~10s) that, per game:
+### Layer A — Form Movers
 
-1. Computes the current `inputs_hash` from the same input snapshot used by the current engine.
-2. If no 2K row exists for this hash → enqueue 2K.
-3. If Early-Slate inputs are ready and no 20K row exists for this hash → enqueue 20K (tier `20k`, label `early_slate`).
-4. If confirmed lineups arrived AND the hash differs from the last completed 20K's hash → enqueue 20K (label `confirmed`). Otherwise promote the Early Slate run's `label` to `current` without re-running.
+Trigger: whenever a game gets a new completed 20K run for the current `inputs_hash`, recompute Form Movers for the players in that game and re-rank the slate list.
 
-The stage only writes to `sim_jobs`; it never invokes the sim engine.
+Per eligible hitter/pitcher, compute against `sim_player_outputs`:
 
-### 5. Freshness + safety invariants
+- `projected_mean` and `event_probability` from the completed 20K run
+- `baseline_mean` — the same projection recomputed with `recent_form.contribution_by_event` zeroed out (already recorded by the sim; not a re-sim)
+- `form_adjustment = projected_mean − baseline_mean`
+- `form_direction`: `riser` if adjustment ≥ +τ, `faller` if ≤ −τ, else `neutral` (τ per-market; e.g. hits 0.08, K 0.4)
+- `form_sample_size` — PA/BF used in the form window
+- `form_reliability` = shrinkage weight actually applied (0..1), directly from the sim's shrinkage
+- `prior_run_delta` — delta vs the last leaderboard_snapshot for this (game,player) pair
+- `confidence` — from sim uncertainty (higher stderr → lower confidence)
 
-- Never start or refine simulations after first pitch (worker refuses when `now >= first_pitch_at`).
-- Never mutate a locked pregame snapshot; regrading remains the read-only path.
-- A material-change hash always produces a new job; older runs are marked `stale` but never deleted.
-- Auto-lock stays on its existing schedule but changes its selector (see §6).
+**Ranking score for Form Movers:**
+```
+mover_score = |form_adjustment_z| * form_reliability * confidence * freshness_factor
+```
+- `form_adjustment_z` = adjustment normalized against the market's typical daily stddev
+- `freshness_factor` decays linearly from 1.0 at run completion to 0.4 at T-20 (lock deadline)
+- Hard filters that force `label='not_eligible'`: no confirmed lineup at eligibility check, `sim_tier != '20k'` current, `form_sample_size < market_min_pa`, `sim_status != 'completed'` for current hash
 
-### 6. Auto-lock selection
+This ranking guarantees a one-good-game bump can't top the list: `form_reliability` is the sim's shrinkage weight — a 5-PA sample is heavily shrunk, so `form_adjustment` and reliability are both small.
 
-New lock-readiness deadline: **T-25 minutes before first pitch** (configurable 20–30). At every autolock tick:
+Driver summary generation (deterministic, no LLM): pick the top 2 contributors from `recent_form.contribution_by_event` and phrase them with fixed templates ("Contact quality trending up over last 45 PA; matchup vs RHP boosts HR odds").
 
-1. Pick the latest `completed` `20k` run whose `inputs_hash` equals the current input hash.
-2. If none, pick the latest `completed` `20k` run for this game (any hash) and record `lock_reason = "Locked using latest completed 20K run; confirmed refresh incomplete."`
-3. If still none and we're past T-2 (existing final lock window), fall back to the current engine's 2K path and record `lock_reason = "Fell back to 2K: no completed 20K run at lock time."`
-4. Never silently downgrade to 2K when a valid 20K exists.
+### Layer B — Projection Leaders / Prop Leaders
 
-Public forecast, movers, and Diamond cards read the same "current eligible run" as lock — the badge (2K Preview vs 20K Official) is derived from `sim_jobs.tier` of the run backing that game.
+For every supported market, we compute one leaderboard per slate:
 
-### 7. UI clarity (Diamond board + Slate Reconciliation)
+- `1plus_hit`, `2plus_hits`, `total_bases` (0.5/1.5/2.5), `hr`, `rbi`, `runs`, `sb` (when eligible per-lineup context), `k` (pitcher), `outs` (pitcher), `er` (pitcher), `hits_allowed` (pitcher).
 
-Per game, surface:
+Each supported market has: default threshold, `market_min_pa`/`market_min_bf`, and a "typical stddev" constant for normalization.
 
-- Early 20K run completion time
-- Projected lineup confidence at Early Slate hash time
-- Confirmed lineup time
-- Whether a Confirmed refresh was required, and which inputs changed (diff summary)
-- Current eligible run (id, tier, hash short, completed_at)
-- Locked run + `lock_reason`
-- Failure reason if the latest attempt failed
-- Badge on every card: `2K Preview` or `20K Official`
+**Per candidate, always store:**
+player, game, market, threshold, `projected_mean`, `event_probability`, `confidence`, `fair_odds`, `form_adjustment`, driver summary (matchup + environment + form), `sim_tier`, `inputs_hash`, `completed_at`, `locked` + snapshot_id when a lock exists.
 
-New diagnostic panel: 2K→20K comparison per player (probability + rank delta) for the current game.
+**Label decision (deterministic):**
 
-### 8. Diagnostics wiring
+1. Missing confirmed lineup / stale sim / insufficient data / `sim_status != 'completed'` → `not_eligible`.
+2. Sim OK, but no matching current market row in `petri_player_market_snapshots` (or freshness > 15 min, or book absent for this player+market) → `projection_leader`. Rank by `event_probability * confidence * freshness_factor` inside that market's board.
+3. Sim OK and a current market row exists → compute `no_vig_prob`, `prob_delta = model_prob − no_vig_prob`, and:
+   - Qualification checks (all must pass): freshness ≤ 15 min, both sides of the market present for de-vig, model uncertainty within band, 2K→20K probability delta for this player+market ≤ instability threshold (default 0.06 absolute).
+   - Passes → `qualified_prop_leader`.
+   - Fails → `watchlist` with the failing check recorded in `driver_summary`.
+4. Strong projection (top-N by `event_probability`) that failed qualification also lands on `watchlist`.
+5. Form Movers board pulls its own rows independently.
 
-The existing Slate Reconciliation admin panel adds columns:
+**Confidence-adjusted edge (ranking score for Prop Leaders):**
+```
+edge_score =
+    prob_delta                          -- raw model edge
+  * confidence                          -- uncertainty penalty
+  * freshness_factor                    -- staleness penalty (market + sim)
+  * stability_factor                    -- 1 − |p20k − p2k| / instability_cap, floored at 0
+  * form_reliability_penalty            -- 1 for reliability ≥ 0.5, linear to 0.5 at reliability 0
+  * market_completeness_factor          -- 1 if both sides + recent tick, 0.7 if partial
+```
 
-- `sim.early_20k` (queued/running/completed/failed + completed_at)
-- `sim.confirmed_20k` (same)
-- `sim.material_change` (yes/no + diff summary when yes)
-- `sim.current_tier` (`20K Official` / `2K Preview` / `none`)
-- `sim.lock_source` (job id + lock_reason)
+Never rank across markets in this layer. Each market has its own list.
 
-Data Health gets a new card:
+**Fair odds:** derived directly from `event_probability` (American + decimal, both stored). Never from raw form.
 
-- **Simulation queue** — jobs queued, running, completed today, failed today, oldest queued age, last worker heartbeat, per-stage p50/p95 duration.
+### Layer C — Diamond Consensus
 
-### 9. Migration + rollout order (implementation, not this turn)
+Only `qualified_prop_leader` rows are eligible. Cross-market ranking:
 
-1. Create `sim_jobs` + supporting indexes; RLS admin-read only.
-2. Ship `enqueue_sims` orchestrator stage in dry-run mode (writes rows, worker disabled) to validate hashing + trigger logic against a live slate.
-3. Ship the worker route + cron, keep board/lock unchanged.
-4. Flip a feature flag: board and auto-lock switch to `sim_jobs`-backed selection with the new tier badges.
-5. Add UI badges, diagnostics panel additions, and 2K→20K comparison view.
+```
+consensus_score =
+    edge_score
+  * projected_opportunity_factor        -- e.g. PA/BF vs market baseline
+  * form_reliability
+  * data_freshness
+```
+
+Top-N per slate. The exact `event_probability`, `edge_score`, `sim_job_id`, `inputs_hash`, and market snapshot (line + price + timestamp) are copied into `leaderboard_snapshots` so a later graded outcome is judged against exactly what the leaderboard showed.
+
+### Compute + refresh flow
+
+1. Sim worker completes a 20K run for a game → inserts `sim_player_outputs` rows.
+2. Fires `recompute_leaderboards_for_game(game_id)` (server function).
+3. That function:
+   - Recomputes Form Movers rows for that game's players.
+   - For each supported market, recomputes candidates for that game, joins with the latest `petri_player_market_snapshots`, applies the labeling ladder, computes `edge_score`.
+   - Upserts into `leaderboard_snapshots` scoped to that game (other games' rows untouched).
+   - Recomputes Diamond Consensus for the slate (cheap join over qualified rows).
+4. Admin can trigger a full slate rebuild via a server function; not on a cron.
+
+Locked snapshots are read-only inputs — leaderboards never mutate them.
+
+### Admin surfaces (later, once data exists)
+
+- `/admin/leaderboards` — tabs: Form Movers, per-market boards, Diamond Consensus. Filter by slate. Each row shows all stored fields + label. Not on the public site yet.
+- Slate Reconciliation panel gains a "Leaderboard status" column: per-game count of eligible/ineligible players and time of last recompute.
 
 ### Non-goals
 
-- No change to engine math, recent-form shrinkage, projection formulas, or Diamond Score weights.
-- No change to public odds/edge/consensus/movers surfaces beyond adding tier badges and lock_reason.
-- No changes to Engine Beta admin behavior.
-- No changes to the July 5 reconciliation flow shipped this session.
+- No changes to public odds/edge/consensus/movers surfaces already shipped.
+- No new ML/LLM anywhere in the ranking; every score is a deterministic function of sim + market fields.
+- No cross-market raw-probability ranking anywhere except the deliberately labeled `diamond_consensus` board.
+- No changes to Engine Beta locking, autolock timing (still T-20 from the sim plan), or grading semantics.
 
-### Open decisions (please confirm before implementation)
+### Sequence question — please confirm before I write any code
 
-1. Lock-readiness deadline: 20, 25, or 30 minutes before first pitch?
-2. Weather material-change threshold — reuse the existing engine threshold, or define a stricter one just for re-enqueueing 20K?
-3. Chunk size for 20K: 5×4000 as specified, or fewer larger chunks (e.g. 4×5000) given Worker wall-time budgets?
-4. Should the Diamond board show the `20K Official` badge only for the Confirmed run, or also for a promoted Early Slate run when no material change occurred?
+The leaderboards can't be computed until `sim_player_outputs` exists, which is the sim worker's job. Options:
+
+1. **Recommended:** finish sim-queue Phase 3 (durable worker + `sim_player_outputs`) first, then ship leaderboard schema + compute + admin UI in one clean pass on real data.
+2. Ship the `leaderboard_snapshots` schema and compute skeleton now against a synthetic/`sim_player_outputs`-shaped fixture, so the admin table renders empty rows this week.
+3. Ship the compute + admin UI now against the existing engine outputs (Petri/Engine Beta) as a bridge, then rewire to `sim_player_outputs` when the worker ships.
+
+Option 3 means throwaway rewiring later; option 2 renders empty tables until the worker exists. Option 1 is the cleanest.
