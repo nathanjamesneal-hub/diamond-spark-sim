@@ -180,7 +180,17 @@ function EngineBetaPage() {
         </div>
       ) : null}
 
+      {/* Today's Lock Status — per-game pregame auto-lock visibility */}
+      <LockStatusPanel
+        data={lockStatusQ.data}
+        isLoading={lockStatusQ.isLoading}
+        onLockGame={(gameId) => lockGameMut.mutate(gameId)}
+        lockingGameId={lockGameMut.isPending ? (lockGameMut.variables ?? null) : null}
+        lockError={lockGameMut.error ? (lockGameMut.error as Error).message : null}
+      />
+
       {tab === "board" ? (
+
         <BoardView
           date={date}
           category={category}
