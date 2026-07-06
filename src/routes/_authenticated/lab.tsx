@@ -79,15 +79,26 @@ function LabPage() {
           <div className="mono text-[10px] uppercase tracking-[0.2em] text-[var(--warm-muted)]">
             Admin only
           </div>
-          <Link
-            to="/lab/form-shadow"
-            className="mt-2 inline-flex items-baseline gap-2 rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-[var(--cream)] transition-colors hover:border-[var(--primary)]"
-          >
-            <span>Form Shadow</span>
-            <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">
-              Diamond V2 diagnostics · shadow only
-            </span>
-          </Link>
+          <div className="flex flex-col gap-2">
+            <Link
+              to="/lab/form-shadow"
+              className="inline-flex items-baseline gap-2 rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-[var(--cream)] transition-colors hover:border-[var(--primary)]"
+            >
+              <span>Form Shadow</span>
+              <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">
+                Diamond V2 diagnostics · shadow only
+              </span>
+            </Link>
+            <Link
+              to="/engine-beta"
+              className="inline-flex items-baseline gap-2 rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-[var(--cream)] transition-colors hover:border-[var(--primary)]"
+            >
+              <span>Diamond Engine Beta</span>
+              <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">
+                Private research cockpit · experimental
+              </span>
+            </Link>
+          </div>
         </div>
       ) : null}
     </div>
