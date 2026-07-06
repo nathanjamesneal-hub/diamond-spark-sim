@@ -304,28 +304,54 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          data_freshness: Json | null
+          game_id: string | null
+          game_pk: number | null
           id: string
+          lock_mode: string
+          lock_reason: string | null
           meta: Json
           notes: string | null
+          scheduled_first_pitch: string | null
           slate_date: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          data_freshness?: Json | null
+          game_id?: string | null
+          game_pk?: number | null
           id?: string
+          lock_mode?: string
+          lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          scheduled_first_pitch?: string | null
           slate_date: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          data_freshness?: Json | null
+          game_id?: string | null
+          game_pk?: number | null
           id?: string
+          lock_mode?: string
+          lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          scheduled_first_pitch?: string | null
           slate_date?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "engine_beta_snapshots_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       favorites: {
         Row: {

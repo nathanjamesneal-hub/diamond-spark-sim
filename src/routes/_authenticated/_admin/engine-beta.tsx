@@ -7,9 +7,13 @@ import {
   lockEngineBetaBoard,
   getEngineBetaGrading,
   listEngineBetaSnapshots,
+  getEngineBetaLockStatus,
+  lockSingleGameNow,
   type BoardRow,
+  type GameLockStatus,
 } from "@/lib/engine-beta/board.functions";
 import { ENGINE_BETA_CATEGORIES, EXCLUDED_CATEGORIES, type EngineBetaCategoryKey } from "@/lib/engine-beta/categories";
+
 
 export const Route = createFileRoute("/_authenticated/_admin/engine-beta")({
   head: () => ({
@@ -59,6 +63,8 @@ function EngineBetaPage() {
   const lockFn = useServerFn(lockEngineBetaBoard);
   const gradingFn = useServerFn(getEngineBetaGrading);
   const snapListFn = useServerFn(listEngineBetaSnapshots);
+  const lockStatusFn = useServerFn(getEngineBetaLockStatus);
+  const lockGameFn = useServerFn(lockSingleGameNow);
   const qc = useQueryClient();
 
   const boardQ = useQuery({
@@ -74,14 +80,29 @@ function EngineBetaPage() {
     queryKey: ["engine-beta-snapshots"],
     queryFn: () => snapListFn(),
   });
+  const lockStatusQ = useQuery({
+    queryKey: ["engine-beta-lock-status", date],
+    queryFn: () => lockStatusFn({ data: { date } }),
+    refetchInterval: 60_000,
+  });
 
   const lockMut = useMutation({
     mutationFn: (opts: { newVersion?: boolean } = {}) => lockFn({ data: { date, newVersion: opts.newVersion } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
       qc.invalidateQueries({ queryKey: ["engine-beta-grading", date] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-lock-status", date] });
     },
   });
+  const lockGameMut = useMutation({
+    mutationFn: (gameId: string) => lockGameFn({ data: { gameId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-lock-status", date] });
+      qc.invalidateQueries({ queryKey: ["engine-beta-board", date] });
+    },
+  });
+
 
   const priorSnapshotForDate = (snapQ.data?.snapshots ?? []).some((s) => s.slate_date === date);
 
@@ -159,7 +180,17 @@ function EngineBetaPage() {
         </div>
       ) : null}
 
+      {/* Today's Lock Status — per-game pregame auto-lock visibility */}
+      <LockStatusPanel
+        data={lockStatusQ.data}
+        isLoading={lockStatusQ.isLoading}
+        onLockGame={(gameId) => lockGameMut.mutate(gameId)}
+        lockingGameId={lockGameMut.isPending ? (lockGameMut.variables ?? null) : null}
+        lockError={lockGameMut.error ? (lockGameMut.error as Error).message : null}
+      />
+
       {tab === "board" ? (
+
         <BoardView
           date={date}
           category={category}
@@ -562,6 +593,138 @@ function GradingView({ data, isLoading }: { data: any; isLoading: boolean }) {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Today's Lock Status — per-game pregame auto-lock panel
+// ============================================================================
+
+function LockStatusBadge({ status }: { status: GameLockStatus["status"] }) {
+  const map: Record<GameLockStatus["status"], { label: string; cls: string }> = {
+    auto_locked:      { label: "Auto-locked",     cls: "border-emerald-500/50 text-emerald-300" },
+    manually_locked:  { label: "Manually locked", cls: "border-sky-500/50 text-sky-300" },
+    missed_pregame:   { label: "Missed pregame",  cls: "border-rose-500/50 text-rose-300" },
+    ready_to_lock:    { label: "Ready to lock",   cls: "border-[var(--brass)] text-[var(--cream)]" },
+    started:          { label: "Game live/final", cls: "border-[var(--border)] text-[var(--warm-muted)]" },
+    not_ready:        { label: "Not ready",       cls: "border-[var(--border)] text-[var(--warm-muted)]" },
+  };
+  const s = map[status];
+  return (
+    <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.14em] ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function LockStatusPanel(props: {
+  data: any;
+  isLoading: boolean;
+  onLockGame: (gameId: string) => void;
+  lockingGameId: string | null;
+  lockError: string | null;
+}) {
+  const { data, isLoading, onLockGame, lockingGameId, lockError } = props;
+  if (isLoading) {
+    return (
+      <div className="mt-8 rounded-sm border border-[var(--border)] px-3 py-3 text-xs text-[var(--warm-muted)]">
+        Loading lock status…
+      </div>
+    );
+  }
+  if (!data || !data.games?.length) {
+    return (
+      <div className="mt-8 rounded-sm border border-[var(--border)] px-3 py-3 text-xs text-[var(--warm-muted)]">
+        No games on this slate. Automatic locking has nothing to do.
+      </div>
+    );
+  }
+
+  const summary = data.games.reduce(
+    (acc: any, g: GameLockStatus) => {
+      acc[g.status] = (acc[g.status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return (
+    <div className="mt-8 border-t border-[var(--border)] pt-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <div className="mono text-[10px] uppercase tracking-[0.2em] text-[var(--warm-muted)]">
+            Today’s lock status · per-game
+          </div>
+          <div className="mt-1 text-[11px] text-[var(--warm-muted)]">
+            Auto-lock target: first pitch − {data.lockLeadMinutes}m · missed grace {data.missedGraceMinutes}m. Never locks
+            after first pitch. Automatic snapshots are immutable.
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">
+          <span>Locked: <span className="text-emerald-300">{(summary.auto_locked ?? 0) + (summary.manually_locked ?? 0)}</span></span>
+          <span>· Ready: <span className="text-[var(--cream)]">{summary.ready_to_lock ?? 0}</span></span>
+          <span>· Missed: <span className="text-rose-300">{summary.missed_pregame ?? 0}</span></span>
+          <span>· Not ready: <span>{summary.not_ready ?? 0}</span></span>
+          <span>· Live/Final: <span>{summary.started ?? 0}</span></span>
+        </div>
+      </div>
+      {lockError ? (
+        <div className="mt-2 rounded-sm border border-rose-500/40 px-3 py-2 text-xs text-rose-300">{lockError}</div>
+      ) : null}
+      <div className="mt-3 overflow-hidden rounded-sm border border-[var(--border)]">
+        <table className="w-full text-left text-[11px]">
+          <thead className="bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">
+            <tr>
+              <th className="px-3 py-2">Game</th>
+              <th className="px-3 py-2">First pitch (CT)</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Lock detail</th>
+              <th className="px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody className="text-[var(--cream)]">
+            {data.games.map((g: GameLockStatus) => {
+              const fp = g.firstPitchAt ? new Date(g.firstPitchAt).toLocaleString(undefined, { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }) : "—";
+              const locked = g.autoLock || g.manualLock;
+              const canManual = g.status === "ready_to_lock" || g.status === "not_ready";
+              const disabled = !canManual || g.hasStarted || !!locked || lockingGameId === g.gameId;
+              return (
+                <tr key={g.gameId} className="border-t border-[var(--border)]/60">
+                  <td className="px-3 py-2 font-medium">
+                    {g.matchup} <span className="mono text-[10px] text-[var(--warm-muted)]">#{g.gamePk}</span>
+                  </td>
+                  <td className="px-3 py-2 mono text-[var(--warm-muted)]">{fp}</td>
+                  <td className="px-3 py-2"><LockStatusBadge status={g.status} /></td>
+                  <td className="px-3 py-2 text-[var(--warm-muted)]">
+                    {g.autoLock && !g.autoLock.missed ? (
+                      <>Auto · {new Date(g.autoLock.createdAt).toLocaleTimeString([], { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })} · {g.autoLock.rows} rows</>
+                    ) : g.autoLock?.missed ? (
+                      <>Missed · {g.autoLock.reason}</>
+                    ) : g.manualLock ? (
+                      <>Manual · {new Date(g.manualLock.createdAt).toLocaleTimeString([], { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })} · {g.manualLock.rows} rows</>
+                    ) : (
+                      g.reason
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      disabled={disabled}
+                      onClick={() => {
+                        if (!window.confirm(`Lock ${g.matchup} now? This is an immutable snapshot.`)) return;
+                        onLockGame(g.gameId);
+                      }}
+                      className="rounded-sm border border-[var(--brass)] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[var(--cream)] transition-colors hover:bg-[color-mix(in_oklab,var(--brass)_20%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {lockingGameId === g.gameId ? "Locking…" : "Lock this game"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
