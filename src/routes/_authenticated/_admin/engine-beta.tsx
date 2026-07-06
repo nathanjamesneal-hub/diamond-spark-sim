@@ -236,12 +236,16 @@ function BoardView(props: {
   teamFilter: string; setTeamFilter: (v: string) => void;
   gameFilter: string; setGameFilter: (v: string) => void;
   confirmedOnly: boolean; setConfirmedOnly: (v: boolean) => void;
+  readinessFilter: "ready" | "watch_up" | "all"; setReadinessFilter: (v: "ready" | "watch_up" | "all") => void;
   board: any; allRows: BoardRow[]; filteredRows: BoardRow[];
   isLoading: boolean; error: Error | null;
   openPlayer: string | null; setOpenPlayer: (v: string | null) => void;
-  currentCategoryLabel: string;
+  currentCategory: (typeof ENGINE_BETA_CATEGORIES)[number];
+  readyCount: number; watchCount: number; notReadyCount: number;
 }) {
-  const { board, allRows, filteredRows, openPlayer, setOpenPlayer } = props;
+  const { board, allRows, filteredRows, openPlayer, setOpenPlayer, currentCategory } = props;
+  const meanHeader = `Baseline μ (${currentCategory.meanUnit})`;
+  const probHeader = currentCategory.hasStoredProbAtThreshold ? `P(${currentCategory.eventLabel})` : "P(event)";
 
   return (
     <>
@@ -251,8 +255,36 @@ function BoardView(props: {
         <CategoryRow label="PITCHERS" cats={PITCHER_CATS} current={props.category} onPick={props.setCategory} />
       </div>
 
+      {/* Category context strip — event + unit + prob availability */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--warm-muted)]">
+        <span><span className="text-[var(--cream)]">Event:</span> {currentCategory.eventLabel}</span>
+        <span><span className="text-[var(--cream)]">Mean:</span> {currentCategory.meanUnit}</span>
+        <span><span className="text-[var(--cream)]">Threshold:</span> &gt; {currentCategory.threshold} {currentCategory.higherIsBetter ? "(higher = favorable)" : "(lower = favorable)"}</span>
+        {!currentCategory.hasStoredProbAtThreshold ? (
+          <span className="text-amber-300/80">P({currentCategory.eventLabel}) not stored — showing expected mean only.</span>
+        ) : null}
+      </div>
+
+      {/* Readiness segmented control */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">Readiness</span>
+        {([
+          { k: "ready", label: `Ready (${props.readyCount})` },
+          { k: "watch_up", label: `+ Watch (${props.readyCount + props.watchCount})` },
+          { k: "all", label: `All (${allRows.length})` },
+        ] as const).map((o) => (
+          <button key={o.k} onClick={() => props.setReadinessFilter(o.k)}
+            className={`rounded-sm border px-2.5 py-1 text-[11px] transition-colors ${
+              props.readinessFilter === o.k
+                ? "border-[var(--primary)] text-[var(--cream)]"
+                : "border-[var(--border)] text-[var(--warm-muted)] hover:border-[var(--brass)]"
+            }`}>{o.label}</button>
+        ))}
+        <span className="text-[10px] text-[var(--warm-muted)]">Not ready: {props.notReadyCount}</span>
+      </div>
+
       {/* Filters */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <select value={props.limit} onChange={(e) => props.setLimit(Number(e.target.value))}
           className="rounded-sm border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--cream)]">
           {LIMITS.map((n) => <option key={n} value={n} className="bg-[var(--charcoal)]">{LIMIT_LABELS[n]}</option>)}
@@ -272,7 +304,7 @@ function BoardView(props: {
           Confirmed lineups only
         </label>
         <div className="ml-auto text-[11px] text-[var(--warm-muted)]">
-          {allRows.length} eligible · showing {filteredRows.length} · {props.currentCategoryLabel}
+          {allRows.length} eligible · showing {filteredRows.length} · {currentCategory.label}
         </div>
       </div>
 
@@ -283,23 +315,24 @@ function BoardView(props: {
             <tr>
               <th className="px-2 py-2 text-left">#</th>
               <th className="px-2 py-2 text-left">Player</th>
+              <th className="px-2 py-2 text-left">Ready</th>
               <th className="px-2 py-2 text-left">Game</th>
               <th className="px-2 py-2 text-left">Lineup</th>
-              <th className="px-2 py-2 text-right">Baseline μ</th>
-              <th className="px-2 py-2 text-right">P(≥1)</th>
-              <th className="px-2 py-2 text-right">Shadow Δ</th>
-              <th className="px-2 py-2 text-right">Form</th>
+              <th className="px-2 py-2 text-right" title={meanHeader}>Baseline μ</th>
+              <th className="px-2 py-2 text-right" title={probHeader}>{probHeader}</th>
+              <th className="px-2 py-2 text-right" title="Form-shadow Δ on the same event mean (experimental, not applied to public forecast)">Form Δμ</th>
+              <th className="px-2 py-2 text-right">Form event</th>
               <th className="px-2 py-2 text-right">Score</th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
           <tbody>
             {props.isLoading ? (
-              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={10}>Loading…</td></tr>
+              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={11}>Loading…</td></tr>
             ) : props.error ? (
-              <tr><td className="px-2 py-4 text-red-400" colSpan={10}>{String(props.error.message)}</td></tr>
+              <tr><td className="px-2 py-4 text-red-400" colSpan={11}>{String(props.error.message)}</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={10}>No eligible players for this category on {props.date}.</td></tr>
+              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={11}>No eligible players match these filters on {props.date}.</td></tr>
             ) : filteredRows.map((r, i) => {
               const open = openPlayer === r.playerId;
               return (
@@ -310,6 +343,9 @@ function BoardView(props: {
                       <Link to="/players/$playerId" params={{ playerId: r.playerId }} className="hover:underline">{r.name}</Link>
                       <div className="text-[10px] text-[var(--warm-muted)]">{r.teamAbbr ?? "—"} · {r.role}</div>
                     </td>
+                    <td className="px-2 py-2">
+                      <ReadinessPill state={r.readiness} reason={r.readinessReason} />
+                    </td>
                     <td className="px-2 py-2 text-[var(--warm-muted)]">
                       {r.matchup}
                       <div className="text-[10px]">{r.firstPitchAt ? new Date(r.firstPitchAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"} · {r.gameStatus ?? "—"}</div>
@@ -317,17 +353,19 @@ function BoardView(props: {
                     <td className="px-2 py-2">
                       <LineupPill state={r.lineupState} order={r.battingOrder} />
                     </td>
-                    <td className="px-2 py-2 text-right text-[var(--cream)] mono">{fmt(r.baselineMean, r.role === "pitcher" ? 1 : 2)}</td>
-                    <td className="px-2 py-2 text-right text-[var(--warm-muted)] mono">{pct(r.baselineProbAtLeast1)}</td>
+                    <td className="px-2 py-2 text-right text-[var(--cream)] mono" title={`${r.meanUnit}`}>{fmt(r.baselineMean, r.role === "pitcher" ? 1 : 2)}</td>
+                    <td className="px-2 py-2 text-right text-[var(--warm-muted)] mono" title={probHeader}>
+                      {r.probAtThreshold != null ? pct(r.probAtThreshold) : <span title="No P(event) stored for this category">—</span>}
+                    </td>
                     <td className="px-2 py-2 text-right mono">
-                      {r.shadowMean != null ? (
-                        <span className={r.shadowDelta && r.shadowDelta > 0 ? "text-emerald-300" : r.shadowDelta && r.shadowDelta < 0 ? "text-rose-300" : "text-[var(--warm-muted)]"}>
+                      {r.shadowMean != null && r.shadowDelta != null ? (
+                        <span className={r.shadowDelta > 0 ? "text-emerald-300" : r.shadowDelta < 0 ? "text-rose-300" : "text-[var(--warm-muted)]"}>
                           {signedFmt(r.shadowDelta, 3)}
                         </span>
-                      ) : <span className="text-[var(--warm-muted)]">—</span>}
+                      ) : <span className="text-[var(--warm-muted)]" title="No form-shadow output for this category">—</span>}
                     </td>
                     <td className="px-2 py-2 text-right text-[10px] text-[var(--warm-muted)]">
-                      {r.formApplied ? (
+                      {r.formApplied && r.formHeadlineEvent ? (
                         <span>{r.formHeadlineEvent} {signedFmt(r.formHeadlineDelta)}</span>
                       ) : (
                         <span>None</span>
@@ -345,7 +383,7 @@ function BoardView(props: {
                   </tr>
                   {open ? (
                     <tr className="bg-[color-mix(in_oklab,var(--charcoal)_92%,transparent)]">
-                      <td colSpan={10} className="px-4 py-3">
+                      <td colSpan={11} className="px-4 py-3">
                         <ScoreBreakdown row={r} weights={board?.scoreWeights} />
                       </td>
                     </tr>
@@ -357,6 +395,19 @@ function BoardView(props: {
         </table>
       </div>
     </>
+  );
+}
+
+function ReadinessPill({ state, reason }: { state: "ready" | "watch" | "not_ready"; reason: string }) {
+  const cls =
+    state === "ready" ? "border-emerald-500/50 text-emerald-300"
+    : state === "watch" ? "border-amber-500/50 text-amber-300"
+    : "border-[var(--border)] text-[var(--warm-muted)]";
+  const label = state === "ready" ? "Ready" : state === "watch" ? "Watch" : "Not Ready";
+  return (
+    <span title={reason} className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] ${cls}`}>
+      {label}
+    </span>
   );
 }
 
