@@ -303,7 +303,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     for (const r of recent ?? []) if (!recentByMlb.has(Number(r.mlb_id))) recentByMlb.set(Number(r.mlb_id), r);
 
     // 8. Build initial rows (baseline + shadow + form + lineup context). Compute cohort after.
-    type PreRow = Omit<BoardRow, "score" | "scoreComponents"> & { _formDelta: number | null };
+    type PreRow = Omit<BoardRow, "score" | "scoreComponents" | "readiness" | "readinessReason"> & { _formDelta: number | null };
     const pre: PreRow[] = [];
 
     for (const p of fpp ?? []) {
