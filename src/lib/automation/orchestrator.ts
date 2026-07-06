@@ -151,7 +151,9 @@ export async function orchestrateDiamondSlate(
       skipped: 0,
       locked: 0,
     },
+    engineBetaAutoLock: { processed: 0, locked: 0, missed: 0, skipped: 0 },
   };
+
 
   // 0) Schedule readiness — ensure public.games has rows for this slate before
   //    any lineup/probable-pitcher/player ingestion. Idempotent on mlb_game_id.
@@ -218,6 +220,22 @@ export async function orchestrateDiamondSlate(
   } catch (e: any) {
     result.petri.error = e?.message ?? String(e);
   }
+
+  // 4) Engine Beta per-game automatic pregame lock (admin-only research).
+  //    Runs LAST so schedule, lineups, starters, forecasts, and shadow have
+  //    all had their chance to update before we freeze truthful pregame data.
+  //    Failures here do NOT affect any public Diamond behavior.
+  try {
+    const auto = await autoLockPregameForDate(supabaseAdmin, date);
+    result.engineBetaAutoLock.processed = auto.processed;
+    result.engineBetaAutoLock.locked = auto.locked;
+    result.engineBetaAutoLock.missed = auto.missed;
+    result.engineBetaAutoLock.skipped = auto.skipped;
+    if (auto.error) result.engineBetaAutoLock.error = auto.error;
+  } catch (e: any) {
+    result.engineBetaAutoLock.error = e?.message ?? String(e);
+  }
+
   const finishedAt = new Date();
   result.finishedAt = finishedAt.toISOString();
   result.durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -243,9 +261,11 @@ export async function orchestrateDiamondSlate(
       recentEvents: result.recentEvents,
       lock: result.lock,
       petri: result.petri,
+      engineBetaAutoLock: result.engineBetaAutoLock,
     },
-    error: result.schedule.error || result.refresh.error || result.recentEvents.error || result.lock.error || result.petri.error || null,
+    error: result.schedule.error || result.refresh.error || result.recentEvents.error || result.lock.error || result.petri.error || result.engineBetaAutoLock.error || null,
   });
+
 
   return result;
 }
