@@ -114,27 +114,32 @@ export const getEngineBetaDataHealth = createServerFn({ method: "POST" })
         .not("game_id", "is", null),
       admin
         .from("automation_log")
-        .select("started_at, finished_at, status, error, notes")
-        .in("status", ["completed", "success", "ok"])
-        .eq("date", slate)
+        .select("started_at, finished_at, status, error, job")
+        .eq("status", "ok")
+        .eq("slate_date", slate)
         .order("started_at", { ascending: false })
         .limit(1),
       admin
         .from("automation_log")
-        .select("started_at, finished_at, status, error, notes")
+        .select("started_at, finished_at, status, error, job")
         .eq("status", "failed")
+        .eq("slate_date", slate)
         .order("started_at", { ascending: false })
         .limit(1),
       admin
         .from("automation_log")
-        .select("started_at, finished_at, status")
-        .eq("status", "completed")
+        .select("started_at, finished_at, status, job")
+        .eq("status", "ok")
+        .eq("job", "refresh-live-actuals")
+        .eq("slate_date", slate)
         .order("started_at", { ascending: false })
         .limit(1),
       admin
         .from("automation_log")
-        .select("started_at, error")
+        .select("started_at, error, job")
         .eq("status", "failed")
+        .eq("job", "refresh-live-actuals")
+        .eq("slate_date", slate)
         .order("started_at", { ascending: false })
         .limit(5),
     ]);
