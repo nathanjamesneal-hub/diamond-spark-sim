@@ -5,10 +5,11 @@ import type { User } from "@supabase/supabase-js";
 import { DiamondMark } from "@/components/brand/diamond-mark";
 
 const nav = [
-  { to: "/", label: "Live" },
+  { to: "/", label: "Home" },
+  { to: "/mlb-pulse", label: "Pulse" },
+  { to: "/explore", label: "Explore" },
   { to: "/hitters", label: "Hitters" },
   { to: "/pitchers", label: "Pitchers" },
-  { to: "/mlb-pulse", label: "Pulse" },
   { to: "/watchlist", label: "Watchlist" },
 ] as const;
 
