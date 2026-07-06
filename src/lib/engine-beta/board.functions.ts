@@ -480,11 +480,11 @@ export const lockEngineBetaBoard = createServerFn({ method: "POST" })
         shadow_run_id: r.shadowRunId,
         lineup_status: r.lineupState,
         batting_order: r.battingOrder,
-        baseline: { mean: r.baselineMean, p50: r.baselineP50, p90: r.baselineP90, probAtLeast1: r.baselineProbAtLeast1 },
+        baseline: { mean: r.baselineMean, p50: r.baselineP50, p90: r.baselineP90, probAtThreshold: r.probAtThreshold, eventLabel: r.eventLabel, meanUnit: r.meanUnit, threshold: category.threshold },
         shadow: r.shadowMean != null ? { mean: r.shadowMean, delta: r.shadowDelta } : null,
         form: { applied: r.formApplied, reason: r.formReason, headlineEvent: r.formHeadlineEvent, headlineDelta: r.formHeadlineDelta, recentDenominator: r.recentDenominator },
         score: r.score,
-        score_components: r.scoreComponents,
+        score_components: { ...r.scoreComponents, readiness: r.readiness, readinessReason: r.readinessReason },
         actuals: null,
       }));
       if (insertRows.length) {
