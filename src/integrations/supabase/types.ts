@@ -1926,6 +1926,159 @@ export type Database = {
           },
         ]
       }
+      sim_player_outputs: {
+        Row: {
+          baseline_event_probability: number
+          baseline_mean: number
+          batting_order: number | null
+          completed_at: string
+          confidence: number
+          created_at: string
+          driver_metadata: Json
+          event_probability: number
+          form_adjustment: number
+          form_direction: string | null
+          form_prob_adjustment: number
+          form_reliability: number | null
+          form_sample_size: number | null
+          game_id: string
+          game_pk: number
+          handedness: string | null
+          id: string
+          inputs_hash: string
+          market: string
+          model_version: string
+          opp_handedness: string | null
+          opponent_team_id: string | null
+          percentile_summary: Json | null
+          player_id: string
+          player_type: string
+          projected_bf: number | null
+          projected_mean: number
+          projected_pa: number | null
+          run_status: string
+          sim_count: number
+          sim_job_id: string
+          sim_tier: string
+          slate_date: string
+          stderr: number | null
+          team_id: string | null
+          threshold: number | null
+        }
+        Insert: {
+          baseline_event_probability: number
+          baseline_mean: number
+          batting_order?: number | null
+          completed_at?: string
+          confidence: number
+          created_at?: string
+          driver_metadata?: Json
+          event_probability: number
+          form_adjustment: number
+          form_direction?: string | null
+          form_prob_adjustment: number
+          form_reliability?: number | null
+          form_sample_size?: number | null
+          game_id: string
+          game_pk: number
+          handedness?: string | null
+          id?: string
+          inputs_hash: string
+          market: string
+          model_version: string
+          opp_handedness?: string | null
+          opponent_team_id?: string | null
+          percentile_summary?: Json | null
+          player_id: string
+          player_type: string
+          projected_bf?: number | null
+          projected_mean: number
+          projected_pa?: number | null
+          run_status?: string
+          sim_count: number
+          sim_job_id: string
+          sim_tier: string
+          slate_date: string
+          stderr?: number | null
+          team_id?: string | null
+          threshold?: number | null
+        }
+        Update: {
+          baseline_event_probability?: number
+          baseline_mean?: number
+          batting_order?: number | null
+          completed_at?: string
+          confidence?: number
+          created_at?: string
+          driver_metadata?: Json
+          event_probability?: number
+          form_adjustment?: number
+          form_direction?: string | null
+          form_prob_adjustment?: number
+          form_reliability?: number | null
+          form_sample_size?: number | null
+          game_id?: string
+          game_pk?: number
+          handedness?: string | null
+          id?: string
+          inputs_hash?: string
+          market?: string
+          model_version?: string
+          opp_handedness?: string | null
+          opponent_team_id?: string | null
+          percentile_summary?: Json | null
+          player_id?: string
+          player_type?: string
+          projected_bf?: number | null
+          projected_mean?: number
+          projected_pa?: number | null
+          run_status?: string
+          sim_count?: number
+          sim_job_id?: string
+          sim_tier?: string
+          slate_date?: string
+          stderr?: number | null
+          team_id?: string | null
+          threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sim_player_outputs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sim_player_outputs_opponent_team_id_fkey"
+            columns: ["opponent_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sim_player_outputs_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sim_player_outputs_sim_job_id_fkey"
+            columns: ["sim_job_id"]
+            isOneToOne: false
+            referencedRelation: "sim_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sim_player_outputs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       starting_pitchers: {
         Row: {
           confirmed: boolean
