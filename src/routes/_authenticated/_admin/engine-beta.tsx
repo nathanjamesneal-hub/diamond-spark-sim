@@ -187,6 +187,10 @@ function EngineBetaPage() {
         </div>
       ) : null}
 
+      {/* Data Health — pipeline stage status for this slate */}
+      <DataHealthStrip data={healthQ.data} isLoading={healthQ.isLoading} error={healthQ.error as Error | null} />
+
+
       {/* Today's Lock Status — per-game pregame auto-lock visibility */}
       <LockStatusPanel
         data={lockStatusQ.data}
