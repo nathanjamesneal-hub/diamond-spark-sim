@@ -81,8 +81,10 @@ export type OrchestrateResult = {
     error?: string;
   };
   lock: { today: number; yesterday: number; error?: string };
+  engineBetaAutoLock: { processed: number; locked: number; missed: number; skipped: number; error?: string };
   error?: string;
 };
+
 
 
 function chicagoYesterday(today: string): string {
