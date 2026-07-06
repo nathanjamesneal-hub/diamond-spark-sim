@@ -356,7 +356,7 @@ function PitchersTable({ rows }: { rows: PulsePitcher[] }) {
           {rows.map((p) => (
             <tr key={`${p.gameId}:${p.mlbId ?? p.playerId ?? p.name}:${p.role}`} className="border-t border-border/30">
               <td className="px-2 py-2 font-semibold">
-                {p.mlbId ? <Link to="/players/$playerId" params={{ playerId: String(p.mlbId) }} className="hover:text-primary">{p.name}</Link> : p.name}
+                {p.mlbId ? <Link to="/player/$mlbId" params={{ mlbId: String(p.mlbId) }} className="hover:text-primary">{p.name}</Link> : p.name}
               </td>
               <td className="mono px-2 text-muted-foreground">{p.team || "—"}</td>
               <td className="px-2">{p.role === "probable-starter" ? "Probable starter" : "Active pitcher"}</td>
