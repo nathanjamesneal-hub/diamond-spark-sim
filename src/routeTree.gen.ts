@@ -31,6 +31,7 @@ import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authent
 import { Route as AuthenticatedLabRouteImport } from './routes/_authenticated/lab'
 import { Route as AuthenticatedHittersRouteImport } from './routes/_authenticated/hitters'
 import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
+import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
 import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
@@ -170,6 +171,11 @@ const AuthenticatedHittersRoute = AuthenticatedHittersRouteImport.update({
 const AuthenticatedForecastsRoute = AuthenticatedForecastsRouteImport.update({
   id: '/forecasts',
   path: '/forecasts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDiamondScoresRoute =
@@ -337,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
@@ -386,6 +393,7 @@ export interface FileRoutesByTo {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
@@ -435,6 +443,7 @@ export interface FileRoutesById {
   '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/_authenticated/hitters': typeof AuthenticatedHittersRoute
   '/_authenticated/lab': typeof AuthenticatedLabRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/explore'
     | '/forecasts'
     | '/hitters'
     | '/lab'
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/explore'
     | '/hitters'
     | '/lab'
     | '/leaderboards'
@@ -584,6 +595,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calibration-lab'
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
+    | '/_authenticated/explore'
     | '/_authenticated/forecasts'
     | '/_authenticated/hitters'
     | '/_authenticated/lab'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       path: '/forecasts'
       fullPath: '/forecasts'
       preLoaderRoute: typeof AuthenticatedForecastsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/explore': {
+      id: '/_authenticated/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof AuthenticatedExploreRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/diamond-scores': {
@@ -1051,6 +1070,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
+  AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
   AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
   AuthenticatedHittersRoute: typeof AuthenticatedHittersRoute
   AuthenticatedLabRoute: typeof AuthenticatedLabRoute
@@ -1084,6 +1104,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
+  AuthenticatedExploreRoute: AuthenticatedExploreRoute,
   AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
   AuthenticatedHittersRoute: AuthenticatedHittersRoute,
   AuthenticatedLabRoute: AuthenticatedLabRoute,

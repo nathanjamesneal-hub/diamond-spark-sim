@@ -105,7 +105,7 @@ function ExplorePage() {
   }, [rows, q]);
 
   const set = (partial: Partial<z.infer<typeof searchSchema>>) =>
-    navigate({ search: (prev) => ({ ...prev, ...partial }) as any });
+    navigate({ search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, ...partial }) as any });
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 md:px-6 md:py-8">
