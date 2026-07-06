@@ -80,6 +80,8 @@ function meanStdev(xs: number[]): { mean: number | null; stdev: number | null } 
 
 // ---------------- board ----------------
 
+export type ReadinessState = "ready" | "watch" | "not_ready";
+
 export type BoardRow = {
   playerId: string;
   mlbId: number | null;
@@ -100,7 +102,11 @@ export type BoardRow = {
   baselineMean: number | null;
   baselineP50: number | null;
   baselineP90: number | null;
-  baselineProbAtLeast1: number | null;
+  /** Prob at the category's binary threshold event. null when no matching stored distribution. */
+  probAtThreshold: number | null;
+  /** Human label for that prob event, e.g. "1+ Hit". Always present. */
+  eventLabel: string;
+  meanUnit: string;
 
   shadowRunId: string | null;
   shadowMean: number | null;
@@ -115,6 +121,9 @@ export type BoardRow = {
   lineupState: string;                 // confirmed | projected | missing (hitter) | confirmed | unconfirmed (pitcher)
   battingOrder: number | null;
 
+  readiness: ReadinessState;
+  readinessReason: string;
+
   score: number;
   scoreComponents: ScoreComponents;
 };
@@ -123,6 +132,9 @@ export type BoardPayload = {
   date: string;
   category: EngineBetaCategoryKey;
   categoryLabel: string;
+  eventLabel: string;
+  meanUnit: string;
+  hasStoredProbAtThreshold: boolean;
   role: "hitter" | "pitcher";
   cohortMean: number | null;
   cohortStdev: number | null;
@@ -133,6 +145,29 @@ export type BoardPayload = {
   teams: Array<{ abbr: string; name: string | null }>;
   generatedAt: string;
 };
+
+function computeReadiness(role: "hitter" | "pitcher", lineupState: string, forecastGeneratedAt: string | null): { state: ReadinessState; reason: string } {
+  const hoursOld = forecastGeneratedAt ? Math.max(0, (Date.now() - Date.parse(forecastGeneratedAt)) / 3_600_000) : Infinity;
+  const stale = hoursOld > 36;
+  const veryStale = !Number.isFinite(hoursOld) || hoursOld > 72;
+  if (role === "hitter") {
+    if (lineupState === "missing") return { state: "not_ready", reason: "No lineup slot yet" };
+    if (veryStale) return { state: "not_ready", reason: "Forecast >72h old / missing" };
+    if (lineupState === "confirmed" || lineupState === "locked") {
+      return stale ? { state: "watch", reason: "Confirmed lineup, forecast >36h old" } : { state: "ready", reason: "Confirmed lineup + fresh forecast" };
+    }
+    return { state: "watch", reason: "Projected lineup slot" };
+  }
+  // pitcher
+  if (lineupState === "missing") return { state: "not_ready", reason: "No starter role identified" };
+  if (veryStale) return { state: "not_ready", reason: "Forecast >72h old / missing" };
+  if (lineupState === "confirmed" || lineupState === "locked") {
+    return stale ? { state: "watch", reason: "Confirmed starter, forecast >36h old" } : { state: "ready", reason: "Confirmed starter + fresh forecast" };
+  }
+  return { state: "watch", reason: "Probable/unconfirmed starter" };
+}
+
+const READINESS_RANK: Record<ReadinessState, number> = { ready: 2, watch: 1, not_ready: 0 };
 
 export const getEngineBetaBoard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -155,7 +190,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const gamesList = games ?? [];
     if (!gamesList.length) {
       return {
-        date, category: catKey, categoryLabel: category.label, role: category.role,
+        date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
         cohortMean: null, cohortStdev: null, scoreWeights: ENGINE_BETA_WEIGHTS,
         rows: [], excludedCategories: EXCLUDED_CATEGORIES, games: [], teams: [], generatedAt: new Date().toISOString(),
       };
@@ -194,7 +229,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const runIds = Array.from(runsByGame.values()).map((r) => r.id);
     if (!runIds.length) {
       return {
-        date, category: catKey, categoryLabel: category.label, role: category.role,
+        date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
         cohortMean: null, cohortStdev: null, scoreWeights: ENGINE_BETA_WEIGHTS,
         rows: [], excludedCategories: EXCLUDED_CATEGORIES,
         games: gamesList.map((g: any) => ({ gameId: g.id, gamePk: Number(g.mlb_game_id), matchup: matchupOf(g.id), firstPitchAt: g.first_pitch_at, gameStatus: g.game_status })),
@@ -268,7 +303,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     for (const r of recent ?? []) if (!recentByMlb.has(Number(r.mlb_id))) recentByMlb.set(Number(r.mlb_id), r);
 
     // 8. Build initial rows (baseline + shadow + form + lineup context). Compute cohort after.
-    type PreRow = Omit<BoardRow, "score" | "scoreComponents"> & { _formDelta: number | null };
+    type PreRow = Omit<BoardRow, "score" | "scoreComponents" | "readiness" | "readinessReason"> & { _formDelta: number | null };
     const pre: PreRow[] = [];
 
     for (const p of fpp ?? []) {
@@ -357,7 +392,10 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
         forecastGeneratedAt: run.generated_at,
         forecastStatus: run.status,
         forecastClass: run.projection_class,
-        baselineMean, baselineP50, baselineP90, baselineProbAtLeast1,
+        baselineMean, baselineP50, baselineP90,
+        probAtThreshold: category.hasStoredProbAtThreshold ? baselineProbAtLeast1 : null,
+        eventLabel: category.eventLabel,
+        meanUnit: category.meanUnit,
         shadowRunId,
         shadowMean, shadowDelta,
         formApplied, formReason,
@@ -381,14 +419,16 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
         forecastGeneratedAt: r.forecastGeneratedAt,
         recentDenominator: r.recentDenominator,
       }, category.role);
+      const readiness = computeReadiness(category.role, r.lineupState, r.forecastGeneratedAt);
       const { _formDelta, ...rest } = r;
-      return { ...rest, score: components.total, scoreComponents: components };
+      return { ...rest, readiness: readiness.state, readinessReason: readiness.reason, score: components.total, scoreComponents: components };
     });
 
-    rows.sort((a, b) => b.score - a.score);
+    // Rank inside the same date+category, prioritizing Ready > Watch > Not Ready, then score desc.
+    rows.sort((a, b) => (READINESS_RANK[b.readiness] - READINESS_RANK[a.readiness]) || (b.score - a.score));
 
     return {
-      date, category: catKey, categoryLabel: category.label, role: category.role,
+      date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
       cohortMean, cohortStdev, scoreWeights: ENGINE_BETA_WEIGHTS,
       rows, excludedCategories: EXCLUDED_CATEGORIES,
       games: gamesList.map((g: any) => ({ gameId: g.id, gamePk: Number(g.mlb_game_id), matchup: matchupOf(g.id), firstPitchAt: g.first_pitch_at, gameStatus: g.game_status })),
@@ -399,21 +439,40 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
 
 // ---------------- lock / snapshot ----------------
 
-export type LockResult = { snapshotId: string; slateDate: string; rowsWritten: number; categories: EngineBetaCategoryKey[] };
+export type LockResult = { snapshotId: string; slateDate: string; version: number; rowsWritten: number; categories: EngineBetaCategoryKey[] };
 
 export const lockEngineBetaBoard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { date?: string; notes?: string }) => data)
+  .inputValidator((data: { date?: string; notes?: string; newVersion?: boolean }) => data)
   .handler(async ({ data, context }): Promise<LockResult> => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin: any = supabaseAdmin;
     const date = data.date ?? todayIsoUtc();
 
-    // Create snapshot header
+    // Immutability guard: refuse to write a new snapshot for the same slate
+    // unless the caller explicitly asks for a new version. Existing snapshots
+    // and their rows are never mutated in place.
+    const { data: existing } = await admin
+      .from("engine_beta_snapshots")
+      .select("id, created_at, notes")
+      .eq("slate_date", date)
+      .order("created_at", { ascending: true });
+    const priorCount = (existing ?? []).length;
+    if (priorCount > 0 && !data.newVersion) {
+      throw new Error(`A locked snapshot already exists for ${date} (v${priorCount}). Prior snapshots are immutable. Pass newVersion=true to record v${priorCount + 1}.`);
+    }
+    const version = priorCount + 1;
+
+    // Create snapshot header (versioned, immutable)
     const { data: snap, error: snapErr } = await admin
       .from("engine_beta_snapshots")
-      .insert({ slate_date: date, created_by: context.userId, notes: data.notes ?? null, meta: { weights: ENGINE_BETA_WEIGHTS } })
+      .insert({
+        slate_date: date,
+        created_by: context.userId,
+        notes: data.notes ?? null,
+        meta: { weights: ENGINE_BETA_WEIGHTS, version, priorSnapshotIds: (existing ?? []).map((s: any) => s.id) },
+      })
       .select("id")
       .single();
     if (snapErr) throw new Error(snapErr.message);
@@ -440,11 +499,11 @@ export const lockEngineBetaBoard = createServerFn({ method: "POST" })
         shadow_run_id: r.shadowRunId,
         lineup_status: r.lineupState,
         batting_order: r.battingOrder,
-        baseline: { mean: r.baselineMean, p50: r.baselineP50, p90: r.baselineP90, probAtLeast1: r.baselineProbAtLeast1 },
+        baseline: { mean: r.baselineMean, p50: r.baselineP50, p90: r.baselineP90, probAtThreshold: r.probAtThreshold, eventLabel: r.eventLabel, meanUnit: r.meanUnit, threshold: category.threshold },
         shadow: r.shadowMean != null ? { mean: r.shadowMean, delta: r.shadowDelta } : null,
         form: { applied: r.formApplied, reason: r.formReason, headlineEvent: r.formHeadlineEvent, headlineDelta: r.formHeadlineDelta, recentDenominator: r.recentDenominator },
         score: r.score,
-        score_components: r.scoreComponents,
+        score_components: { ...r.scoreComponents, readiness: r.readiness, readinessReason: r.readinessReason },
         actuals: null,
       }));
       if (insertRows.length) {
@@ -454,7 +513,7 @@ export const lockEngineBetaBoard = createServerFn({ method: "POST" })
       }
     }
 
-    return { snapshotId, slateDate: date, rowsWritten, categories: cats };
+    return { snapshotId, slateDate: date, version, rowsWritten, categories: cats };
   });
 
 // ---------------- grading ----------------

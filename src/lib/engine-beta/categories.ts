@@ -36,18 +36,24 @@ export type EngineBetaCategory = {
   /** binary threshold used for hit/miss grading (line-1.5 == over 1.5) */
   threshold: number;
   higherIsBetter: boolean;
+  /** natural-language event this row's probability refers to (e.g. "1+ Hit") */
+  eventLabel: string;
+  /** unit for the expected (mean) value (e.g. "expected hits") */
+  meanUnit: string;
+  /** whether a stored P(≥N) matching threshold is available (only P(≥1) is persisted today) */
+  hasStoredProbAtThreshold: boolean;
 };
 
 export const ENGINE_BETA_CATEGORIES: EngineBetaCategory[] = [
-  { key: "H",      role: "hitter",  label: "Hits",            short: "H",    distKey: "H",    actualsField: "hits",         threshold: 0.5, higherIsBetter: true  },
-  { key: "TB",     role: "hitter",  label: "Total Bases",     short: "TB",   distKey: "TB",   actualsField: "total_bases",  threshold: 1.5, higherIsBetter: true  },
-  { key: "HR",     role: "hitter",  label: "Home Runs",       short: "HR",   distKey: "HR",   actualsField: "home_runs",    threshold: 0.5, higherIsBetter: true  },
-  { key: "BB",     role: "hitter",  label: "Walks",           short: "BB",   distKey: "BB",   actualsField: "walks",        threshold: 0.5, higherIsBetter: true  },
-  { key: "K",      role: "hitter",  label: "Strikeouts",      short: "K",    distKey: "K",    actualsField: "strikeouts",   threshold: 0.5, higherIsBetter: false },
-  { key: "P_K",    role: "pitcher", label: "Strikeouts",      short: "K",    distKey: "K",    actualsField: "strikeouts",   threshold: 5.5, higherIsBetter: true  },
-  { key: "P_OUTS", role: "pitcher", label: "Outs Recorded",   short: "Outs", distKey: "outs", actualsField: "plate_appearances", threshold: 17.5, higherIsBetter: true  },
-  { key: "P_BB",   role: "pitcher", label: "Walks Allowed",   short: "BB",   distKey: "BB",   actualsField: "walks",        threshold: 1.5, higherIsBetter: false },
-  { key: "P_H",    role: "pitcher", label: "Hits Allowed",    short: "H",    distKey: "H",    actualsField: "hits",         threshold: 5.5, higherIsBetter: false },
+  { key: "H",      role: "hitter",  label: "Hits",            short: "H",    distKey: "H",    actualsField: "hits",              threshold: 0.5,  higherIsBetter: true,  eventLabel: "1+ Hit",              meanUnit: "expected hits",               hasStoredProbAtThreshold: true  },
+  { key: "TB",     role: "hitter",  label: "Total Bases",     short: "TB",   distKey: "TB",   actualsField: "total_bases",       threshold: 1.5,  higherIsBetter: true,  eventLabel: "2+ Total Bases",      meanUnit: "expected total bases",        hasStoredProbAtThreshold: false },
+  { key: "HR",     role: "hitter",  label: "Home Runs",       short: "HR",   distKey: "HR",   actualsField: "home_runs",         threshold: 0.5,  higherIsBetter: true,  eventLabel: "1+ HR",               meanUnit: "expected home runs",          hasStoredProbAtThreshold: true  },
+  { key: "BB",     role: "hitter",  label: "Walks",           short: "BB",   distKey: "BB",   actualsField: "walks",             threshold: 0.5,  higherIsBetter: true,  eventLabel: "1+ Walk",             meanUnit: "expected walks",              hasStoredProbAtThreshold: true  },
+  { key: "K",      role: "hitter",  label: "Strikeouts",      short: "K",    distKey: "K",    actualsField: "strikeouts",        threshold: 0.5,  higherIsBetter: false, eventLabel: "0 Strikeouts",        meanUnit: "expected strikeouts",         hasStoredProbAtThreshold: true  },
+  { key: "P_K",    role: "pitcher", label: "Strikeouts",      short: "K",    distKey: "K",    actualsField: "strikeouts",        threshold: 5.5,  higherIsBetter: true,  eventLabel: "6+ Strikeouts",       meanUnit: "expected pitcher strikeouts", hasStoredProbAtThreshold: false },
+  { key: "P_OUTS", role: "pitcher", label: "Outs Recorded",   short: "Outs", distKey: "outs", actualsField: "plate_appearances", threshold: 17.5, higherIsBetter: true,  eventLabel: "18+ Outs (6 IP)",     meanUnit: "expected outs recorded",      hasStoredProbAtThreshold: false },
+  { key: "P_BB",   role: "pitcher", label: "Walks Allowed",   short: "BB",   distKey: "BB",   actualsField: "walks",             threshold: 1.5,  higherIsBetter: false, eventLabel: "≤1 Walks Allowed",    meanUnit: "expected walks allowed",      hasStoredProbAtThreshold: false },
+  { key: "P_H",    role: "pitcher", label: "Hits Allowed",    short: "H",    distKey: "H",    actualsField: "hits",              threshold: 5.5,  higherIsBetter: false, eventLabel: "≤5 Hits Allowed",     meanUnit: "expected hits allowed",       hasStoredProbAtThreshold: false },
 ];
 
 export function findCategory(key: string): EngineBetaCategory | null {

@@ -53,6 +53,7 @@ function EngineBetaPage() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [gameFilter, setGameFilter] = useState<string>("all");
   const [confirmedOnly, setConfirmedOnly] = useState(false);
+  const [readinessFilter, setReadinessFilter] = useState<"ready" | "watch_up" | "all">("ready");
   const [openPlayer, setOpenPlayer] = useState<string | null>(null);
   const [tab, setTab] = useState<"board" | "grading">("board");
 
@@ -77,24 +78,41 @@ function EngineBetaPage() {
   });
 
   const lockMut = useMutation({
-    mutationFn: () => lockFn({ data: { date } }),
+    mutationFn: (opts: { newVersion?: boolean } = {}) => lockFn({ data: { date, newVersion: opts.newVersion } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
       qc.invalidateQueries({ queryKey: ["engine-beta-grading", date] });
     },
   });
 
+  const priorSnapshotForDate = (snapQ.data?.snapshots ?? []).some((s) => s.slate_date === date);
+
+  const handleLock = () => {
+    if (priorSnapshotForDate) {
+      const ok = window.confirm(`A locked snapshot already exists for ${date}. Prior snapshots are immutable. Record a new version?`);
+      if (!ok) return;
+      lockMut.mutate({ newVersion: true });
+    } else {
+      lockMut.mutate({});
+    }
+  };
+
   const board = boardQ.data;
   const allRows: BoardRow[] = board?.rows ?? [];
   const filteredRows = useMemo(() => {
     let rs = allRows;
+    if (readinessFilter === "ready") rs = rs.filter((r) => r.readiness === "ready");
+    else if (readinessFilter === "watch_up") rs = rs.filter((r) => r.readiness !== "not_ready");
     if (teamFilter !== "all") rs = rs.filter((r) => r.teamAbbr === teamFilter);
     if (gameFilter !== "all") rs = rs.filter((r) => r.gameId === gameFilter);
     if (confirmedOnly) rs = rs.filter((r) => r.lineupState === "confirmed" || r.lineupState === "locked");
     return rs.slice(0, limit);
-  }, [allRows, teamFilter, gameFilter, confirmedOnly, limit]);
+  }, [allRows, readinessFilter, teamFilter, gameFilter, confirmedOnly, limit]);
 
   const currentCategory = ENGINE_BETA_CATEGORIES.find((c) => c.key === category)!;
+  const readyCount = allRows.filter((r) => r.readiness === "ready").length;
+  const watchCount = allRows.filter((r) => r.readiness === "watch").length;
+  const notReadyCount = allRows.filter((r) => r.readiness === "not_ready").length;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
@@ -105,12 +123,13 @@ function EngineBetaPage() {
           Diamond Engine Beta
         </h1>
         <span className="inline-flex items-center rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--warm-muted)]">
-          Experimental — not public
+          High-Outcome Research Board · Experimental
         </span>
       </div>
       <p className="mt-2 max-w-3xl text-sm text-[var(--warm-muted)]">
-        Private research mode · Experimental outputs are logged and graded before public promotion. Not a
-        probability, edge, lock, pick, or recommendation.
+        Private research cockpit for ranking model-favored player-days within a single stat category. No sportsbook
+        line, market price, edge, pick, or recommendation is involved. Every score is experimental and every
+        probability names its exact event.
       </p>
 
       {/* Tabs */}
@@ -124,17 +143,21 @@ function EngineBetaPage() {
         <div className="ml-auto flex items-center gap-2">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="rounded-sm border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--cream)]" />
-          <button onClick={() => lockMut.mutate()}
+          <button onClick={handleLock}
             disabled={lockMut.isPending}
             className="rounded-sm border border-[var(--brass)] px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-[var(--cream)] transition-colors hover:bg-[color-mix(in_oklab,var(--brass)_20%,transparent)] disabled:opacity-50">
-            {lockMut.isPending ? "Locking…" : "Lock Beta Board"}
+            {lockMut.isPending ? "Locking…" : priorSnapshotForDate ? "Lock New Version" : "Lock Beta Board"}
           </button>
         </div>
       </div>
 
-      {lockMut.data ? (
+      {lockMut.error ? (
+        <div className="mt-3 rounded-sm border border-rose-500/40 bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-rose-300">
+          {(lockMut.error as Error).message}
+        </div>
+      ) : lockMut.data ? (
         <div className="mt-3 rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-3 py-2 text-xs text-[var(--warm-muted)]">
-          Snapshot locked · {lockMut.data.rowsWritten} rows across {lockMut.data.categories.length} categories.
+          Snapshot locked · v{lockMut.data.version} · {lockMut.data.rowsWritten} rows across {lockMut.data.categories.length} categories.
         </div>
       ) : null}
 
@@ -151,6 +174,8 @@ function EngineBetaPage() {
           setGameFilter={setGameFilter}
           confirmedOnly={confirmedOnly}
           setConfirmedOnly={setConfirmedOnly}
+          readinessFilter={readinessFilter}
+          setReadinessFilter={setReadinessFilter}
           board={board}
           allRows={allRows}
           filteredRows={filteredRows}
@@ -158,7 +183,10 @@ function EngineBetaPage() {
           error={boardQ.error as Error | null}
           openPlayer={openPlayer}
           setOpenPlayer={setOpenPlayer}
-          currentCategoryLabel={currentCategory.label}
+          currentCategory={currentCategory}
+          readyCount={readyCount}
+          watchCount={watchCount}
+          notReadyCount={notReadyCount}
         />
       ) : (
         <GradingView data={gradingQ.data} isLoading={gradingQ.isLoading} />
@@ -208,12 +236,16 @@ function BoardView(props: {
   teamFilter: string; setTeamFilter: (v: string) => void;
   gameFilter: string; setGameFilter: (v: string) => void;
   confirmedOnly: boolean; setConfirmedOnly: (v: boolean) => void;
+  readinessFilter: "ready" | "watch_up" | "all"; setReadinessFilter: (v: "ready" | "watch_up" | "all") => void;
   board: any; allRows: BoardRow[]; filteredRows: BoardRow[];
   isLoading: boolean; error: Error | null;
   openPlayer: string | null; setOpenPlayer: (v: string | null) => void;
-  currentCategoryLabel: string;
+  currentCategory: (typeof ENGINE_BETA_CATEGORIES)[number];
+  readyCount: number; watchCount: number; notReadyCount: number;
 }) {
-  const { board, allRows, filteredRows, openPlayer, setOpenPlayer } = props;
+  const { board, allRows, filteredRows, openPlayer, setOpenPlayer, currentCategory } = props;
+  const meanHeader = `Baseline μ (${currentCategory.meanUnit})`;
+  const probHeader = currentCategory.hasStoredProbAtThreshold ? `P(${currentCategory.eventLabel})` : "P(event)";
 
   return (
     <>
@@ -223,8 +255,36 @@ function BoardView(props: {
         <CategoryRow label="PITCHERS" cats={PITCHER_CATS} current={props.category} onPick={props.setCategory} />
       </div>
 
+      {/* Category context strip — event + unit + prob availability */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--warm-muted)]">
+        <span><span className="text-[var(--cream)]">Event:</span> {currentCategory.eventLabel}</span>
+        <span><span className="text-[var(--cream)]">Mean:</span> {currentCategory.meanUnit}</span>
+        <span><span className="text-[var(--cream)]">Threshold:</span> &gt; {currentCategory.threshold} {currentCategory.higherIsBetter ? "(higher = favorable)" : "(lower = favorable)"}</span>
+        {!currentCategory.hasStoredProbAtThreshold ? (
+          <span className="text-amber-300/80">P({currentCategory.eventLabel}) not stored — showing expected mean only.</span>
+        ) : null}
+      </div>
+
+      {/* Readiness segmented control */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--warm-muted)]">Readiness</span>
+        {([
+          { k: "ready", label: `Ready (${props.readyCount})` },
+          { k: "watch_up", label: `+ Watch (${props.readyCount + props.watchCount})` },
+          { k: "all", label: `All (${allRows.length})` },
+        ] as const).map((o) => (
+          <button key={o.k} onClick={() => props.setReadinessFilter(o.k)}
+            className={`rounded-sm border px-2.5 py-1 text-[11px] transition-colors ${
+              props.readinessFilter === o.k
+                ? "border-[var(--primary)] text-[var(--cream)]"
+                : "border-[var(--border)] text-[var(--warm-muted)] hover:border-[var(--brass)]"
+            }`}>{o.label}</button>
+        ))}
+        <span className="text-[10px] text-[var(--warm-muted)]">Not ready: {props.notReadyCount}</span>
+      </div>
+
       {/* Filters */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <select value={props.limit} onChange={(e) => props.setLimit(Number(e.target.value))}
           className="rounded-sm border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--cream)]">
           {LIMITS.map((n) => <option key={n} value={n} className="bg-[var(--charcoal)]">{LIMIT_LABELS[n]}</option>)}
@@ -244,7 +304,7 @@ function BoardView(props: {
           Confirmed lineups only
         </label>
         <div className="ml-auto text-[11px] text-[var(--warm-muted)]">
-          {allRows.length} eligible · showing {filteredRows.length} · {props.currentCategoryLabel}
+          {allRows.length} eligible · showing {filteredRows.length} · {currentCategory.label}
         </div>
       </div>
 
@@ -255,23 +315,24 @@ function BoardView(props: {
             <tr>
               <th className="px-2 py-2 text-left">#</th>
               <th className="px-2 py-2 text-left">Player</th>
+              <th className="px-2 py-2 text-left">Ready</th>
               <th className="px-2 py-2 text-left">Game</th>
               <th className="px-2 py-2 text-left">Lineup</th>
-              <th className="px-2 py-2 text-right">Baseline μ</th>
-              <th className="px-2 py-2 text-right">P(≥1)</th>
-              <th className="px-2 py-2 text-right">Shadow Δ</th>
-              <th className="px-2 py-2 text-right">Form</th>
+              <th className="px-2 py-2 text-right" title={meanHeader}>Baseline μ</th>
+              <th className="px-2 py-2 text-right" title={probHeader}>{probHeader}</th>
+              <th className="px-2 py-2 text-right" title="Form-shadow Δ on the same event mean (experimental, not applied to public forecast)">Form Δμ</th>
+              <th className="px-2 py-2 text-right">Form event</th>
               <th className="px-2 py-2 text-right">Score</th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
           <tbody>
             {props.isLoading ? (
-              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={10}>Loading…</td></tr>
+              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={11}>Loading…</td></tr>
             ) : props.error ? (
-              <tr><td className="px-2 py-4 text-red-400" colSpan={10}>{String(props.error.message)}</td></tr>
+              <tr><td className="px-2 py-4 text-red-400" colSpan={11}>{String(props.error.message)}</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={10}>No eligible players for this category on {props.date}.</td></tr>
+              <tr><td className="px-2 py-4 text-[var(--warm-muted)]" colSpan={11}>No eligible players match these filters on {props.date}.</td></tr>
             ) : filteredRows.map((r, i) => {
               const open = openPlayer === r.playerId;
               return (
@@ -282,6 +343,9 @@ function BoardView(props: {
                       <Link to="/players/$playerId" params={{ playerId: r.playerId }} className="hover:underline">{r.name}</Link>
                       <div className="text-[10px] text-[var(--warm-muted)]">{r.teamAbbr ?? "—"} · {r.role}</div>
                     </td>
+                    <td className="px-2 py-2">
+                      <ReadinessPill state={r.readiness} reason={r.readinessReason} />
+                    </td>
                     <td className="px-2 py-2 text-[var(--warm-muted)]">
                       {r.matchup}
                       <div className="text-[10px]">{r.firstPitchAt ? new Date(r.firstPitchAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"} · {r.gameStatus ?? "—"}</div>
@@ -289,17 +353,19 @@ function BoardView(props: {
                     <td className="px-2 py-2">
                       <LineupPill state={r.lineupState} order={r.battingOrder} />
                     </td>
-                    <td className="px-2 py-2 text-right text-[var(--cream)] mono">{fmt(r.baselineMean, r.role === "pitcher" ? 1 : 2)}</td>
-                    <td className="px-2 py-2 text-right text-[var(--warm-muted)] mono">{pct(r.baselineProbAtLeast1)}</td>
+                    <td className="px-2 py-2 text-right text-[var(--cream)] mono" title={`${r.meanUnit}`}>{fmt(r.baselineMean, r.role === "pitcher" ? 1 : 2)}</td>
+                    <td className="px-2 py-2 text-right text-[var(--warm-muted)] mono" title={probHeader}>
+                      {r.probAtThreshold != null ? pct(r.probAtThreshold) : <span title="No P(event) stored for this category">—</span>}
+                    </td>
                     <td className="px-2 py-2 text-right mono">
-                      {r.shadowMean != null ? (
-                        <span className={r.shadowDelta && r.shadowDelta > 0 ? "text-emerald-300" : r.shadowDelta && r.shadowDelta < 0 ? "text-rose-300" : "text-[var(--warm-muted)]"}>
+                      {r.shadowMean != null && r.shadowDelta != null ? (
+                        <span className={r.shadowDelta > 0 ? "text-emerald-300" : r.shadowDelta < 0 ? "text-rose-300" : "text-[var(--warm-muted)]"}>
                           {signedFmt(r.shadowDelta, 3)}
                         </span>
-                      ) : <span className="text-[var(--warm-muted)]">—</span>}
+                      ) : <span className="text-[var(--warm-muted)]" title="No form-shadow output for this category">—</span>}
                     </td>
                     <td className="px-2 py-2 text-right text-[10px] text-[var(--warm-muted)]">
-                      {r.formApplied ? (
+                      {r.formApplied && r.formHeadlineEvent ? (
                         <span>{r.formHeadlineEvent} {signedFmt(r.formHeadlineDelta)}</span>
                       ) : (
                         <span>None</span>
@@ -317,7 +383,7 @@ function BoardView(props: {
                   </tr>
                   {open ? (
                     <tr className="bg-[color-mix(in_oklab,var(--charcoal)_92%,transparent)]">
-                      <td colSpan={10} className="px-4 py-3">
+                      <td colSpan={11} className="px-4 py-3">
                         <ScoreBreakdown row={r} weights={board?.scoreWeights} />
                       </td>
                     </tr>
@@ -329,6 +395,19 @@ function BoardView(props: {
         </table>
       </div>
     </>
+  );
+}
+
+function ReadinessPill({ state, reason }: { state: "ready" | "watch" | "not_ready"; reason: string }) {
+  const cls =
+    state === "ready" ? "border-emerald-500/50 text-emerald-300"
+    : state === "watch" ? "border-amber-500/50 text-amber-300"
+    : "border-[var(--border)] text-[var(--warm-muted)]";
+  const label = state === "ready" ? "Ready" : state === "watch" ? "Watch" : "Not Ready";
+  return (
+    <span title={reason} className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] ${cls}`}>
+      {label}
+    </span>
   );
 }
 
@@ -398,13 +477,29 @@ function ScoreBreakdown({ row, weights }: { row: BoardRow; weights: any }) {
           </tbody>
         </table>
       </div>
-      <div className="text-[11px] text-[var(--warm-muted)]">
-        <div>Baseline distribution — mean {fmt(row.baselineMean, 3)} · P50 {fmt(row.baselineP50)} · P90 {fmt(row.baselineP90)}</div>
-        <div className="mt-1">Shadow mean — {fmt(row.shadowMean, 3)} · Δ {signedFmt(row.shadowDelta)}</div>
-        <div className="mt-1">Form — {row.formReason}</div>
-        <div className="mt-1">Forecast run — {row.forecastStatus} / {row.forecastClass} · generated {new Date(row.forecastGeneratedAt).toLocaleString()}</div>
-        <div className="mt-3 text-[10px] uppercase tracking-[0.14em]">
-          Experimental · private · not a probability or recommendation.
+      <div className="space-y-3 text-[11px] text-[var(--warm-muted)]">
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Baseline projection</div>
+          <div className="mt-1 text-[var(--cream)]">
+            Expected {row.meanUnit}: <span className="mono">{fmt(row.baselineMean, 3)}</span>
+          </div>
+          <div>P50 <span className="mono">{fmt(row.baselineP50)}</span> · P90 <span className="mono">{fmt(row.baselineP90)}</span>{row.probAtThreshold != null ? <> · P({row.eventLabel}) <span className="mono">{pct(row.probAtThreshold)}</span></> : null}</div>
+        </div>
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Form-shadow shift (experimental — not applied to public forecast)</div>
+          <div className="mt-1">
+            Shadow mean: <span className="mono text-[var(--cream)]">{fmt(row.shadowMean, 3)}</span> · Δ <span className="mono">{signedFmt(row.shadowDelta)}</span>
+          </div>
+          <div>{row.formReason}</div>
+        </div>
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Engine Beta score (experimental)</div>
+          <div className="mt-1">Score <span className="mono text-[var(--cream)]">{c.total}</span> / 100 · ranked within {row.role === "hitter" ? "hitters" : "pitchers"} for this date + category.</div>
+          <div>Readiness: <span className="text-[var(--cream)]">{row.readiness}</span> — {row.readinessReason}</div>
+        </div>
+        <div>Forecast run — {row.forecastStatus} / {row.forecastClass} · generated {new Date(row.forecastGeneratedAt).toLocaleString()}</div>
+        <div className="text-[10px] uppercase tracking-[0.14em]">
+          Experimental · private · not a probability, edge, pick, or recommendation.
         </div>
       </div>
     </div>
