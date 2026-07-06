@@ -87,6 +87,9 @@ export type ResearchLeaderRow = {
   runStatus: string;
   simTier: string;
   simCount: number;
+  iterations: number | null;
+  iterationsSource: "output.sim_count" | "output.driver_metadata.iterations" | "job.sim_count" | null;
+  iterationsLabel: string; // "Simulation: 20,000 runs" or "Simulation count unavailable"
   simJobId: string;
   jobStatus: string;
   inputsHash: string;
