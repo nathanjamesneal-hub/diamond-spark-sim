@@ -1828,22 +1828,84 @@ export type Database = {
           },
         ]
       }
+      sim_job_chunk_runs: {
+        Row: {
+          attempt: number
+          chunk_index: number
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          sim_count: number
+          sim_job_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          worker_lease_id: string | null
+        }
+        Insert: {
+          attempt?: number
+          chunk_index: number
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          sim_count?: number
+          sim_job_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          worker_lease_id?: string | null
+        }
+        Update: {
+          attempt?: number
+          chunk_index?: number
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          sim_count?: number
+          sim_job_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          worker_lease_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sim_job_chunk_runs_sim_job_id_fkey"
+            columns: ["sim_job_id"]
+            isOneToOne: false
+            referencedRelation: "sim_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sim_jobs: {
         Row: {
+          attempts: number
+          chunk_progress: Json
           chunk_size: number
           chunks_done: number
           chunks_total: number
           completed_at: string | null
           created_at: string
           duration_ms: number | null
+          engine_status: string
           failure_reason: string | null
+          finalizer_status: string | null
           game_id: string
           game_pk: number
           id: string
           inputs_hash: string
           label: string
+          last_error: string | null
           last_progress_at: string | null
           material_change_summary: Json | null
+          max_attempts: number
           model_version: string
           notes: string | null
           queued_at: string
@@ -1859,20 +1921,26 @@ export type Database = {
           worker_lease_id: string | null
         }
         Insert: {
+          attempts?: number
+          chunk_progress?: Json
           chunk_size: number
           chunks_done?: number
           chunks_total: number
           completed_at?: string | null
           created_at?: string
           duration_ms?: number | null
+          engine_status?: string
           failure_reason?: string | null
+          finalizer_status?: string | null
           game_id: string
           game_pk: number
           id?: string
           inputs_hash: string
           label: string
+          last_error?: string | null
           last_progress_at?: string | null
           material_change_summary?: Json | null
+          max_attempts?: number
           model_version: string
           notes?: string | null
           queued_at?: string
@@ -1888,20 +1956,26 @@ export type Database = {
           worker_lease_id?: string | null
         }
         Update: {
+          attempts?: number
+          chunk_progress?: Json
           chunk_size?: number
           chunks_done?: number
           chunks_total?: number
           completed_at?: string | null
           created_at?: string
           duration_ms?: number | null
+          engine_status?: string
           failure_reason?: string | null
+          finalizer_status?: string | null
           game_id?: string
           game_pk?: number
           id?: string
           inputs_hash?: string
           label?: string
+          last_error?: string | null
           last_progress_at?: string | null
           material_change_summary?: Json | null
+          max_attempts?: number
           model_version?: string
           notes?: string | null
           queued_at?: string
@@ -1935,6 +2009,7 @@ export type Database = {
           confidence: number
           created_at: string
           driver_metadata: Json
+          engine_status: string
           event_probability: number
           form_adjustment: number
           form_direction: string | null
@@ -1973,6 +2048,7 @@ export type Database = {
           confidence: number
           created_at?: string
           driver_metadata?: Json
+          engine_status?: string
           event_probability: number
           form_adjustment: number
           form_direction?: string | null
@@ -2011,6 +2087,7 @@ export type Database = {
           confidence?: number
           created_at?: string
           driver_metadata?: Json
+          engine_status?: string
           event_probability?: number
           form_adjustment?: number
           form_direction?: string | null
