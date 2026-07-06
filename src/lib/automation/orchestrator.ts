@@ -43,6 +43,7 @@ const BUDGETS = {
   lock: 15_000,
   petri: 120_000,
   autolock: 60_000,
+  enqueueSims: 15_000,
 } as const;
 const LEASE_TTL_MS = 5 * 60_000;
 
