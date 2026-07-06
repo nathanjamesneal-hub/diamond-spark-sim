@@ -244,7 +244,8 @@ function GameStrip({
 function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
-  return (
+  const clickable = !!game.gamePk && game.status !== "unavailable";
+  const shell = (
     <article
       className={`relative overflow-hidden rounded-lg border p-3 backdrop-blur-sm transition-colors ${
         live
@@ -281,6 +282,12 @@ function GameCard({ game }: { game: PulseGame }) {
         <InfoLine label={`${game.home.abbreviation} lineup`} value={game.lineupState.home.label} source={game.lineupState.home.source ?? "Unavailable"} />
       </div>
     </article>
+  );
+  if (!clickable) return shell;
+  return (
+    <Link to="/game/$gamePk" params={{ gamePk: String(game.gamePk) }} className="block">
+      {shell}
+    </Link>
   );
 }
 
