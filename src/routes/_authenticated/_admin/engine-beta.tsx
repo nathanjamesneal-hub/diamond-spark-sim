@@ -12,6 +12,7 @@ import {
   type BoardRow,
   type GameLockStatus,
 } from "@/lib/engine-beta/board.functions";
+import { getEngineBetaDataHealth, type HealthCard, type HealthStatus } from "@/lib/engine-beta/health.functions";
 import { ENGINE_BETA_CATEGORIES, EXCLUDED_CATEGORIES, type EngineBetaCategoryKey } from "@/lib/engine-beta/categories";
 
 
