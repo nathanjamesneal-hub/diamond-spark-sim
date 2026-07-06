@@ -108,6 +108,7 @@ function emptyResult(date: string, startedAt: Date): OrchestrateResult {
     lock: { today: 0, yesterday: 0 },
     petri: { previewGenerated: 0, officialGenerated: 0, abstained: 0, skipped: 0, locked: 0 },
     engineBetaAutoLock: { processed: 0, locked: 0, missed: 0, skipped: 0 },
+    simEnqueue: { gamesConsidered: 0, rowsEnqueued: 0 },
   };
 }
 
