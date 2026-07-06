@@ -392,7 +392,10 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
         forecastGeneratedAt: run.generated_at,
         forecastStatus: run.status,
         forecastClass: run.projection_class,
-        baselineMean, baselineP50, baselineP90, baselineProbAtLeast1,
+        baselineMean, baselineP50, baselineP90,
+        probAtThreshold: category.hasStoredProbAtThreshold ? baselineProbAtLeast1 : null,
+        eventLabel: category.eventLabel,
+        meanUnit: category.meanUnit,
         shadowRunId,
         shadowMean, shadowDelta,
         formApplied, formReason,
@@ -416,14 +419,16 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
         forecastGeneratedAt: r.forecastGeneratedAt,
         recentDenominator: r.recentDenominator,
       }, category.role);
+      const readiness = computeReadiness(category.role, r.lineupState, r.forecastGeneratedAt);
       const { _formDelta, ...rest } = r;
-      return { ...rest, score: components.total, scoreComponents: components };
+      return { ...rest, readiness: readiness.state, readinessReason: readiness.reason, score: components.total, scoreComponents: components };
     });
 
-    rows.sort((a, b) => b.score - a.score);
+    // Rank inside the same date+category, prioritizing Ready > Watch > Not Ready, then score desc.
+    rows.sort((a, b) => (READINESS_RANK[b.readiness] - READINESS_RANK[a.readiness]) || (b.score - a.score));
 
     return {
-      date, category: catKey, categoryLabel: category.label, role: category.role,
+      date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
       cohortMean, cohortStdev, scoreWeights: ENGINE_BETA_WEIGHTS,
       rows, excludedCategories: EXCLUDED_CATEGORIES,
       games: gamesList.map((g: any) => ({ gameId: g.id, gamePk: Number(g.mlb_game_id), matchup: matchupOf(g.id), firstPitchAt: g.first_pitch_at, gameStatus: g.game_status })),
