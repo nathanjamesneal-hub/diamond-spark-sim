@@ -335,6 +335,29 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         r.run_status !== "stale";
       if (!lockEligible) statuses.push("NOT_LOCK_ELIGIBLE");
 
+      // --- Simulation iteration transparency ---
+      // Read only from persisted job/output data. Never hardcode a count.
+      const driverMeta = (r.driver_metadata ?? {}) as Record<string, unknown>;
+      const metaIterations =
+        typeof driverMeta.iterations === "number" ? (driverMeta.iterations as number) : null;
+      let iterations: number | null = null;
+      let iterationsSource: ResearchLeaderRow["iterationsSource"] = null;
+      if (typeof r.sim_count === "number" && r.sim_count > 0) {
+        iterations = r.sim_count;
+        iterationsSource = "output.sim_count";
+      } else if (metaIterations != null && metaIterations > 0) {
+        iterations = metaIterations;
+        iterationsSource = "output.driver_metadata.iterations";
+      } else if (typeof job.sim_count === "number" && job.sim_count > 0) {
+        iterations = job.sim_count;
+        iterationsSource = "job.sim_count";
+      }
+      const iterationsLabel =
+        iterations != null
+          ? `Simulation: ${iterations.toLocaleString()} runs`
+          : "Simulation count unavailable";
+
+
       // Confidence tier.
       const inputsStrong =
         (cat.playerType === "bat" ? lineupConfirmed : starterConfirmed) &&
