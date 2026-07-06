@@ -244,7 +244,8 @@ function GameStrip({
 function GameCard({ game }: { game: PulseGame }) {
   const live = game.status === "live";
   const detail = statusDetail(game);
-  return (
+  const clickable = !!game.gamePk && game.status !== "unavailable";
+  const shell = (
     <article
       className={`relative overflow-hidden rounded-lg border p-3 backdrop-blur-sm transition-colors ${
         live
@@ -281,6 +282,12 @@ function GameCard({ game }: { game: PulseGame }) {
         <InfoLine label={`${game.home.abbreviation} lineup`} value={game.lineupState.home.label} source={game.lineupState.home.source ?? "Unavailable"} />
       </div>
     </article>
+  );
+  if (!clickable) return shell;
+  return (
+    <Link to="/game/$gamePk" params={{ gamePk: String(game.gamePk) }} className="block">
+      {shell}
+    </Link>
   );
 }
 
@@ -322,7 +329,7 @@ function HittersTable({ rows }: { rows: PulseHitter[] }) {
           {rows.map((h) => (
             <tr key={`${h.gameId}:${h.mlbId ?? h.playerId ?? h.name}`} className="border-t border-border/30">
               <td className="px-2 py-2 font-semibold">
-                {h.mlbId ? <Link to="/players/$playerId" params={{ playerId: String(h.mlbId) }} className="hover:text-primary">{h.name}</Link> : h.name}
+                {h.mlbId ? <Link to="/player/$mlbId" params={{ mlbId: String(h.mlbId) }} className="hover:text-primary">{h.name}</Link> : h.name}
                 {h.position ? <span className="mono ml-1 text-[10px] text-muted-foreground">{h.position}</span> : null}
               </td>
               <td className="mono px-2 text-muted-foreground">{h.team || "—"}</td>
@@ -356,7 +363,7 @@ function PitchersTable({ rows }: { rows: PulsePitcher[] }) {
           {rows.map((p) => (
             <tr key={`${p.gameId}:${p.mlbId ?? p.playerId ?? p.name}:${p.role}`} className="border-t border-border/30">
               <td className="px-2 py-2 font-semibold">
-                {p.mlbId ? <Link to="/players/$playerId" params={{ playerId: String(p.mlbId) }} className="hover:text-primary">{p.name}</Link> : p.name}
+                {p.mlbId ? <Link to="/player/$mlbId" params={{ mlbId: String(p.mlbId) }} className="hover:text-primary">{p.name}</Link> : p.name}
               </td>
               <td className="mono px-2 text-muted-foreground">{p.team || "—"}</td>
               <td className="px-2">{p.role === "probable-starter" ? "Probable starter" : "Active pitcher"}</td>

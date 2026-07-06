@@ -66,8 +66,8 @@ export function HitterCard({ m }: { m: HitterMover }) {
   const early = m.status === "early_sample";
   return (
     <Link
-      to="/players/$playerId"
-      params={{ playerId: String(m.mlbId) }}
+      to="/player/$mlbId"
+      params={{ mlbId: String(m.mlbId) }}
       className={`scouting-card group block overflow-hidden p-3 transition-transform hover:-translate-y-[1px] ${edgeClass(m.status)}`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -122,8 +122,8 @@ function MiniStat({ label, season, recent }: { label: string; season: number; re
 export function PitcherCard({ m }: { m: PitcherMover }) {
   return (
     <Link
-      to="/players/$playerId"
-      params={{ playerId: String(m.mlbId) }}
+      to="/player/$mlbId"
+      params={{ mlbId: String(m.mlbId) }}
       className={`scouting-card group block overflow-hidden p-3 transition-transform hover:-translate-y-[1px] ${edgeClass(m.status)}`}
     >
       <div className="flex items-start justify-between gap-2">

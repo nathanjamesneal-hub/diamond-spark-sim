@@ -31,6 +31,7 @@ import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authent
 import { Route as AuthenticatedLabRouteImport } from './routes/_authenticated/lab'
 import { Route as AuthenticatedHittersRouteImport } from './routes/_authenticated/hitters'
 import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
+import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
 import { Route as AuthenticatedCalibrationLabRouteImport } from './routes/_authenticated/calibration-lab'
@@ -41,7 +42,9 @@ import { Route as AuthenticatedForecastsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedTodayLiveRouteImport } from './routes/_authenticated/today.live'
 import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams.$teamId'
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
+import { Route as AuthenticatedPlayerMlbIdRouteImport } from './routes/_authenticated/player.$mlbId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
+import { Route as AuthenticatedGameGamePkRouteImport } from './routes/_authenticated/game.$gamePk'
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
@@ -172,6 +175,11 @@ const AuthenticatedForecastsRoute = AuthenticatedForecastsRouteImport.update({
   path: '/forecasts',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiamondScoresRoute =
   AuthenticatedDiamondScoresRouteImport.update({
     id: '/diamond-scores',
@@ -228,12 +236,23 @@ const AuthenticatedPlayersPlayerIdRoute =
     path: '/players/$playerId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlayerMlbIdRoute =
+  AuthenticatedPlayerMlbIdRouteImport.update({
+    id: '/player/$mlbId',
+    path: '/player/$mlbId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMatchupsGamePkRoute =
   AuthenticatedMatchupsGamePkRouteImport.update({
     id: '/matchups/$gamePk',
     path: '/matchups/$gamePk',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedGameGamePkRoute = AuthenticatedGameGamePkRouteImport.update({
+  id: '/game/$gamePk',
+  path: '/game/$gamePk',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedForecastsLabRoute =
   AuthenticatedForecastsLabRouteImport.update({
     id: '/lab',
@@ -337,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
@@ -362,7 +382,9 @@ export interface FileRoutesByFullPath {
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
+  '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/today/live': typeof AuthenticatedTodayLiveRoute
@@ -386,6 +408,7 @@ export interface FileRoutesByTo {
   '/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
@@ -409,7 +432,9 @@ export interface FileRoutesByTo {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
+  '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/today/live': typeof AuthenticatedTodayLiveRoute
@@ -435,6 +460,7 @@ export interface FileRoutesById {
   '/_authenticated/calibration-lab': typeof AuthenticatedCalibrationLabRoute
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
+  '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/_authenticated/hitters': typeof AuthenticatedHittersRoute
   '/_authenticated/lab': typeof AuthenticatedLabRoute
@@ -461,7 +487,9 @@ export interface FileRoutesById {
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
+  '/_authenticated/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
+  '/_authenticated/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/_authenticated/today/live': typeof AuthenticatedTodayLiveRoute
@@ -487,6 +515,7 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/explore'
     | '/forecasts'
     | '/hitters'
     | '/lab'
@@ -512,7 +541,9 @@ export interface FileRouteTypes {
     | '/petri-results'
     | '/forecasts/consensus'
     | '/forecasts/lab'
+    | '/game/$gamePk'
     | '/matchups/$gamePk'
+    | '/player/$mlbId'
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/today/live'
@@ -536,6 +567,7 @@ export interface FileRouteTypes {
     | '/calibration-lab'
     | '/diamond-consensus'
     | '/diamond-scores'
+    | '/explore'
     | '/hitters'
     | '/lab'
     | '/leaderboards'
@@ -559,7 +591,9 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/forecasts/consensus'
+    | '/game/$gamePk'
     | '/matchups/$gamePk'
+    | '/player/$mlbId'
     | '/players/$playerId'
     | '/teams/$teamId'
     | '/today/live'
@@ -584,6 +618,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calibration-lab'
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
+    | '/_authenticated/explore'
     | '/_authenticated/forecasts'
     | '/_authenticated/hitters'
     | '/_authenticated/lab'
@@ -610,7 +645,9 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
+    | '/_authenticated/game/$gamePk'
     | '/_authenticated/matchups/$gamePk'
+    | '/_authenticated/player/$mlbId'
     | '/_authenticated/players/$playerId'
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/today/live'
@@ -794,6 +831,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/explore': {
+      id: '/_authenticated/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof AuthenticatedExploreRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/diamond-scores': {
       id: '/_authenticated/diamond-scores'
       path: '/diamond-scores'
@@ -864,11 +908,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlayersPlayerIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/player/$mlbId': {
+      id: '/_authenticated/player/$mlbId'
+      path: '/player/$mlbId'
+      fullPath: '/player/$mlbId'
+      preLoaderRoute: typeof AuthenticatedPlayerMlbIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/matchups/$gamePk': {
       id: '/_authenticated/matchups/$gamePk'
       path: '/matchups/$gamePk'
       fullPath: '/matchups/$gamePk'
       preLoaderRoute: typeof AuthenticatedMatchupsGamePkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/game/$gamePk': {
+      id: '/_authenticated/game/$gamePk'
+      path: '/game/$gamePk'
+      fullPath: '/game/$gamePk'
+      preLoaderRoute: typeof AuthenticatedGameGamePkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/forecasts/lab': {
@@ -1051,6 +1109,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalibrationLabRoute: typeof AuthenticatedCalibrationLabRoute
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
+  AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
   AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
   AuthenticatedHittersRoute: typeof AuthenticatedHittersRoute
   AuthenticatedLabRoute: typeof AuthenticatedLabRoute
@@ -1071,7 +1130,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
   AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedGameGamePkRoute: typeof AuthenticatedGameGamePkRoute
   AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
+  AuthenticatedPlayerMlbIdRoute: typeof AuthenticatedPlayerMlbIdRoute
   AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
   AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRoute
   AuthenticatedTodayLiveRoute: typeof AuthenticatedTodayLiveRoute
@@ -1084,6 +1145,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalibrationLabRoute: AuthenticatedCalibrationLabRoute,
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
+  AuthenticatedExploreRoute: AuthenticatedExploreRoute,
   AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
   AuthenticatedHittersRoute: AuthenticatedHittersRoute,
   AuthenticatedLabRoute: AuthenticatedLabRoute,
@@ -1104,7 +1166,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,
   AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedGameGamePkRoute: AuthenticatedGameGamePkRoute,
   AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
+  AuthenticatedPlayerMlbIdRoute: AuthenticatedPlayerMlbIdRoute,
   AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,
   AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRoute,
   AuthenticatedTodayLiveRoute: AuthenticatedTodayLiveRoute,
