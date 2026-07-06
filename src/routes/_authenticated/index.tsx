@@ -660,8 +660,6 @@ function MoverGrid<T extends { mlbId: number }>({
 }
 
 function EngineBetaStatusPanel() {
-  // Lazy import to avoid pulling admin-only fn types into non-admin bundle graph
-  const { getEngineBetaDataHealth } = require("@/lib/engine-beta/health.functions") as typeof import("@/lib/engine-beta/health.functions");
   const q = useQuery({
     queryKey: ["home", "engine-beta-health"],
     queryFn: () => getEngineBetaDataHealth({ data: {} }),
