@@ -477,13 +477,29 @@ function ScoreBreakdown({ row, weights }: { row: BoardRow; weights: any }) {
           </tbody>
         </table>
       </div>
-      <div className="text-[11px] text-[var(--warm-muted)]">
-        <div>Baseline distribution — mean {fmt(row.baselineMean, 3)} · P50 {fmt(row.baselineP50)} · P90 {fmt(row.baselineP90)}</div>
-        <div className="mt-1">Shadow mean — {fmt(row.shadowMean, 3)} · Δ {signedFmt(row.shadowDelta)}</div>
-        <div className="mt-1">Form — {row.formReason}</div>
-        <div className="mt-1">Forecast run — {row.forecastStatus} / {row.forecastClass} · generated {new Date(row.forecastGeneratedAt).toLocaleString()}</div>
-        <div className="mt-3 text-[10px] uppercase tracking-[0.14em]">
-          Experimental · private · not a probability or recommendation.
+      <div className="space-y-3 text-[11px] text-[var(--warm-muted)]">
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Baseline projection</div>
+          <div className="mt-1 text-[var(--cream)]">
+            Expected {row.meanUnit}: <span className="mono">{fmt(row.baselineMean, 3)}</span>
+          </div>
+          <div>P50 <span className="mono">{fmt(row.baselineP50)}</span> · P90 <span className="mono">{fmt(row.baselineP90)}</span>{row.probAtThreshold != null ? <> · P({row.eventLabel}) <span className="mono">{pct(row.probAtThreshold)}</span></> : null}</div>
+        </div>
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Form-shadow shift (experimental — not applied to public forecast)</div>
+          <div className="mt-1">
+            Shadow mean: <span className="mono text-[var(--cream)]">{fmt(row.shadowMean, 3)}</span> · Δ <span className="mono">{signedFmt(row.shadowDelta)}</span>
+          </div>
+          <div>{row.formReason}</div>
+        </div>
+        <div className="rounded-sm border border-[var(--border)] p-2">
+          <div className="mono text-[10px] uppercase tracking-[0.14em] text-[var(--warm-muted)]">Engine Beta score (experimental)</div>
+          <div className="mt-1">Score <span className="mono text-[var(--cream)]">{c.total}</span> / 100 · ranked within {row.role === "hitter" ? "hitters" : "pitchers"} for this date + category.</div>
+          <div>Readiness: <span className="text-[var(--cream)]">{row.readiness}</span> — {row.readinessReason}</div>
+        </div>
+        <div>Forecast run — {row.forecastStatus} / {row.forecastClass} · generated {new Date(row.forecastGeneratedAt).toLocaleString()}</div>
+        <div className="text-[10px] uppercase tracking-[0.14em]">
+          Experimental · private · not a probability, edge, pick, or recommendation.
         </div>
       </div>
     </div>
