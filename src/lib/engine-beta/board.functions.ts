@@ -328,7 +328,7 @@ export const getEngineBetaLockStatus = createServerFn({ method: "POST" })
       let status: GameLockStatus["status"];
       let reason: string;
       if (auto && !auto.lock_reason) { status = "auto_locked"; reason = "Automatic pregame snapshot recorded"; }
-      else if (auto && auto.lock_reason === "missed_pregame_window") { status = "missed_pregame", reason = "Pregame window missed — no snapshot"; }
+      else if (auto && auto.lock_reason === "missed_pregame_window") { status = "missed_pregame"; reason = "Pregame window missed — no snapshot"; }
       else if (manual) { status = "manually_locked"; reason = "Manual per-game snapshot recorded"; }
       else if (started) { status = "started"; reason = "Game has begun; pregame lock no longer possible"; }
       else if (!hasForecast) { status = "not_ready"; reason = "No baseline forecast yet"; }
