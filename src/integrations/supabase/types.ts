@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_leases: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          holder: string | null
+          job: string
+          lease_id: string
+          released_at: string | null
+          slate_date: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          holder?: string | null
+          job: string
+          lease_id?: string
+          released_at?: string | null
+          slate_date: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          holder?: string | null
+          job?: string
+          lease_id?: string
+          released_at?: string | null
+          slate_date?: string
+        }
+        Relationships: []
+      }
       automation_log: {
         Row: {
           created_at: string
@@ -25,7 +55,12 @@ export type Database = {
           game_pk: number | null
           id: string
           job: string
+          last_progress_at: string | null
+          parent_id: string | null
+          records_considered: number | null
+          records_updated: number | null
           slate_date: string | null
+          stage: string | null
           started_at: string
           status: string
         }
@@ -39,7 +74,12 @@ export type Database = {
           game_pk?: number | null
           id?: string
           job: string
+          last_progress_at?: string | null
+          parent_id?: string | null
+          records_considered?: number | null
+          records_updated?: number | null
           slate_date?: string | null
+          stage?: string | null
           started_at?: string
           status: string
         }
@@ -53,11 +93,24 @@ export type Database = {
           game_pk?: number | null
           id?: string
           job?: string
+          last_progress_at?: string | null
+          parent_id?: string | null
+          records_considered?: number | null
+          records_updated?: number | null
           slate_date?: string | null
+          stage?: string | null
           started_at?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "automation_log_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "automation_log"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bets: {
         Row: {
