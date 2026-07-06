@@ -411,11 +411,20 @@ function GameTile({ game: g }: { game: PulseGame }) {
     ? "Final"
     : firstPitch ?? g.statusText ?? "Scheduled";
 
+  if (!g.gamePk) {
+    return (
+      <div className="block rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] px-3 py-3 opacity-70">
+        <div className="mono text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
+          {g.away?.abbreviation ?? "AWY"} @ {g.home?.abbreviation ?? "HME"}
+        </div>
+        <div className="mono mt-1.5 text-[13px] text-[var(--warm-muted)]">Unavailable</div>
+      </div>
+    );
+  }
   return (
     <Link
       to="/game/$gamePk"
-      params={{ gamePk: String(g.gamePk ?? "") }}
-      disabled={!g.gamePk}
+      params={{ gamePk: String(g.gamePk) }}
       className={`block rounded-md border px-3 py-3 backdrop-blur-sm transition-colors ${
         isLive
           ? "border-[color-mix(in_oklab,var(--brass)_60%,transparent)] bg-[color-mix(in_oklab,var(--brass)_10%,var(--charcoal))] shadow-[0_0_18px_color-mix(in_oklab,var(--brass)_25%,transparent)]"
