@@ -190,7 +190,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const gamesList = games ?? [];
     if (!gamesList.length) {
       return {
-        date, category: catKey, categoryLabel: category.label, role: category.role,
+        date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
         cohortMean: null, cohortStdev: null, scoreWeights: ENGINE_BETA_WEIGHTS,
         rows: [], excludedCategories: EXCLUDED_CATEGORIES, games: [], teams: [], generatedAt: new Date().toISOString(),
       };
