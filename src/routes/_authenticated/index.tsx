@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { getMlbMovers, type HitterMover, type PitcherMover } from "@/lib/movers.functions";
+import { getMlbMovers } from "@/lib/movers.functions";
 import { getMlbPulse, type PulseGame } from "@/lib/pulse.functions";
-import { HitterCard, PitcherCard } from "@/components/movers/mover-cards";
 import { supabase } from "@/integrations/supabase/client";
 import { todayInAppTz, formatTimeInAppTz } from "@/lib/timezone";
 import { getEngineBetaDataHealth } from "@/lib/engine-beta/health.functions";
@@ -24,16 +23,16 @@ const pulseQuery = queryOptions({
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
-      { title: "Diamond — Your Daily MLB Command Center" },
+      { title: "Diamond — Today in Baseball" },
       {
         name: "description",
         content:
-          "Welcome back to Diamond. Today's MLB slate, live pulse, official lineups, and verified hitter and pitcher form movement — all in one place.",
+          "Diamond home: today's MLB slate at a glance, top movers, and quick access to Pulse, Explore, Hitters, Pitchers, and your Watchlist.",
       },
-      { property: "og:title", content: "Diamond — Daily MLB Command Center" },
+      { property: "og:title", content: "Diamond — Today in Baseball" },
       {
         property: "og:description",
-        content: "Today's MLB slate, live pulse, and verified movers.",
+        content: "Today's MLB slate at a glance. Pick where to dig deeper.",
       },
     ],
   }),
@@ -71,7 +70,6 @@ function useFirstName(): string | null {
       if (!raw || typeof raw !== "string") return null;
       const first = raw.trim().split(/\s+/)[0];
       if (!first) return null;
-      // Capitalize gently only if it looks like an email-local plain lowercase word
       return first.length <= 40 ? first : null;
     },
     staleTime: 5 * 60_000,
@@ -125,30 +123,29 @@ function DiamondHome() {
   if (!pulse.data) {
     slateSentence = "Loading today's slate…";
   } else if (gamesToday === 0) {
-    slateSentence = "No MLB games on today's slate";
+    slateSentence = "No MLB games on today's slate.";
   } else if (liveCount > 0) {
-    slateSentence = `MLB is live · ${liveCount} game${liveCount === 1 ? "" : "s"} in progress`;
+    slateSentence = `MLB is live · ${liveCount} game${liveCount === 1 ? "" : "s"} in progress.`;
   } else if (finalCount === gamesToday) {
-    slateSentence = "Today's slate is final";
+    slateSentence = "Today's slate is final.";
   } else {
-    slateSentence = `${gamesToday} game${gamesToday === 1 ? "" : "s"} on today's slate`;
+    slateSentence = `${gamesToday} game${gamesToday === 1 ? "" : "s"} on today's slate.`;
   }
 
-  const lastRefresh = pulse.data?.overallUpdatedAt
-    ? formatTimeInAppTz(pulse.data.overallUpdatedAt)
-    : null;
+  // Preview: live first, then upcoming, then final — cap at 3
+  const previewGames = [
+    ...games.filter((g) => g.status === "live"),
+    ...games.filter((g) => g.status === "upcoming" || g.status === "delayed"),
+    ...games.filter((g) => g.status === "final"),
+  ].slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      {/* Personal welcome */}
-      <header className="glass-panel relative overflow-hidden px-5 py-7 md:px-8 md:py-9">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-8">
+      {/* Compact welcome */}
+      <header className="glass-panel relative overflow-hidden px-5 py-5 md:px-7 md:py-6">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[color-mix(in_oklab,var(--brass)_35%,transparent)] blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-[color-mix(in_oklab,var(--violet-glow)_25%,transparent)] blur-3xl"
+          className="pointer-events-none absolute -top-20 -right-12 h-48 w-48 rounded-full bg-[color-mix(in_oklab,var(--brass)_28%,transparent)] blur-3xl"
         />
         <div className="relative">
           <div className="mono flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.28em] text-[var(--primary)]">
@@ -160,80 +157,61 @@ function DiamondHome() {
               </span>
             )}
           </div>
-          <h1 className="mt-3 bg-gradient-to-br from-[var(--cream)] via-[var(--primary-glow)] to-[var(--brass)] bg-clip-text text-[36px] leading-[1.05] text-transparent md:text-[56px]">
+          <h1 className="mt-2 bg-gradient-to-br from-[var(--cream)] via-[var(--primary-glow)] to-[var(--brass)] bg-clip-text text-[26px] leading-[1.1] text-transparent md:text-[36px]">
             {firstName ? `Welcome back, ${firstName}.` : "Welcome to Diamond."}
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--parchment)] md:text-base">
-            {slateSentence}
-          </p>
+          <p className="mt-1.5 text-sm text-[var(--parchment)]">{slateSentence}</p>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <ChipLink to="/mlb-pulse" label="Games" value={pulse.data ? String(gamesToday) : "—"} />
+            <ChipLink
+              to="/mlb-pulse"
+              label="Live"
+              value={pulse.data ? String(liveCount) : "—"}
+              accent={liveCount > 0 ? "live" : undefined}
+            />
+            <ChipLink to="/mlb-pulse" label="Upcoming" value={pulse.data ? String(upcomingCount) : "—"} />
+            <ChipLink to="/mlb-pulse" label="Final" value={pulse.data ? String(finalCount) : "—"} />
+            <ChipLink
+              to="/mlb-pulse"
+              label="Official Lineups"
+              value={pulse.data ? String(officialLineups) : "—"}
+            />
+          </div>
         </div>
       </header>
 
-      {/* Slate status chips */}
-      <section className="mt-4">
-        <div className="flex flex-wrap gap-2">
-          <ChipLink to="/mlb-pulse" label="Games today" value={pulse.data ? String(gamesToday) : "—"} />
-          <ChipLink
-            to="/mlb-pulse"
-            label="Live"
-            value={pulse.data ? String(liveCount) : "—"}
-            accent={liveCount > 0 ? "live" : undefined}
-          />
-          <ChipLink to="/mlb-pulse" label="Upcoming" value={pulse.data ? String(upcomingCount) : "—"} />
-          <ChipLink to="/mlb-pulse" label="Final" value={pulse.data ? String(finalCount) : "—"} />
-          <ChipLink
-            to="/mlb-pulse"
-            label="Official lineups"
-            value={pulse.data ? String(officialLineups) : "—"}
-          />
-          {lastRefresh && <Chip label="Last refresh" value={lastRefresh} />}
-        </div>
-      </section>
+      {/* Today in Diamond — 3 cards max */}
+      <TodayInDiamond movers={movers} games={games} loading={!pulse.data && pulse.isLoading} />
 
-      {/* Today in Diamond hero panel */}
-      <TodayInDiamond
-        movers={movers}
-        games={games}
-        loading={!pulse.data && pulse.isLoading}
-      />
-
-      {/* Start exploring */}
+      {/* Open Diamond — nav grid */}
       <section className="mt-8">
-        <SectionHeader title="Start Exploring" />
+        <SectionHeader title="Open Diamond" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <RouteCard to="/explore" title="Explore MLB" desc="Rank, filter, and search the league." />
-          <RouteCard to="/mlb-pulse" title="Live Pulse" desc="Every game, lineup, and live state." />
-          <RouteCard to="/hitters" title="Hitters Moving" desc="Recent hitter form across MLB." />
+          <RouteCard to="/mlb-pulse" title="Live Pulse" desc="Games, lineups, and live activity." />
+          <RouteCard to="/hitters" title="Hitters Moving" desc="Recent hitter form." />
           <RouteCard to="/pitchers" title="Pitchers Moving" desc="Arms trending up or down." />
-          <RouteCard to="/watchlist" title="Watchlist" desc="Your saved players and teams." />
+          <RouteCard to="/watchlist" title="Watchlist" desc="Saved players and teams." />
           {isAdmin && (
             <RouteCard
               to="/engine-beta"
-              title="Diamond Engine Beta"
-              desc="Private experimental research board."
+              title="Engine Beta"
+              desc="Private research board."
               admin
             />
           )}
         </div>
       </section>
 
-      {/* Today's Games */}
-      <section className="mt-10">
-        <div className="mb-3 flex items-end justify-between gap-3 border-b border-[var(--border)] pb-2">
-          <SectionHeader title="Today's Games" inline />
-          <Link
-            to="/mlb-pulse"
-            className="mono whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
-          >
-            Open Full Pulse →
-          </Link>
-        </div>
+      {/* Small slate preview */}
+      <section className="mt-8">
+        <SectionHeaderLink to="/mlb-pulse" title="Today's Games" cta="View Full Slate" />
         {pulse.data ? (
-          games.length === 0 ? (
+          previewGames.length === 0 ? (
             <EmptyLine>No MLB games on today's slate.</EmptyLine>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {games.map((g) => (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {previewGames.map((g) => (
                 <GameTile key={g.id} game={g} />
               ))}
             </div>
@@ -245,51 +223,10 @@ function DiamondHome() {
         )}
       </section>
 
-      {/* Movers That Matter */}
-      <section className="mt-12">
-        <SectionHeader title="Hitters Moving" />
-        <MoverGrid
-          risers={movers.hitters.risers.slice(0, 5)}
-          fallers={movers.hitters.fallers.slice(0, 5)}
-          renderRiser={(m) => <HitterCard m={m as HitterMover} />}
-          renderFaller={(m) => <HitterCard m={m as HitterMover} />}
-          emptyRisers="No hitter risers yet."
-          emptyFallers="No hitter fallers yet."
-        />
-        <div className="mt-3">
-          <Link
-            to="/hitters"
-            className="mono text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
-          >
-            View All Hitters →
-          </Link>
-        </div>
-      </section>
+      {/* Engine Beta thin status (admin only) */}
+      {isAdmin && <EngineBetaStatusStrip />}
 
-      <section className="mt-10">
-        <SectionHeader title="Pitchers Moving" />
-        <MoverGrid
-          risers={movers.pitchers.risers.slice(0, 5)}
-          fallers={movers.pitchers.fallers.slice(0, 5)}
-          renderRiser={(m) => <PitcherCard m={m as PitcherMover} />}
-          renderFaller={(m) => <PitcherCard m={m as PitcherMover} />}
-          emptyRisers="No pitcher risers yet."
-          emptyFallers="No pitcher fallers yet."
-        />
-        <div className="mt-3">
-          <Link
-            to="/pitchers"
-            className="mono text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
-          >
-            View All Pitchers →
-          </Link>
-        </div>
-      </section>
-
-      {/* Engine Beta status (admin only) */}
-      {isAdmin && <EngineBetaStatusPanel />}
-
-      <footer className="mt-12 border-t border-[var(--border)] pt-4 text-center text-[10px] text-[var(--warm-muted)]">
+      <footer className="mt-10 border-t border-[var(--border)] pt-4 text-center text-[10px] text-[var(--warm-muted)]">
         <span className="mono">
           Slate {slateDate} · America/Chicago · Source: statsapi.mlb.com
         </span>
@@ -300,15 +237,32 @@ function DiamondHome() {
 
 // ---------------- Sub-components ----------------
 
-function SectionHeader({ title, inline = false }: { title: string; inline?: boolean }) {
-  if (inline) {
-    return (
-      <h2 className="text-[22px] leading-tight text-[var(--cream)] md:text-[28px]">{title}</h2>
-    );
-  }
+function SectionHeader({ title }: { title: string }) {
   return (
     <div className="mb-3 border-b border-[var(--border)] pb-2">
-      <h2 className="text-[22px] leading-tight text-[var(--cream)] md:text-[28px]">{title}</h2>
+      <h2 className="text-[18px] leading-tight text-[var(--cream)] md:text-[22px]">{title}</h2>
+    </div>
+  );
+}
+
+function SectionHeaderLink({ to, title, cta }: { to: string; title: string; cta: string }) {
+  return (
+    <div className="mb-3 flex items-end justify-between gap-3 border-b border-[var(--border)] pb-2">
+      <Link
+        to={to}
+        className="group inline-flex items-baseline gap-2 text-[18px] leading-tight text-[var(--cream)] hover:text-[var(--primary-glow)] md:text-[22px]"
+      >
+        <span>{title}</span>
+        <span className="mono text-[10px] uppercase tracking-widest text-[var(--primary)] opacity-70 group-hover:opacity-100">
+          Open →
+        </span>
+      </Link>
+      <Link
+        to={to}
+        className="mono whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] hover:text-[var(--cream)]"
+      >
+        {cta} →
+      </Link>
     </div>
   );
 }
@@ -317,17 +271,6 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-sm border border-dashed border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] px-4 py-6 text-center text-xs text-[var(--warm-muted)]">
       {children}
-    </div>
-  );
-}
-
-function Chip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-full border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_75%,transparent)] px-3 py-1.5">
-      <span className="mono text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
-        {label}
-      </span>
-      <span className="mono ml-2 text-[11px] font-bold text-[var(--cream)]">{value}</span>
     </div>
   );
 }
@@ -350,12 +293,12 @@ function ChipLink({
   return (
     <Link
       to={to}
-      className={`inline-flex items-center rounded-full border px-3 py-1.5 transition-colors ${cls}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 transition-colors ${cls}`}
     >
-      <span className="mono text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
+      <span className="mono text-[9px] uppercase tracking-widest text-[var(--warm-muted)]">
         {label}
       </span>
-      <span className="mono ml-2 text-[11px] font-bold text-[var(--cream)]">{value}</span>
+      <span className="mono ml-1.5 text-[11px] font-bold text-[var(--cream)]">{value}</span>
     </Link>
   );
 }
@@ -374,22 +317,22 @@ function RouteCard({
   return (
     <Link
       to={to}
-      className={`group block rounded-md border px-4 py-4 backdrop-blur-sm transition-all ${
+      className={`group block rounded-md border px-4 py-3.5 backdrop-blur-sm transition-all ${
         admin
           ? "border-[color-mix(in_oklab,var(--violet-glow)_50%,transparent)] bg-[color-mix(in_oklab,var(--violet-glow)_8%,var(--charcoal))] hover:border-[var(--violet-glow)]"
           : "border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_80%,transparent)] hover:border-[color-mix(in_oklab,var(--brass)_45%,var(--border))]"
       }`}
     >
       <div className="flex items-baseline justify-between">
-        <h3 className="text-[16px] font-semibold text-[var(--cream)] md:text-[18px]">{title}</h3>
+        <h3 className="text-[15px] font-semibold text-[var(--cream)] md:text-[16px]">{title}</h3>
         {admin && (
           <span className="mono rounded-sm border border-[color-mix(in_oklab,var(--violet-glow)_60%,transparent)] px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-[var(--violet-glow)]">
             Admin
           </span>
         )}
       </div>
-      <p className="mt-1 text-xs text-[var(--parchment)] md:text-sm">{desc}</p>
-      <div className="mono mt-3 text-[10px] uppercase tracking-widest text-[var(--primary)] group-hover:text-[var(--cream)]">
+      <p className="mt-0.5 text-[11px] text-[var(--parchment)] md:text-xs">{desc}</p>
+      <div className="mono mt-2 text-[10px] uppercase tracking-widest text-[var(--primary)] group-hover:text-[var(--cream)]">
         Open →
       </div>
     </Link>
@@ -399,8 +342,6 @@ function RouteCard({
 function GameTile({ game: g }: { game: PulseGame }) {
   const isLive = g.status === "live";
   const isFinal = g.status === "final";
-  const lineupOfficial =
-    g.lineupState?.away?.label === "Official" || g.lineupState?.home?.label === "Official";
   const firstPitch = g.firstPitch ? formatTimeInAppTz(g.firstPitch) : null;
 
   const statusLabel = isLive
@@ -453,11 +394,6 @@ function GameTile({ game: g }: { game: PulseGame }) {
           {firstPitch ?? "TBD"}
         </div>
       )}
-      {lineupOfficial && (
-        <div className="mono mt-2 text-[9px] uppercase tracking-widest text-[color-mix(in_oklab,var(--brass)_80%,var(--cream))]">
-          Official lineup
-        </div>
-      )}
     </Link>
   );
 }
@@ -474,7 +410,6 @@ function TodayInDiamond({
   const topHitter = movers.hitters.risers[0] ?? null;
   const topPitcher = movers.pitchers.risers[0] ?? null;
 
-  // Pick a keystone matchup: prefer live w/ official lineup, else upcoming with official lineup, else first upcoming
   const keystone =
     games.find((g) => g.status === "live" && g.lineupState?.away?.label === "Official") ??
     games.find((g) => g.status === "live") ??
@@ -494,10 +429,10 @@ function TodayInDiamond({
         eyebrow="Top Hitter Mover"
         title={topHitter.name}
         sub={topHitter.team ?? ""}
-        body="14-day form is rising."
+        body="14-day form rising."
         to="/player/$mlbId"
         params={{ mlbId: String(topHitter.mlbId) }}
-        cta="Open Player Hub"
+        cta="Open Player"
         tone="riser"
       />,
     );
@@ -509,27 +444,22 @@ function TodayInDiamond({
         eyebrow="Top Pitcher Mover"
         title={topPitcher.name}
         sub={topPitcher.team ?? ""}
-        body="ERA & WHIP both improving over 14 days."
+        body="ERA & WHIP improving."
         to="/player/$mlbId"
         params={{ mlbId: String(topPitcher.mlbId) }}
-        cta="Open Player Hub"
+        cta="Open Player"
         tone="riser"
       />,
     );
   }
-  if (keystone) {
-    const lineupNote =
-      keystone.lineupState?.away?.label === "Official" ||
-      keystone.lineupState?.home?.label === "Official"
-        ? "Official lineup confirmed."
-        : "Lineup not yet official.";
+  if (keystone && keystone.gamePk) {
     const stateLine =
       keystone.status === "live"
         ? keystone.inning
-          ? `Live in the ${ordinal(keystone.inning)}${keystone.inningHalf ? ` (${keystone.inningHalf})` : ""}.`
+          ? `Live · ${keystone.inningHalf ?? ""} ${keystone.inning}`.trim()
           : "Live now."
         : keystone.firstPitch
-        ? `First pitch at ${formatTimeInAppTz(keystone.firstPitch)}.`
+        ? `First pitch ${formatTimeInAppTz(keystone.firstPitch)}.`
         : "First pitch TBD.";
     cards.push(
       <TodayCard
@@ -537,10 +467,10 @@ function TodayInDiamond({
         eyebrow="Matchup to Watch"
         title={`${keystone.away?.abbreviation ?? "AWY"} @ ${keystone.home?.abbreviation ?? "HME"}`}
         sub={keystone.venue ?? ""}
-        body={`${stateLine} ${lineupNote}`}
+        body={stateLine}
         to="/game/$gamePk"
-        params={{ gamePk: String(keystone.gamePk ?? "") }}
-        cta="Open Game Hub"
+        params={{ gamePk: String(keystone.gamePk) }}
+        cta="Open Game"
         tone={keystone.status === "live" ? "live" : "neutral"}
       />,
     );
@@ -589,77 +519,28 @@ function TodayCard({
     <Link
       to={to}
       params={params}
-      className={`group block rounded-md border px-4 py-4 backdrop-blur-sm transition-all hover:border-[color-mix(in_oklab,var(--brass)_55%,var(--border))] ${toneCls}`}
+      className={`group block rounded-md border px-3.5 py-3.5 backdrop-blur-sm transition-all hover:border-[color-mix(in_oklab,var(--brass)_55%,var(--border))] ${toneCls}`}
     >
-      <div className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--primary)]">
+      <div className="mono text-[9px] uppercase tracking-[0.22em] text-[var(--primary)]">
         {eyebrow}
       </div>
-      <div className="mt-1.5 text-[18px] font-semibold text-[var(--cream)] md:text-[20px]">
+      <div className="mt-1 text-[16px] font-semibold text-[var(--cream)] md:text-[17px]">
         {title}
       </div>
       {sub && (
-        <div className="mono text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
+        <div className="mono text-[9px] uppercase tracking-widest text-[var(--warm-muted)]">
           {sub}
         </div>
       )}
-      <p className="mt-2 text-xs text-[var(--parchment)] md:text-sm">{body}</p>
-      <div className="mono mt-3 text-[10px] uppercase tracking-widest text-[var(--primary)] group-hover:text-[var(--cream)]">
+      <p className="mt-1.5 text-[11px] text-[var(--parchment)] md:text-xs">{body}</p>
+      <div className="mono mt-2 text-[10px] uppercase tracking-widest text-[var(--primary)] group-hover:text-[var(--cream)]">
         {cta} →
       </div>
     </Link>
   );
 }
 
-function MoverGrid<T extends { mlbId: number }>({
-  risers,
-  fallers,
-  renderRiser,
-  renderFaller,
-  emptyRisers,
-  emptyFallers,
-}: {
-  risers: T[];
-  fallers: T[];
-  renderRiser: (m: T) => React.ReactNode;
-  renderFaller: (m: T) => React.ReactNode;
-  emptyRisers: string;
-  emptyFallers: string;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <div>
-        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--field)_75%,var(--cream))]">
-          Risers
-        </div>
-        {risers.length === 0 ? (
-          <EmptyLine>{emptyRisers}</EmptyLine>
-        ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {risers.map((r) => (
-              <div key={r.mlbId}>{renderRiser(r)}</div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div>
-        <div className="mono mb-2 text-[10px] uppercase tracking-widest text-[color-mix(in_oklab,var(--cardinal)_75%,var(--cream))]">
-          Fallers
-        </div>
-        {fallers.length === 0 ? (
-          <EmptyLine>{emptyFallers}</EmptyLine>
-        ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {fallers.map((f) => (
-              <div key={f.mlbId}>{renderFaller(f)}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EngineBetaStatusPanel() {
+function EngineBetaStatusStrip() {
   const q = useQuery({
     queryKey: ["home", "engine-beta-health"],
     queryFn: () => getEngineBetaDataHealth({ data: {} }),
@@ -685,7 +566,12 @@ function EngineBetaStatusPanel() {
   } else if (schedule?.status === "missing" || cards.some((c) => c.status === "failed")) {
     headline = "Incomplete";
     tone = "bad";
-  } else if (autolock && autolock.detail && autolock.detail.includes("missed") && !autolock.detail.startsWith("0 missed") && autolock.detail.match(/(\d+) missed/)?.[1] !== "0") {
+  } else if (
+    autolock &&
+    autolock.detail &&
+    autolock.detail.includes("missed") &&
+    autolock.detail.match(/(\d+) missed/)?.[1] !== "0"
+  ) {
     headline = "Games Locking";
     tone = "warn";
   } else if (lineups?.status === "delayed" || lineups?.status === "not_expected_yet") {
@@ -698,46 +584,34 @@ function EngineBetaStatusPanel() {
 
   const toneCls =
     tone === "ready"
-      ? "border-[color-mix(in_oklab,var(--field)_50%,transparent)]"
+      ? "border-[color-mix(in_oklab,var(--field)_45%,transparent)]"
       : tone === "warn"
-      ? "border-[color-mix(in_oklab,var(--brass)_55%,transparent)]"
+      ? "border-[color-mix(in_oklab,var(--brass)_50%,transparent)]"
       : "border-[color-mix(in_oklab,var(--cardinal)_55%,transparent)]";
 
   return (
-    <section className="mt-12">
-      <SectionHeader title="Engine Beta" />
+    <section className="mt-8">
       <Link
         to="/engine-beta"
-        className={`glass-panel block rounded-md border px-4 py-4 transition-colors hover:border-[var(--brass)] ${toneCls}`}
+        className={`block rounded-md border bg-[color-mix(in_oklab,var(--violet-glow)_6%,var(--charcoal))] px-3.5 py-2.5 transition-colors hover:border-[var(--violet-glow)] ${toneCls}`}
       >
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--violet-glow)]">
-              Admin · Experimental
-            </div>
-            <div className="mt-1 text-[18px] font-semibold text-[var(--cream)]">{headline}</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-3">
+            <span className="mono text-[9px] uppercase tracking-[0.22em] text-[var(--violet-glow)]">
+              Engine Beta · Admin
+            </span>
+            <span className="mono text-[11px] font-semibold text-[var(--cream)]">{headline}</span>
             {forecast?.latestAt && (
-              <div className="mono mt-1 text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
-                Latest forecast · {formatTimeInAppTz(forecast.latestAt)}
-              </div>
-            )}
-            {autolock?.detail && (
-              <div className="mono mt-0.5 text-[10px] uppercase tracking-widest text-[var(--warm-muted)]">
-                {autolock.detail}
-              </div>
+              <span className="mono hidden text-[10px] uppercase tracking-widest text-[var(--warm-muted)] sm:inline">
+                Forecast · {formatTimeInAppTz(forecast.latestAt)}
+              </span>
             )}
           </div>
-          <div className="mono text-[10px] uppercase tracking-widest text-[var(--primary)]">
-            Open Engine Beta →
-          </div>
+          <span className="mono text-[10px] uppercase tracking-widest text-[var(--primary)]">
+            Open →
+          </span>
         </div>
       </Link>
     </section>
   );
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
