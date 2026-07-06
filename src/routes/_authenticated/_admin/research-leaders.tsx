@@ -291,6 +291,11 @@ function ResearchRow({
           <span className="mono text-[11px] text-zinc-500">
             signal {row.researchSignal}
           </span>
+          <span
+            className={`mono text-[11px] ${row.iterations == null ? "text-rose-400" : "text-zinc-400"}`}
+          >
+            {row.iterationsLabel}
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
