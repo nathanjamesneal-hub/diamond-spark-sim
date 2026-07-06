@@ -27,6 +27,7 @@ import { lockForecastsForLiveGames } from "@/lib/forecast/lifecycle";
 import { runPetriAutoForDate } from "@/lib/petri/run.functions";
 import { ensureScheduleForDate } from "@/lib/schedule.server";
 import { autoLockPregameForDate } from "@/lib/engine-beta/autolock";
+import { enqueueSimJobsForDate } from "@/lib/sim-queue/enqueue.server";
 
 import { finishAutomationLog, logAutomation } from "./log";
 import {
@@ -42,13 +43,14 @@ const BUDGETS = {
   lock: 15_000,
   petri: 120_000,
   autolock: 60_000,
+  enqueueSims: 15_000,
 } as const;
 const LEASE_TTL_MS = 5 * 60_000;
 
 // ---------- Fault injection (test-only) ----------
 
 export type FaultInjection = Partial<Record<
-  "schedule" | "refresh" | "lock" | "petri" | "autolock",
+  "schedule" | "refresh" | "lock" | "petri" | "autolock" | "enqueueSims",
   "throw" | "timeout"
 >>;
 
@@ -84,6 +86,7 @@ export type OrchestrateResult = {
   lock: { today: number; yesterday: number; error?: string };
   petri: { previewGenerated: number; officialGenerated: number; abstained: number; skipped: number; locked: number; error?: string };
   engineBetaAutoLock: { processed: number; locked: number; missed: number; skipped: number; error?: string };
+  simEnqueue: { gamesConsidered: number; rowsEnqueued: number; error?: string };
   error?: string;
 };
 
@@ -105,6 +108,7 @@ function emptyResult(date: string, startedAt: Date): OrchestrateResult {
     lock: { today: 0, yesterday: 0 },
     petri: { previewGenerated: 0, officialGenerated: 0, abstained: 0, skipped: 0, locked: 0 },
     engineBetaAutoLock: { processed: 0, locked: 0, missed: 0, skipped: 0 },
+    simEnqueue: { gamesConsidered: 0, rowsEnqueued: 0 },
   };
 }
 
@@ -323,6 +327,47 @@ export async function orchestrateDiamondSlate(
       if (o.status !== "ok") result.engineBetaAutoLock.error = o.error ?? result.engineBetaAutoLock.error;
       await bumpHeartbeat();
     }
+
+    // 6) Enqueue Official Simulation jobs (dry-run: worker not yet enabled) ---
+    {
+      const o = await withStage(supabaseAdmin, { parentId: logId, stage: "enqueue_sims", slateDate: date, budgetMs: BUDGETS.enqueueSims },
+        async () => {
+          const e = await applyFault("enqueueSims", opts?.fault, () => enqueueSimJobsForDate(supabaseAdmin, date))();
+          const anyE = e as any;
+          const considered = anyE?.gamesConsidered ?? 0;
+          const enqueued = anyE?.rowsEnqueued ?? 0;
+          return {
+            data: anyE,
+            status: anyE?.error ? "failed" as const : "ok" as const,
+            recordsConsidered: considered,
+            recordsUpdated: enqueued,
+            details: {
+              gamesConsidered: considered,
+              rowsEnqueued: enqueued,
+              error: anyE?.error ?? null,
+              perGame: (anyE?.perGame ?? []).map((p: any) => ({
+                gameId: p.gameId,
+                startersReady: p.startersReady,
+                lineupsProjected: p.lineupsProjected,
+                lineupsConfirmed: p.lineupsConfirmed,
+                inputsHash: p.inputsHash,
+                enqueued: p.enqueued,
+                skippedReason: p.skippedReason ?? null,
+              })),
+            },
+          };
+        });
+      pushStage(result, o);
+      const e = o.data as any;
+      if (e) {
+        result.simEnqueue.gamesConsidered = e.gamesConsidered ?? 0;
+        result.simEnqueue.rowsEnqueued = e.rowsEnqueued ?? 0;
+        if (e.error) result.simEnqueue.error = e.error;
+      }
+      // Sim enqueue failures never fail the whole run — they are dry-run advisory.
+      if (o.status !== "ok") result.simEnqueue.error = o.error ?? result.simEnqueue.error;
+      await bumpHeartbeat();
+    }
   } finally {
     // ALWAYS close the parent row and release the lease, no matter what
     // happened above. This is the guarantee the July 5 pipeline was missing.
@@ -346,6 +391,7 @@ export async function orchestrateDiamondSlate(
         stages: result.stages,
         schedule: result.schedule, refresh: result.refresh, recentEvents: result.recentEvents,
         lock: result.lock, petri: result.petri, engineBetaAutoLock: result.engineBetaAutoLock,
+        simEnqueue: result.simEnqueue,
         lease: result.lease,
       },
       error: result.stages.find(s => s.error)?.error ?? null,
