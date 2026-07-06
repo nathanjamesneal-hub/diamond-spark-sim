@@ -327,6 +327,47 @@ export async function orchestrateDiamondSlate(
       if (o.status !== "ok") result.engineBetaAutoLock.error = o.error ?? result.engineBetaAutoLock.error;
       await bumpHeartbeat();
     }
+
+    // 6) Enqueue Official Simulation jobs (dry-run: worker not yet enabled) ---
+    {
+      const o = await withStage(supabaseAdmin, { parentId: logId, stage: "enqueue_sims", slateDate: date, budgetMs: BUDGETS.enqueueSims },
+        async () => {
+          const e = await applyFault("enqueueSims", opts?.fault, () => enqueueSimJobsForDate(supabaseAdmin, date))();
+          const anyE = e as any;
+          const considered = anyE?.gamesConsidered ?? 0;
+          const enqueued = anyE?.rowsEnqueued ?? 0;
+          return {
+            data: anyE,
+            status: anyE?.error ? "failed" as const : "ok" as const,
+            recordsConsidered: considered,
+            recordsUpdated: enqueued,
+            details: {
+              gamesConsidered: considered,
+              rowsEnqueued: enqueued,
+              error: anyE?.error ?? null,
+              perGame: (anyE?.perGame ?? []).map((p: any) => ({
+                gameId: p.gameId,
+                startersReady: p.startersReady,
+                lineupsProjected: p.lineupsProjected,
+                lineupsConfirmed: p.lineupsConfirmed,
+                inputsHash: p.inputsHash,
+                enqueued: p.enqueued,
+                skippedReason: p.skippedReason ?? null,
+              })),
+            },
+          };
+        });
+      pushStage(result, o);
+      const e = o.data as any;
+      if (e) {
+        result.simEnqueue.gamesConsidered = e.gamesConsidered ?? 0;
+        result.simEnqueue.rowsEnqueued = e.rowsEnqueued ?? 0;
+        if (e.error) result.simEnqueue.error = e.error;
+      }
+      // Sim enqueue failures never fail the whole run — they are dry-run advisory.
+      if (o.status !== "ok") result.simEnqueue.error = o.error ?? result.simEnqueue.error;
+      await bumpHeartbeat();
+    }
   } finally {
     // ALWAYS close the parent row and release the lease, no matter what
     // happened above. This is the guarantee the July 5 pipeline was missing.
