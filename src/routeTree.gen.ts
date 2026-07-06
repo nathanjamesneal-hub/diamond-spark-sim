@@ -44,6 +44,7 @@ import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPlayersPlayerIdRouteImport } from './routes/_authenticated/players.$playerId'
 import { Route as AuthenticatedPlayerMlbIdRouteImport } from './routes/_authenticated/player.$mlbId'
 import { Route as AuthenticatedMatchupsGamePkRouteImport } from './routes/_authenticated/matchups.$gamePk'
+import { Route as AuthenticatedGameGamePkRouteImport } from './routes/_authenticated/game.$gamePk'
 import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authenticated/forecasts.lab'
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
@@ -247,6 +248,11 @@ const AuthenticatedMatchupsGamePkRoute =
     path: '/matchups/$gamePk',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedGameGamePkRoute = AuthenticatedGameGamePkRouteImport.update({
+  id: '/game/$gamePk',
+  path: '/game/$gamePk',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedForecastsLabRoute =
   AuthenticatedForecastsLabRouteImport.update({
     id: '/lab',
@@ -376,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
+  '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -425,6 +432,7 @@ export interface FileRoutesByTo {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
+  '/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -479,6 +487,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
   '/_authenticated/forecasts/lab': typeof AuthenticatedForecastsLabRouteWithChildren
+  '/_authenticated/game/$gamePk': typeof AuthenticatedGameGamePkRoute
   '/_authenticated/matchups/$gamePk': typeof AuthenticatedMatchupsGamePkRoute
   '/_authenticated/player/$mlbId': typeof AuthenticatedPlayerMlbIdRoute
   '/_authenticated/players/$playerId': typeof AuthenticatedPlayersPlayerIdRoute
@@ -532,6 +541,7 @@ export interface FileRouteTypes {
     | '/petri-results'
     | '/forecasts/consensus'
     | '/forecasts/lab'
+    | '/game/$gamePk'
     | '/matchups/$gamePk'
     | '/player/$mlbId'
     | '/players/$playerId'
@@ -581,6 +591,7 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/forecasts/consensus'
+    | '/game/$gamePk'
     | '/matchups/$gamePk'
     | '/player/$mlbId'
     | '/players/$playerId'
@@ -634,6 +645,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/forecasts/consensus'
     | '/_authenticated/forecasts/lab'
+    | '/_authenticated/game/$gamePk'
     | '/_authenticated/matchups/$gamePk'
     | '/_authenticated/player/$mlbId'
     | '/_authenticated/players/$playerId'
@@ -910,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMatchupsGamePkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/game/$gamePk': {
+      id: '/_authenticated/game/$gamePk'
+      path: '/game/$gamePk'
+      fullPath: '/game/$gamePk'
+      preLoaderRoute: typeof AuthenticatedGameGamePkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/forecasts/lab': {
       id: '/_authenticated/forecasts/lab'
       path: '/lab'
@@ -1111,6 +1130,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTopPropsRoute: typeof AuthenticatedTopPropsRoute
   AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedGameGamePkRoute: typeof AuthenticatedGameGamePkRoute
   AuthenticatedMatchupsGamePkRoute: typeof AuthenticatedMatchupsGamePkRoute
   AuthenticatedPlayerMlbIdRoute: typeof AuthenticatedPlayerMlbIdRoute
   AuthenticatedPlayersPlayerIdRoute: typeof AuthenticatedPlayersPlayerIdRoute
@@ -1146,6 +1166,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTopPropsRoute: AuthenticatedTopPropsRoute,
   AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedGameGamePkRoute: AuthenticatedGameGamePkRoute,
   AuthenticatedMatchupsGamePkRoute: AuthenticatedMatchupsGamePkRoute,
   AuthenticatedPlayerMlbIdRoute: AuthenticatedPlayerMlbIdRoute,
   AuthenticatedPlayersPlayerIdRoute: AuthenticatedPlayersPlayerIdRoute,

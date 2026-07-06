@@ -322,7 +322,7 @@ function HittersTable({ rows }: { rows: PulseHitter[] }) {
           {rows.map((h) => (
             <tr key={`${h.gameId}:${h.mlbId ?? h.playerId ?? h.name}`} className="border-t border-border/30">
               <td className="px-2 py-2 font-semibold">
-                {h.mlbId ? <Link to="/players/$playerId" params={{ playerId: String(h.mlbId) }} className="hover:text-primary">{h.name}</Link> : h.name}
+                {h.mlbId ? <Link to="/player/$mlbId" params={{ mlbId: String(h.mlbId) }} className="hover:text-primary">{h.name}</Link> : h.name}
                 {h.position ? <span className="mono ml-1 text-[10px] text-muted-foreground">{h.position}</span> : null}
               </td>
               <td className="mono px-2 text-muted-foreground">{h.team || "—"}</td>
