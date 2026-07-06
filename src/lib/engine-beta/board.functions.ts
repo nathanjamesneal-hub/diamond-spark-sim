@@ -513,7 +513,7 @@ export const lockEngineBetaBoard = createServerFn({ method: "POST" })
       }
     }
 
-    return { snapshotId, slateDate: date, rowsWritten, categories: cats };
+    return { snapshotId, slateDate: date, version, rowsWritten, categories: cats };
   });
 
 // ---------------- grading ----------------
