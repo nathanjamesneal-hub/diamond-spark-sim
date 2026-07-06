@@ -229,7 +229,7 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
     const runIds = Array.from(runsByGame.values()).map((r) => r.id);
     if (!runIds.length) {
       return {
-        date, category: catKey, categoryLabel: category.label, role: category.role,
+        date, category: catKey, categoryLabel: category.label, eventLabel: category.eventLabel, meanUnit: category.meanUnit, hasStoredProbAtThreshold: category.hasStoredProbAtThreshold, role: category.role,
         cohortMean: null, cohortStdev: null, scoreWeights: ENGINE_BETA_WEIGHTS,
         rows: [], excludedCategories: EXCLUDED_CATEGORIES,
         games: gamesList.map((g: any) => ({ gameId: g.id, gamePk: Number(g.mlb_game_id), matchup: matchupOf(g.id), firstPitchAt: g.first_pitch_at, gameStatus: g.game_status })),
