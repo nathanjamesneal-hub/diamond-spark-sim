@@ -439,21 +439,40 @@ export const getEngineBetaBoard = createServerFn({ method: "POST" })
 
 // ---------------- lock / snapshot ----------------
 
-export type LockResult = { snapshotId: string; slateDate: string; rowsWritten: number; categories: EngineBetaCategoryKey[] };
+export type LockResult = { snapshotId: string; slateDate: string; version: number; rowsWritten: number; categories: EngineBetaCategoryKey[] };
 
 export const lockEngineBetaBoard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { date?: string; notes?: string }) => data)
+  .inputValidator((data: { date?: string; notes?: string; newVersion?: boolean }) => data)
   .handler(async ({ data, context }): Promise<LockResult> => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin: any = supabaseAdmin;
     const date = data.date ?? todayIsoUtc();
 
-    // Create snapshot header
+    // Immutability guard: refuse to write a new snapshot for the same slate
+    // unless the caller explicitly asks for a new version. Existing snapshots
+    // and their rows are never mutated in place.
+    const { data: existing } = await admin
+      .from("engine_beta_snapshots")
+      .select("id, created_at, notes")
+      .eq("slate_date", date)
+      .order("created_at", { ascending: true });
+    const priorCount = (existing ?? []).length;
+    if (priorCount > 0 && !data.newVersion) {
+      throw new Error(`A locked snapshot already exists for ${date} (v${priorCount}). Prior snapshots are immutable. Pass newVersion=true to record v${priorCount + 1}.`);
+    }
+    const version = priorCount + 1;
+
+    // Create snapshot header (versioned, immutable)
     const { data: snap, error: snapErr } = await admin
       .from("engine_beta_snapshots")
-      .insert({ slate_date: date, created_by: context.userId, notes: data.notes ?? null, meta: { weights: ENGINE_BETA_WEIGHTS } })
+      .insert({
+        slate_date: date,
+        created_by: context.userId,
+        notes: data.notes ?? null,
+        meta: { weights: ENGINE_BETA_WEIGHTS, version, priorSnapshotIds: (existing ?? []).map((s: any) => s.id) },
+      })
       .select("id")
       .single();
     if (snapErr) throw new Error(snapErr.message);
