@@ -291,6 +291,11 @@ function ResearchRow({
           <span className="mono text-[11px] text-zinc-500">
             signal {row.researchSignal}
           </span>
+          <span
+            className={`mono text-[11px] ${row.iterations == null ? "text-rose-400" : "text-zinc-400"}`}
+          >
+            {row.iterationsLabel}
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
@@ -439,7 +444,18 @@ function DetailDrawer({
                 <div>
                   <span className="text-zinc-500">Sim job: </span>
                   <span className="mono">{row.simJobId.slice(0, 8)}</span> ·{" "}
-                  {row.jobStatus} · {row.simTier} · {row.simCount.toLocaleString()} sims
+                  {row.jobStatus} · {row.simTier}
+                </div>
+                <div>
+                  <span className="text-zinc-500">Iterations: </span>
+                  <span className={row.iterations == null ? "text-rose-400" : "text-zinc-200"}>
+                    {row.iterationsLabel}
+                  </span>
+                  {row.iterationsSource && (
+                    <span className="mono ml-1 text-[10px] text-zinc-600">
+                      (source: {row.iterationsSource})
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-zinc-500">Inputs hash: </span>

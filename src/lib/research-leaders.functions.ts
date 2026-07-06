@@ -87,6 +87,9 @@ export type ResearchLeaderRow = {
   runStatus: string;
   simTier: string;
   simCount: number;
+  iterations: number | null;
+  iterationsSource: "output.sim_count" | "output.driver_metadata.iterations" | "job.sim_count" | null;
+  iterationsLabel: string; // "Simulation: 20,000 runs" or "Simulation count unavailable"
   simJobId: string;
   jobStatus: string;
   inputsHash: string;
@@ -332,6 +335,29 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         r.run_status !== "stale";
       if (!lockEligible) statuses.push("NOT_LOCK_ELIGIBLE");
 
+      // --- Simulation iteration transparency ---
+      // Read only from persisted job/output data. Never hardcode a count.
+      const driverMeta = (r.driver_metadata ?? {}) as Record<string, unknown>;
+      const metaIterations =
+        typeof driverMeta.iterations === "number" ? (driverMeta.iterations as number) : null;
+      let iterations: number | null = null;
+      let iterationsSource: ResearchLeaderRow["iterationsSource"] = null;
+      if (typeof r.sim_count === "number" && r.sim_count > 0) {
+        iterations = r.sim_count;
+        iterationsSource = "output.sim_count";
+      } else if (metaIterations != null && metaIterations > 0) {
+        iterations = metaIterations;
+        iterationsSource = "output.driver_metadata.iterations";
+      } else if (typeof job.sim_count === "number" && job.sim_count > 0) {
+        iterations = job.sim_count;
+        iterationsSource = "job.sim_count";
+      }
+      const iterationsLabel =
+        iterations != null
+          ? `Simulation: ${iterations.toLocaleString()} runs`
+          : "Simulation count unavailable";
+
+
       // Confidence tier.
       const inputsStrong =
         (cat.playerType === "bat" ? lineupConfirmed : starterConfirmed) &&
@@ -345,6 +371,10 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         tier = "BETA_UNVALIDATED";
         reasons.push("engine_status = scaffold_unvalidated");
         if (inputsStrong) reasons.push("inputs strong (lineup/starter/forecast/sim current)");
+      } else if (iterations == null) {
+        // Transparency rule: missing persisted iteration count blocks HEAVY CONFIDENCE.
+        tier = "BETA_UNVALIDATED";
+        reasons.push("simulation iteration count unavailable from persisted job/output");
       } else if (
         lockEligible &&
         strongOpportunity &&
@@ -355,7 +385,7 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         reasons.push(cat.playerType === "bat" ? "confirmed lineup" : "confirmed starter");
         reasons.push("opposing starter confirmed");
         reasons.push("forecast fresh");
-        reasons.push("sim complete and current");
+        reasons.push(`sim complete and current (${iterations.toLocaleString()} runs)`);
         reasons.push("strong projected opportunity");
         reasons.push("low/moderate simulation variance");
       } else if (inputsStrong) {
@@ -380,7 +410,8 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
       why.push(`${cat.eventLabel} prob ${(r.event_probability * 100).toFixed(1)}%`);
       why.push(`proj mean ${r.projected_mean.toFixed(2)}`);
       if (forecastFresh) why.push("forecast fresh");
-      why.push("sim complete");
+      why.push(iterationsLabel.toLowerCase());
+
 
       const enriched: EnrichedRow = {
         rank: 0,
@@ -407,6 +438,9 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         runStatus: r.run_status,
         simTier: r.sim_tier,
         simCount: r.sim_count,
+        iterations,
+        iterationsSource,
+        iterationsLabel,
         simJobId: r.sim_job_id,
         jobStatus: job.status,
         inputsHash: r.inputs_hash,
