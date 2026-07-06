@@ -371,6 +371,10 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         tier = "BETA_UNVALIDATED";
         reasons.push("engine_status = scaffold_unvalidated");
         if (inputsStrong) reasons.push("inputs strong (lineup/starter/forecast/sim current)");
+      } else if (iterations == null) {
+        // Transparency rule: missing persisted iteration count blocks HEAVY CONFIDENCE.
+        tier = "BETA_UNVALIDATED";
+        reasons.push("simulation iteration count unavailable from persisted job/output");
       } else if (
         lockEligible &&
         strongOpportunity &&
@@ -381,7 +385,7 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
         reasons.push(cat.playerType === "bat" ? "confirmed lineup" : "confirmed starter");
         reasons.push("opposing starter confirmed");
         reasons.push("forecast fresh");
-        reasons.push("sim complete and current");
+        reasons.push(`sim complete and current (${iterations.toLocaleString()} runs)`);
         reasons.push("strong projected opportunity");
         reasons.push("low/moderate simulation variance");
       } else if (inputsStrong) {
@@ -406,7 +410,8 @@ export const getResearchLeaders = createServerFn({ method: "GET" })
       why.push(`${cat.eventLabel} prob ${(r.event_probability * 100).toFixed(1)}%`);
       why.push(`proj mean ${r.projected_mean.toFixed(2)}`);
       if (forecastFresh) why.push("forecast fresh");
-      why.push("sim complete");
+      why.push(iterationsLabel.toLowerCase());
+
 
       const enriched: EnrichedRow = {
         rank: 0,
