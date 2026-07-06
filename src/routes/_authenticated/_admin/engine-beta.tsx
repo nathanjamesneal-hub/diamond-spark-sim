@@ -53,6 +53,7 @@ function EngineBetaPage() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [gameFilter, setGameFilter] = useState<string>("all");
   const [confirmedOnly, setConfirmedOnly] = useState(false);
+  const [readinessFilter, setReadinessFilter] = useState<"ready" | "watch_up" | "all">("ready");
   const [openPlayer, setOpenPlayer] = useState<string | null>(null);
   const [tab, setTab] = useState<"board" | "grading">("board");
 
@@ -77,24 +78,41 @@ function EngineBetaPage() {
   });
 
   const lockMut = useMutation({
-    mutationFn: () => lockFn({ data: { date } }),
+    mutationFn: (opts: { newVersion?: boolean } = {}) => lockFn({ data: { date, newVersion: opts.newVersion } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["engine-beta-snapshots"] });
       qc.invalidateQueries({ queryKey: ["engine-beta-grading", date] });
     },
   });
 
+  const priorSnapshotForDate = (snapQ.data?.snapshots ?? []).some((s) => s.slate_date === date);
+
+  const handleLock = () => {
+    if (priorSnapshotForDate) {
+      const ok = window.confirm(`A locked snapshot already exists for ${date}. Prior snapshots are immutable. Record a new version?`);
+      if (!ok) return;
+      lockMut.mutate({ newVersion: true });
+    } else {
+      lockMut.mutate({});
+    }
+  };
+
   const board = boardQ.data;
   const allRows: BoardRow[] = board?.rows ?? [];
   const filteredRows = useMemo(() => {
     let rs = allRows;
+    if (readinessFilter === "ready") rs = rs.filter((r) => r.readiness === "ready");
+    else if (readinessFilter === "watch_up") rs = rs.filter((r) => r.readiness !== "not_ready");
     if (teamFilter !== "all") rs = rs.filter((r) => r.teamAbbr === teamFilter);
     if (gameFilter !== "all") rs = rs.filter((r) => r.gameId === gameFilter);
     if (confirmedOnly) rs = rs.filter((r) => r.lineupState === "confirmed" || r.lineupState === "locked");
     return rs.slice(0, limit);
-  }, [allRows, teamFilter, gameFilter, confirmedOnly, limit]);
+  }, [allRows, readinessFilter, teamFilter, gameFilter, confirmedOnly, limit]);
 
   const currentCategory = ENGINE_BETA_CATEGORIES.find((c) => c.key === category)!;
+  const readyCount = allRows.filter((r) => r.readiness === "ready").length;
+  const watchCount = allRows.filter((r) => r.readiness === "watch").length;
+  const notReadyCount = allRows.filter((r) => r.readiness === "not_ready").length;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
@@ -105,12 +123,13 @@ function EngineBetaPage() {
           Diamond Engine Beta
         </h1>
         <span className="inline-flex items-center rounded-sm border border-[var(--border)] bg-[color-mix(in_oklab,var(--charcoal)_85%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--warm-muted)]">
-          Experimental — not public
+          High-Outcome Research Board · Experimental
         </span>
       </div>
       <p className="mt-2 max-w-3xl text-sm text-[var(--warm-muted)]">
-        Private research mode · Experimental outputs are logged and graded before public promotion. Not a
-        probability, edge, lock, pick, or recommendation.
+        Private research cockpit for ranking model-favored player-days within a single stat category. No sportsbook
+        line, market price, edge, pick, or recommendation is involved. Every score is experimental and every
+        probability names its exact event.
       </p>
 
       {/* Tabs */}
