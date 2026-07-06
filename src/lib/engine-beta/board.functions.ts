@@ -80,6 +80,8 @@ function meanStdev(xs: number[]): { mean: number | null; stdev: number | null } 
 
 // ---------------- board ----------------
 
+export type ReadinessState = "ready" | "watch" | "not_ready";
+
 export type BoardRow = {
   playerId: string;
   mlbId: number | null;
@@ -100,7 +102,11 @@ export type BoardRow = {
   baselineMean: number | null;
   baselineP50: number | null;
   baselineP90: number | null;
-  baselineProbAtLeast1: number | null;
+  /** Prob at the category's binary threshold event. null when no matching stored distribution. */
+  probAtThreshold: number | null;
+  /** Human label for that prob event, e.g. "1+ Hit". Always present. */
+  eventLabel: string;
+  meanUnit: string;
 
   shadowRunId: string | null;
   shadowMean: number | null;
@@ -115,6 +121,9 @@ export type BoardRow = {
   lineupState: string;                 // confirmed | projected | missing (hitter) | confirmed | unconfirmed (pitcher)
   battingOrder: number | null;
 
+  readiness: ReadinessState;
+  readinessReason: string;
+
   score: number;
   scoreComponents: ScoreComponents;
 };
@@ -123,6 +132,9 @@ export type BoardPayload = {
   date: string;
   category: EngineBetaCategoryKey;
   categoryLabel: string;
+  eventLabel: string;
+  meanUnit: string;
+  hasStoredProbAtThreshold: boolean;
   role: "hitter" | "pitcher";
   cohortMean: number | null;
   cohortStdev: number | null;
@@ -133,6 +145,29 @@ export type BoardPayload = {
   teams: Array<{ abbr: string; name: string | null }>;
   generatedAt: string;
 };
+
+function computeReadiness(role: "hitter" | "pitcher", lineupState: string, forecastGeneratedAt: string | null): { state: ReadinessState; reason: string } {
+  const hoursOld = forecastGeneratedAt ? Math.max(0, (Date.now() - Date.parse(forecastGeneratedAt)) / 3_600_000) : Infinity;
+  const stale = hoursOld > 36;
+  const veryStale = !Number.isFinite(hoursOld) || hoursOld > 72;
+  if (role === "hitter") {
+    if (lineupState === "missing") return { state: "not_ready", reason: "No lineup slot yet" };
+    if (veryStale) return { state: "not_ready", reason: "Forecast >72h old / missing" };
+    if (lineupState === "confirmed" || lineupState === "locked") {
+      return stale ? { state: "watch", reason: "Confirmed lineup, forecast >36h old" } : { state: "ready", reason: "Confirmed lineup + fresh forecast" };
+    }
+    return { state: "watch", reason: "Projected lineup slot" };
+  }
+  // pitcher
+  if (lineupState === "missing") return { state: "not_ready", reason: "No starter role identified" };
+  if (veryStale) return { state: "not_ready", reason: "Forecast >72h old / missing" };
+  if (lineupState === "confirmed" || lineupState === "locked") {
+    return stale ? { state: "watch", reason: "Confirmed starter, forecast >36h old" } : { state: "ready", reason: "Confirmed starter + fresh forecast" };
+  }
+  return { state: "watch", reason: "Probable/unconfirmed starter" };
+}
+
+const READINESS_RANK: Record<ReadinessState, number> = { ready: 2, watch: 1, not_ready: 0 };
 
 export const getEngineBetaBoard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
