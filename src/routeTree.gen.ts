@@ -52,6 +52,7 @@ import { Route as AuthenticatedAdminResearchLeadersRouteImport } from './routes/
 import { Route as AuthenticatedAdminReconciliationRouteImport } from './routes/_authenticated/_admin/reconciliation'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
+import { Route as AuthenticatedAdminGradingAuditRouteImport } from './routes/_authenticated/_admin/grading-audit'
 import { Route as AuthenticatedAdminEngineBetaRouteImport } from './routes/_authenticated/_admin/engine-beta'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
@@ -298,6 +299,12 @@ const AuthenticatedAdminPetriRoute = AuthenticatedAdminPetriRouteImport.update({
   path: '/petri',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const AuthenticatedAdminGradingAuditRoute =
+  AuthenticatedAdminGradingAuditRouteImport.update({
+    id: '/grading-audit',
+    path: '/grading-audit',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminEngineBetaRoute =
   AuthenticatedAdminEngineBetaRouteImport.update({
     id: '/engine-beta',
@@ -406,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
+  '/grading-audit': typeof AuthenticatedAdminGradingAuditRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
@@ -461,6 +469,7 @@ export interface FileRoutesByTo {
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/admin': typeof AuthenticatedAdminAdminRoute
   '/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
+  '/grading-audit': typeof AuthenticatedAdminGradingAuditRoute
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
@@ -519,6 +528,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRoute
   '/_authenticated/_admin/engine-beta': typeof AuthenticatedAdminEngineBetaRoute
+  '/_authenticated/_admin/grading-audit': typeof AuthenticatedAdminGradingAuditRoute
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/_admin/reconciliation': typeof AuthenticatedAdminReconciliationRoute
@@ -577,6 +587,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/admin'
     | '/engine-beta'
+    | '/grading-audit'
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
@@ -632,6 +643,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/admin'
     | '/engine-beta'
+    | '/grading-audit'
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
@@ -689,6 +701,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/_admin/admin'
     | '/_authenticated/_admin/engine-beta'
+    | '/_authenticated/_admin/grading-audit'
     | '/_authenticated/_admin/petri'
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/_admin/reconciliation'
@@ -1031,6 +1044,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPetriRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/_admin/grading-audit': {
+      id: '/_authenticated/_admin/grading-audit'
+      path: '/grading-audit'
+      fullPath: '/grading-audit'
+      preLoaderRoute: typeof AuthenticatedAdminGradingAuditRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/engine-beta': {
       id: '/_authenticated/_admin/engine-beta'
       path: '/engine-beta'
@@ -1128,6 +1148,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRoute
   AuthenticatedAdminEngineBetaRoute: typeof AuthenticatedAdminEngineBetaRoute
+  AuthenticatedAdminGradingAuditRoute: typeof AuthenticatedAdminGradingAuditRoute
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
   AuthenticatedAdminReconciliationRoute: typeof AuthenticatedAdminReconciliationRoute
@@ -1140,6 +1161,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
   {
     AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRoute,
     AuthenticatedAdminEngineBetaRoute: AuthenticatedAdminEngineBetaRoute,
+    AuthenticatedAdminGradingAuditRoute: AuthenticatedAdminGradingAuditRoute,
     AuthenticatedAdminPetriRoute: AuthenticatedAdminPetriRoute,
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
     AuthenticatedAdminReconciliationRoute:
