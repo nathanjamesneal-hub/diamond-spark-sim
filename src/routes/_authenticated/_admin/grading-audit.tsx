@@ -351,7 +351,7 @@ function DetailDrawer({
 }
 
 function DetailBody({ query }: { query: any }) {
-  const { data } = useSuspenseQuery(queryOptions(query));
+  const { data } = useSuspenseQuery(queryOptions(query)) as { data: import("@/lib/grading-audit.functions").GameAuditDetail };
   return (
     <div className="space-y-4">
       <div>
