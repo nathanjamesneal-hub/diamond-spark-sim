@@ -274,6 +274,79 @@ function GradingAuditPage() {
   );
 }
 
+function VerdictCard({
+  summary,
+  games,
+}: {
+  summary: import("@/lib/grading-audit.functions").AuditSummary;
+  games: AuditGameRow[];
+}) {
+  // Integrity checks against actual persisted rows.
+  const violations: string[] = [];
+  for (const g of games) {
+    if (g.snapshotBeforeFirstPitch === false && g.lockStatus !== "missed_pregame_window") {
+      violations.push(`${g.matchup}: snapshot ${g.snapshotId?.slice(0, 8)} was created AFTER first pitch but not labeled missed_pregame_window`);
+    }
+    if (
+      g.snapshotBeforeFirstPitch === true &&
+      g.lockReason === "missed_pregame_window"
+    ) {
+      violations.push(`${g.matchup}: snapshot ${g.snapshotId?.slice(0, 8)} timestamp is BEFORE first pitch yet marked missed_pregame_window (label inconsistency)`);
+    }
+  }
+
+  let verdict: string;
+  let tone: string;
+  if (violations.length > 0) {
+    verdict = "Data integrity violation detected";
+    tone = "border-rose-600 bg-rose-950/40 text-rose-200";
+  } else if (summary.scheduled === 0) {
+    verdict = "No games scheduled";
+    tone = "border-zinc-600 bg-zinc-900/40 text-zinc-300";
+  } else if (summary.gradeable === 0 && summary.pregameSnapshotsLocked === 0) {
+    verdict = "Pipeline failure: predictions unavailable for grading";
+    tone = "border-rose-600 bg-rose-950/40 text-rose-200";
+  } else if (summary.gradeable === summary.scheduled) {
+    verdict = "Fully gradeable slate";
+    tone = "border-emerald-600 bg-emerald-950/40 text-emerald-200";
+  } else {
+    verdict = `Partial slate: only ${summary.gradeable}/${summary.scheduled} games valid for grading`;
+    tone = "border-amber-600 bg-amber-950/40 text-amber-200";
+  }
+
+  const pct = summary.scheduled
+    ? ((summary.gradeable / summary.scheduled) * 100).toFixed(1)
+    : "0.0";
+
+  return (
+    <Card className={`border-2 ${tone}`}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between">
+          <span>{summary.date} Incident Verdict</span>
+          <span className="text-sm font-normal opacity-80">coverage {pct}%</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="text-lg font-semibold">{verdict}</div>
+        <div className="text-xs opacity-80">
+          Locked pregame: {summary.pregameSnapshotsLocked} · Missed pregame: {summary.missedPregameWindows} ·
+          Failed locks: {summary.failedLocks} · Awaiting final: {summary.awaitingFinal} ·
+          Missing outcomes: {summary.missingOutcomes}
+        </div>
+        {violations.length > 0 && (
+          <div className="mt-2 text-xs">
+            <div className="uppercase tracking-wide opacity-70 mb-1">Integrity violations</div>
+            <ul className="list-disc pl-4 space-y-1">
+              {violations.map((v, i) => <li key={i}>{v}</li>)}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function StatCard({
   label, value, tone, small,
 }: {
