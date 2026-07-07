@@ -355,44 +355,68 @@ export type Database = {
       }
       engine_beta_snapshots: {
         Row: {
+          actual_start_at: string | null
+          calibration_eligible: boolean
+          code_revision: string | null
           created_at: string
           created_by: string | null
           data_freshness: Json | null
+          engine_status: string | null
+          forecast_version: string | null
           game_id: string | null
           game_pk: number | null
+          game_state_class: string | null
           id: string
+          inputs_hash: string | null
           lock_mode: string
           lock_reason: string | null
           meta: Json
           notes: string | null
+          provenance_status: string
           scheduled_first_pitch: string | null
           slate_date: string
         }
         Insert: {
+          actual_start_at?: string | null
+          calibration_eligible?: boolean
+          code_revision?: string | null
           created_at?: string
           created_by?: string | null
           data_freshness?: Json | null
+          engine_status?: string | null
+          forecast_version?: string | null
           game_id?: string | null
           game_pk?: number | null
+          game_state_class?: string | null
           id?: string
+          inputs_hash?: string | null
           lock_mode?: string
           lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          provenance_status?: string
           scheduled_first_pitch?: string | null
           slate_date: string
         }
         Update: {
+          actual_start_at?: string | null
+          calibration_eligible?: boolean
+          code_revision?: string | null
           created_at?: string
           created_by?: string | null
           data_freshness?: Json | null
+          engine_status?: string | null
+          forecast_version?: string | null
           game_id?: string | null
           game_pk?: number | null
+          game_state_class?: string | null
           id?: string
+          inputs_hash?: string | null
           lock_mode?: string
           lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          provenance_status?: string
           scheduled_first_pitch?: string | null
           slate_date?: string
         }
@@ -730,6 +754,7 @@ export type Database = {
       }
       games: {
         Row: {
+          actual_start_at: string | null
           away_team_id: string | null
           ballpark: string | null
           created_at: string
@@ -740,10 +765,14 @@ export type Database = {
           id: string
           lineups_locked_at: string | null
           mlb_game_id: number
+          terminal_state_evidence: Json | null
+          terminal_state_resolved_at: string | null
+          terminal_state_source: string | null
           updated_at: string
           weather: Json | null
         }
         Insert: {
+          actual_start_at?: string | null
           away_team_id?: string | null
           ballpark?: string | null
           created_at?: string
@@ -754,10 +783,14 @@ export type Database = {
           id?: string
           lineups_locked_at?: string | null
           mlb_game_id: number
+          terminal_state_evidence?: Json | null
+          terminal_state_resolved_at?: string | null
+          terminal_state_source?: string | null
           updated_at?: string
           weather?: Json | null
         }
         Update: {
+          actual_start_at?: string | null
           away_team_id?: string | null
           ballpark?: string | null
           created_at?: string
@@ -768,6 +801,9 @@ export type Database = {
           id?: string
           lineups_locked_at?: string | null
           mlb_game_id?: number
+          terminal_state_evidence?: Json | null
+          terminal_state_resolved_at?: string | null
+          terminal_state_source?: string | null
           updated_at?: string
           weather?: Json | null
         }
@@ -784,6 +820,252 @@ export type Database = {
             columns: ["home_team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grade_rows: {
+        Row: {
+          actual_event: boolean | null
+          actual_value: number | null
+          brier: number | null
+          category: string
+          created_at: string
+          event_key: string | null
+          game_id: string
+          grading_run_id: string
+          id: string
+          line: number | null
+          mae: number | null
+          market: string | null
+          meta: Json
+          player_id: string | null
+          projected_mean: number | null
+          projected_prob: number | null
+          signed_error: number | null
+          snapshot_id: string
+          snapshot_row_id: string | null
+          threshold: number | null
+        }
+        Insert: {
+          actual_event?: boolean | null
+          actual_value?: number | null
+          brier?: number | null
+          category: string
+          created_at?: string
+          event_key?: string | null
+          game_id: string
+          grading_run_id: string
+          id?: string
+          line?: number | null
+          mae?: number | null
+          market?: string | null
+          meta?: Json
+          player_id?: string | null
+          projected_mean?: number | null
+          projected_prob?: number | null
+          signed_error?: number | null
+          snapshot_id: string
+          snapshot_row_id?: string | null
+          threshold?: number | null
+        }
+        Update: {
+          actual_event?: boolean | null
+          actual_value?: number | null
+          brier?: number | null
+          category?: string
+          created_at?: string
+          event_key?: string | null
+          game_id?: string
+          grading_run_id?: string
+          id?: string
+          line?: number | null
+          mae?: number | null
+          market?: string | null
+          meta?: Json
+          player_id?: string | null
+          projected_mean?: number | null
+          projected_prob?: number | null
+          signed_error?: number | null
+          snapshot_id?: string
+          snapshot_row_id?: string | null
+          threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grade_rows_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grade_rows_grading_run_id_fkey"
+            columns: ["grading_run_id"]
+            isOneToOne: false
+            referencedRelation: "grading_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grade_rows_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grade_rows_snapshot_row_id_fkey"
+            columns: ["snapshot_row_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshot_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_jobs: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          excluded_reason: string | null
+          game_id: string
+          grading_run_id: string | null
+          id: string
+          last_error: string | null
+          lease_until: string | null
+          meta: Json
+          slate_date: string
+          snapshot_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          excluded_reason?: string | null
+          game_id: string
+          grading_run_id?: string | null
+          id?: string
+          last_error?: string | null
+          lease_until?: string | null
+          meta?: Json
+          slate_date: string
+          snapshot_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          excluded_reason?: string | null
+          game_id?: string
+          grading_run_id?: string | null
+          id?: string
+          last_error?: string | null
+          lease_until?: string | null
+          meta?: Json
+          slate_date?: string
+          snapshot_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_jobs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grading_jobs_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "engine_beta_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_runs: {
+        Row: {
+          calibration_eligible: boolean
+          created_at: string
+          engine_status: string | null
+          forecast_version: string | null
+          game_id: string
+          grading_job_id: string | null
+          id: string
+          inputs_hash: string | null
+          outcome_ingested_at: string | null
+          outcome_source: string | null
+          provenance_status: string
+          slate_date: string
+          snapshot_id: string
+          summary: Json
+        }
+        Insert: {
+          calibration_eligible?: boolean
+          created_at?: string
+          engine_status?: string | null
+          forecast_version?: string | null
+          game_id: string
+          grading_job_id?: string | null
+          id?: string
+          inputs_hash?: string | null
+          outcome_ingested_at?: string | null
+          outcome_source?: string | null
+          provenance_status?: string
+          slate_date: string
+          snapshot_id: string
+          summary?: Json
+        }
+        Update: {
+          calibration_eligible?: boolean
+          created_at?: string
+          engine_status?: string | null
+          forecast_version?: string | null
+          game_id?: string
+          grading_job_id?: string | null
+          id?: string
+          inputs_hash?: string | null
+          outcome_ingested_at?: string | null
+          outcome_source?: string | null
+          provenance_status?: string
+          slate_date?: string
+          snapshot_id?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_runs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grading_runs_grading_job_id_fkey"
+            columns: ["grading_job_id"]
+            isOneToOne: false
+            referencedRelation: "grading_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grading_runs_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshots"
             referencedColumns: ["id"]
           },
         ]
@@ -902,6 +1184,99 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lock_jobs: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          game_id: string
+          game_pk: number
+          hard_stop_at: string
+          id: string
+          last_error: string | null
+          lateness_seconds: number | null
+          lease_until: string | null
+          lock_at: string
+          meta: Json
+          outcome: string | null
+          outcome_reason: string | null
+          preflight_at: string
+          scheduled_first_pitch: string
+          slate_date: string
+          snapshot_id: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          game_id: string
+          game_pk: number
+          hard_stop_at: string
+          id?: string
+          last_error?: string | null
+          lateness_seconds?: number | null
+          lease_until?: string | null
+          lock_at: string
+          meta?: Json
+          outcome?: string | null
+          outcome_reason?: string | null
+          preflight_at: string
+          scheduled_first_pitch: string
+          slate_date: string
+          snapshot_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          game_id?: string
+          game_pk?: number
+          hard_stop_at?: string
+          id?: string
+          last_error?: string | null
+          lateness_seconds?: number | null
+          lease_until?: string | null
+          lock_at?: string
+          meta?: Json
+          outcome?: string | null
+          outcome_reason?: string | null
+          preflight_at?: string
+          scheduled_first_pitch?: string
+          slate_date?: string
+          snapshot_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lock_jobs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lock_jobs_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshots"
             referencedColumns: ["id"]
           },
         ]
