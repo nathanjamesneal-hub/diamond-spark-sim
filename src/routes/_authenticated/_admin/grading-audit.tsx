@@ -169,6 +169,8 @@ function GradingAuditPage() {
         </div>
       </div>
 
+      <VerdictCard summary={summary} games={games} />
+
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-6">
         <StatCard label="Scheduled" value={summary.scheduled} />
         <StatCard label="Pregame locked" value={summary.pregameSnapshotsLocked} tone="ok" />
@@ -182,6 +184,7 @@ function GradingAuditPage() {
         <StatCard label="Last auto-lock" value={fmt(summary.latestAutoLockAt)} small />
         <StatCard label="Latest error" value={summary.latestErrorSummary ?? "—"} small tone={summary.latestErrorSummary ? "err" : undefined} />
       </div>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
