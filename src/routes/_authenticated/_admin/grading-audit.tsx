@@ -169,6 +169,7 @@ function GradingAuditPage() {
         </div>
       </div>
 
+      <StatusStack summary={summary} />
       <VerdictCard summary={summary} games={games} />
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-6">
@@ -270,6 +271,44 @@ function GradingAuditPage() {
       </Card>
 
       <DetailDrawer date={date} row={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+}
+
+function StatusStack({
+  summary,
+}: {
+  summary: import("@/lib/grading-audit.functions").AuditSummary;
+}) {
+  const s = summary.statusStack;
+  const chip = (label: string, value: string, tone: "ok" | "warn" | "err" | "info" | "muted") => {
+    const cls =
+      tone === "ok" ? "border-emerald-700 bg-emerald-950/40 text-emerald-200"
+      : tone === "warn" ? "border-amber-700 bg-amber-950/40 text-amber-200"
+      : tone === "err" ? "border-rose-700 bg-rose-950/40 text-rose-200"
+      : tone === "info" ? "border-sky-700 bg-sky-950/40 text-sky-200"
+      : "border-zinc-700 bg-zinc-900/40 text-zinc-300";
+    return (
+      <div className={`rounded-md border px-3 py-2 text-xs ${cls}`}>
+        <div className="uppercase tracking-wide opacity-70">{label}</div>
+        <div className="text-sm font-mono mt-0.5">{value}</div>
+      </div>
+    );
+  };
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+      {chip("Timing-valid coverage", `${s.timingValidCoverage.valid} / ${s.timingValidCoverage.scheduled}`,
+        s.timingValidCoverage.valid === s.timingValidCoverage.scheduled ? "ok" : "warn")}
+      {chip("Result-gradeable", `${s.resultGradeable.gradeable} / ${s.resultGradeable.scheduled}`,
+        s.resultGradeable.gradeable === s.resultGradeable.scheduled ? "ok" : "warn")}
+      {chip("Calibration-eligible", `${s.calibrationEligible.eligible} / ${s.calibrationEligible.scheduled}`,
+        s.calibrationEligible.eligible === 0 ? "err" : "info")}
+      {chip("Integrity review", String(s.integrityReviewCount),
+        s.integrityReviewCount > 0 ? "err" : "muted")}
+      {chip("Late lock jobs", String(s.lateLockJobCount),
+        s.lateLockJobCount > 0 ? "warn" : "muted")}
+      {chip("Outcome source lag", String(s.outcomeSourceLagCount),
+        s.outcomeSourceLagCount > 0 ? "warn" : "muted")}
     </div>
   );
 }

@@ -58,6 +58,15 @@ export interface AuditGameRow {
   blockingReasons: string[];
 }
 
+export interface StatusStack {
+  timingValidCoverage: { valid: number; scheduled: number };
+  resultGradeable: { gradeable: number; scheduled: number };
+  calibrationEligible: { eligible: number; scheduled: number };
+  integrityReviewCount: number;
+  lateLockJobCount: number;
+  outcomeSourceLagCount: number;
+}
+
 export interface AuditSummary {
   date: string;
   scheduled: number;
@@ -71,6 +80,7 @@ export interface AuditSummary {
   latestScoreRefreshAt: string | null;
   latestAutoLockAt: string | null;
   latestErrorSummary: string | null;
+  statusStack: StatusStack;
 }
 
 export interface AuditPayload {
@@ -89,12 +99,12 @@ function classifyPhase(status: string | null): AuditGameRow["gamePhase"] {
 }
 
 async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload> {
-  const [gamesRes, snapsRes, teamsRes, runsRes, logsRes, actualsRes, autolockRes] = await Promise.all([
+  const [gamesRes, snapsRes, teamsRes, runsRes, logsRes, actualsRes, autolockRes, lockJobsRes, gradingJobsRes] = await Promise.all([
     admin.from("games")
-      .select("id, mlb_game_id, first_pitch_at, game_status, updated_at, home_team_id, away_team_id")
+      .select("id, mlb_game_id, first_pitch_at, game_status, updated_at, home_team_id, away_team_id, actual_start_at, terminal_state_source, terminal_state_resolved_at")
       .eq("date", date),
     admin.from("engine_beta_snapshots")
-      .select("id, game_id, game_pk, lock_mode, lock_reason, created_at, scheduled_first_pitch, meta, data_freshness")
+      .select("id, game_id, game_pk, lock_mode, lock_reason, created_at, scheduled_first_pitch, meta, data_freshness, provenance_status, engine_status, calibration_eligible, game_state_class")
       .eq("slate_date", date)
       .order("created_at", { ascending: false }),
     admin.from("teams").select("id, abbreviation, name"),
@@ -120,6 +130,12 @@ async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload>
       .eq("slate_date", date)
       .order("started_at", { ascending: false })
       .limit(1),
+    admin.from("lock_jobs")
+      .select("id, game_id, status, lateness_seconds, outcome, outcome_reason, lock_at, hard_stop_at, completed_at")
+      .eq("slate_date", date),
+    admin.from("grading_jobs")
+      .select("id, game_id, snapshot_id, status, excluded_reason, completed_at")
+      .eq("slate_date", date),
   ]);
 
   const games = gamesRes.data ?? [];
@@ -244,9 +260,36 @@ async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload>
 
   const scoreRefresh = actualsRes.data?.[0] ?? null;
   const autoLock = autolockRes.data?.[0] ?? null;
+  const lockJobs = (lockJobsRes.data ?? []) as any[];
+  const gradingJobsList = (gradingJobsRes.data ?? []) as any[];
 
   const latestError =
     logs.find((l: any) => l.status === "failed" || l.status === "timed_out") ?? null;
+
+  // Status stack signals
+  const timingValid = rows.filter((r) =>
+    r.snapshotId != null && r.snapshotBeforeFirstPitch === true && r.lockStatus !== "missed_pregame_window",
+  ).length;
+  const resultGradeable = rows.filter((r) => r.gradeable).length;
+  const calibrationEligible = gradingJobsList.filter(
+    (j) => j.status === "GRADED" && !j.excluded_reason,
+  ).length + rows.filter((r) => {
+    // Fallback for snapshots not yet through the grading worker but structurally eligible.
+    const snap = snapByGame.get(r.gameId);
+    return snap?.provenance_status === "complete" && snap?.calibration_eligible === true && r.gradeable;
+  }).length;
+  const integrityReviewCount =
+    gradingJobsList.filter((j) => j.status === "EXCLUDED_INTEGRITY_REVIEW").length
+    + rows.filter((r) => {
+      // Label inconsistency: snap before first pitch but marked missed_pregame_window.
+      return r.snapshotBeforeFirstPitch === true && r.lockReason === "missed_pregame_window";
+    }).length;
+  const lateLockJobCount = lockJobs.filter((j) => (j.lateness_seconds ?? 0) > 30).length;
+  const outcomeSourceLagCount = rows.filter((r) => {
+    if (r.gamePhase !== "final") return false;
+    const gRaw = games.find((gg: any) => gg.id === r.gameId);
+    return !gRaw?.terminal_state_resolved_at;
+  }).length;
 
   const summary: AuditSummary = {
     date,
@@ -257,12 +300,20 @@ async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload>
     missingOutcomes: rows.filter((r) => r.gradingState === "MISSING_OUTCOMES").length,
     missedPregameWindows: rows.filter((r) => r.gradingState === "MISSED_PREGAME").length,
     failedLocks: rows.filter((r) => r.gradingState === "LOCK_FAILED").length,
-    gradingCompleted: rows.filter((r) => r.gradingState === "GRADED").length,
+    gradingCompleted: gradingJobsList.filter((j) => j.status === "GRADED").length,
     latestScoreRefreshAt: scoreRefresh?.finished_at ?? scoreRefresh?.started_at ?? null,
     latestAutoLockAt: autoLock?.finished_at ?? autoLock?.started_at ?? null,
     latestErrorSummary: latestError
       ? `[${latestError.stage ?? latestError.job}] ${latestError.error ?? latestError.status}`
       : null,
+    statusStack: {
+      timingValidCoverage: { valid: timingValid, scheduled: rows.length },
+      resultGradeable: { gradeable: resultGradeable, scheduled: rows.length },
+      calibrationEligible: { eligible: calibrationEligible, scheduled: rows.length },
+      integrityReviewCount,
+      lateLockJobCount,
+      outcomeSourceLagCount,
+    },
   };
 
   return { summary, games: rows };
