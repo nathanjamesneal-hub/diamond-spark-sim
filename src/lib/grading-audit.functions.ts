@@ -99,12 +99,12 @@ function classifyPhase(status: string | null): AuditGameRow["gamePhase"] {
 }
 
 async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload> {
-  const [gamesRes, snapsRes, teamsRes, runsRes, logsRes, actualsRes, autolockRes] = await Promise.all([
+  const [gamesRes, snapsRes, teamsRes, runsRes, logsRes, actualsRes, autolockRes, lockJobsRes, gradingJobsRes] = await Promise.all([
     admin.from("games")
-      .select("id, mlb_game_id, first_pitch_at, game_status, updated_at, home_team_id, away_team_id")
+      .select("id, mlb_game_id, first_pitch_at, game_status, updated_at, home_team_id, away_team_id, actual_start_at, terminal_state_source, terminal_state_resolved_at")
       .eq("date", date),
     admin.from("engine_beta_snapshots")
-      .select("id, game_id, game_pk, lock_mode, lock_reason, created_at, scheduled_first_pitch, meta, data_freshness")
+      .select("id, game_id, game_pk, lock_mode, lock_reason, created_at, scheduled_first_pitch, meta, data_freshness, provenance_status, engine_status, calibration_eligible, game_state_class")
       .eq("slate_date", date)
       .order("created_at", { ascending: false }),
     admin.from("teams").select("id, abbreviation, name"),
@@ -130,6 +130,12 @@ async function loadAuditForDate(admin: any, date: string): Promise<AuditPayload>
       .eq("slate_date", date)
       .order("started_at", { ascending: false })
       .limit(1),
+    admin.from("lock_jobs")
+      .select("id, game_id, status, lateness_seconds, outcome, outcome_reason, lock_at, hard_stop_at, completed_at")
+      .eq("slate_date", date),
+    admin.from("grading_jobs")
+      .select("id, game_id, snapshot_id, status, excluded_reason, completed_at")
+      .eq("slate_date", date),
   ]);
 
   const games = gamesRes.data ?? [];
