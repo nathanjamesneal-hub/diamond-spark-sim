@@ -56,6 +56,9 @@ import { Route as AuthenticatedAdminGradingAuditRouteImport } from './routes/_au
 import { Route as AuthenticatedAdminEngineBetaRouteImport } from './routes/_authenticated/_admin/engine-beta'
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
+import { Route as ApiPublicHooksScheduleLockJobsRouteImport } from './routes/api/public/hooks/schedule-lock-jobs'
+import { Route as ApiPublicHooksRunLockWorkerRouteImport } from './routes/api/public/hooks/run-lock-worker'
+import { Route as ApiPublicHooksRunGradingWorkerRouteImport } from './routes/api/public/hooks/run-grading-worker'
 import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
 import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
@@ -322,6 +325,24 @@ const AuthenticatedForecastsLabIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedForecastsLabRoute,
   } as any)
+const ApiPublicHooksScheduleLockJobsRoute =
+  ApiPublicHooksScheduleLockJobsRouteImport.update({
+    id: '/api/public/hooks/schedule-lock-jobs',
+    path: '/api/public/hooks/schedule-lock-jobs',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksRunLockWorkerRoute =
+  ApiPublicHooksRunLockWorkerRouteImport.update({
+    id: '/api/public/hooks/run-lock-worker',
+    path: '/api/public/hooks/run-lock-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksRunGradingWorkerRoute =
+  ApiPublicHooksRunGradingWorkerRouteImport.update({
+    id: '/api/public/hooks/run-grading-worker',
+    path: '/api/public/hooks/run-grading-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksReplaceInflatedAlphaRoute =
   ApiPublicHooksReplaceInflatedAlphaRouteImport.update({
     id: '/api/public/hooks/replace-inflated-alpha',
@@ -438,6 +459,9 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
+  '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
+  '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesByTo {
@@ -493,6 +517,9 @@ export interface FileRoutesByTo {
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
+  '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
+  '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRoutesById {
@@ -553,6 +580,9 @@ export interface FileRoutesById {
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
+  '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
+  '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
 export interface FileRouteTypes {
@@ -612,6 +642,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
+    | '/api/public/hooks/run-grading-worker'
+    | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/schedule-lock-jobs'
     | '/forecasts/lab/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -667,6 +700,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
+    | '/api/public/hooks/run-grading-worker'
+    | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/schedule-lock-jobs'
     | '/forecasts/lab'
   id:
     | '__root__'
@@ -726,6 +762,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
     | '/api/public/hooks/replace-inflated-alpha'
+    | '/api/public/hooks/run-grading-worker'
+    | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/schedule-lock-jobs'
     | '/_authenticated/forecasts/lab/'
   fileRoutesById: FileRoutesById
 }
@@ -739,6 +778,9 @@ export interface RootRouteChildren {
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
   ApiPublicHooksRefreshLiveActualsRoute: typeof ApiPublicHooksRefreshLiveActualsRoute
   ApiPublicHooksReplaceInflatedAlphaRoute: typeof ApiPublicHooksReplaceInflatedAlphaRoute
+  ApiPublicHooksRunGradingWorkerRoute: typeof ApiPublicHooksRunGradingWorkerRoute
+  ApiPublicHooksRunLockWorkerRoute: typeof ApiPublicHooksRunLockWorkerRoute
+  ApiPublicHooksScheduleLockJobsRoute: typeof ApiPublicHooksScheduleLockJobsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1072,6 +1114,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForecastsLabIndexRouteImport
       parentRoute: typeof AuthenticatedForecastsLabRoute
     }
+    '/api/public/hooks/schedule-lock-jobs': {
+      id: '/api/public/hooks/schedule-lock-jobs'
+      path: '/api/public/hooks/schedule-lock-jobs'
+      fullPath: '/api/public/hooks/schedule-lock-jobs'
+      preLoaderRoute: typeof ApiPublicHooksScheduleLockJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/run-lock-worker': {
+      id: '/api/public/hooks/run-lock-worker'
+      path: '/api/public/hooks/run-lock-worker'
+      fullPath: '/api/public/hooks/run-lock-worker'
+      preLoaderRoute: typeof ApiPublicHooksRunLockWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/run-grading-worker': {
+      id: '/api/public/hooks/run-grading-worker'
+      path: '/api/public/hooks/run-grading-worker'
+      fullPath: '/api/public/hooks/run-grading-worker'
+      preLoaderRoute: typeof ApiPublicHooksRunGradingWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/replace-inflated-alpha': {
       id: '/api/public/hooks/replace-inflated-alpha'
       path: '/api/public/hooks/replace-inflated-alpha'
@@ -1299,17 +1362,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksRefreshLiveActualsRoute: ApiPublicHooksRefreshLiveActualsRoute,
   ApiPublicHooksReplaceInflatedAlphaRoute:
     ApiPublicHooksReplaceInflatedAlphaRoute,
+  ApiPublicHooksRunGradingWorkerRoute: ApiPublicHooksRunGradingWorkerRoute,
+  ApiPublicHooksRunLockWorkerRoute: ApiPublicHooksRunLockWorkerRoute,
+  ApiPublicHooksScheduleLockJobsRoute: ApiPublicHooksScheduleLockJobsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

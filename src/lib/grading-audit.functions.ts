@@ -58,6 +58,15 @@ export interface AuditGameRow {
   blockingReasons: string[];
 }
 
+export interface StatusStack {
+  timingValidCoverage: { valid: number; scheduled: number };
+  resultGradeable: { gradeable: number; scheduled: number };
+  calibrationEligible: { eligible: number; scheduled: number };
+  integrityReviewCount: number;
+  lateLockJobCount: number;
+  outcomeSourceLagCount: number;
+}
+
 export interface AuditSummary {
   date: string;
   scheduled: number;
@@ -71,6 +80,7 @@ export interface AuditSummary {
   latestScoreRefreshAt: string | null;
   latestAutoLockAt: string | null;
   latestErrorSummary: string | null;
+  statusStack: StatusStack;
 }
 
 export interface AuditPayload {
