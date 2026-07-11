@@ -1,32 +1,38 @@
 /**
- * Diamond Official Simulation — Phase 3a durable worker (SCAFFOLD).
+ * Diamond Official Simulation — durable worker.
  *
- * ⚠️  Every run this worker produces is marked `engine_status = 'scaffold_unvalidated'`
- *     on both `sim_jobs` and `sim_player_outputs`. The `simulateChunk` implementation
- *     below is a deterministic PLACEHOLDER used only to validate queue plumbing:
- *     lease pickup, chunk resumability, progress persistence, idempotent writes,
- *     current/stale flips, retry, timeout, and finalizer logging.
+ * Runs one tick of the queue: claims sim_jobs, executes chunks of real Monte
+ * Carlo iterations via the `diamond-adapter.server` adapter (which wraps the
+ * full-game engine in `src/lib/sim/engine.ts`), persists per-chunk deltas so
+ * subsequent ticks resume without replay, then finalizes into
+ * `sim_player_outputs`.
  *
- *     Scaffold rows MUST be filtered out of every downstream consumer
- *     (Form Movers, Projection Leaders, Prop Leaders, Diamond Consensus,
- *     auto-lock, and final grading). They are labeled "Pipeline Test /
- *     Uncalibrated" in every UI surface. Do not use them for projections,
- *     rankings, or historical model claims.
+ * Engine tag: `diamond_mc_candidate`. NOT `validated` — Prop Board treats
+ * these rows as Preview until documented calibration evidence lands.
  *
- *     Only Phase 3b's real Monte Carlo engine may set `engine_status = 'validated'`.
- *     When it lands, replace ONLY `simulateChunk` — the queue contract,
- *     outputs schema, audit trail, and immutability rules must stay unchanged.
- *
+ * Legacy scaffold rows created by the old `simulateChunkPlaceholder` remain
+ * in the table for historical audit; new jobs never call the placeholder.
  * Server-only. Loaded lazily inside server-function handlers.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHash, randomUUID } from "node:crypto";
+import {
+  DIAMOND_ADAPTER_VERSION,
+  DIAMOND_ENGINE_STATUS,
+  loadDiamondRoster,
+  mergeDelta,
+  percentilesFromHist,
+  simulateDiamondChunk,
+  type AggState,
+  type ChunkDelta,
+  type DiamondRoster,
+} from "@/lib/sim/diamond-adapter.server";
 
 const LEASE_MS = 90_000;              // 90s per pickup; refreshed after each chunk
 const STALE_LEASE_MS = 120_000;       // leases older than this may be reclaimed
-const CHUNK_TIMEOUT_MS = 60_000;      // per-chunk wall-clock guard (scaffold work is trivial)
+const CHUNK_TIMEOUT_MS = 60_000;      // per-chunk wall-clock guard
 const MAX_CHUNKS_PER_TICK = 4;        // bounded work per invocation so a tick stays short
-const SCAFFOLD_ENGINE_VERSION = "scaffold-uncalibrated-0.1";
+
 
 export type WorkerTickResult = {
   ok: boolean;
