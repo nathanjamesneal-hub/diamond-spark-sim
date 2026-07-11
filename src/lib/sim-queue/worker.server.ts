@@ -232,7 +232,10 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
     .select("id, worker_lease_id, worker_lease_expires_at, status, attempts, max_attempts")
     .in("status", ["queued", "running"])
     .or(`worker_lease_id.is.null,worker_lease_expires_at.lt.${staleBefore}`)
-    .order("queued_at", { ascending: true })
+    // Newest-first so we always pick the current inputs_hash for each
+    // (game, tier); older enqueues for the same key would be superseded by
+    // verifyInputsFresh and marked stale, wasting worker ticks.
+    .order("queued_at", { ascending: false })
     .limit(5);
 
   for (const c of candidates ?? []) {
@@ -501,6 +504,12 @@ async function runJob(
     let finalizerStatus = "ok";
     try {
       const written = await writeOutputs(admin, job, state);
+      if (written === 0) {
+        // Guardrail: a job MUST NOT complete with zero output rows. Common
+        // cause: empty lineups/starters at execution time. Mark as failed so
+        // it retries once the roster is populated (or hits max_attempts).
+        throw new Error("finalizer: zero output rows (empty roster or aggregator)");
+      }
       await admin.from("sim_jobs").update({
         status: "completed",
         chunks_done: chunksDone,
@@ -509,21 +518,26 @@ async function runJob(
         worker_lease_id: null,
         worker_lease_expires_at: null,
         finalizer_status: `wrote ${written} rows`,
-        // engine_status stays 'scaffold_unvalidated'. NEVER promote in the scaffold worker.
+        // engine_status stays whatever the executed simulator set. NEVER promote here.
       }).eq("id", job.id);
       events.push({ jobId: job.id, kind: "completed", detail: `rows=${written}` });
     } catch (e: any) {
       finalizerStatus = `err:${e?.message ?? String(e)}`;
+      const permanent = (job.attempts ?? 0) >= (job.max_attempts ?? 3);
       await admin.from("sim_jobs").update({
-        status: "failed",
+        // Retry the finalizer up to max_attempts; permanent failure only after that.
+        status: permanent ? "failed" : "queued",
+        // Reset chunks_done so the retry re-aggregates and re-runs the finalizer.
+        chunks_done: permanent ? chunksDone : 0,
+        chunk_progress: permanent ? job.chunk_progress : {},
         last_error: e?.message ?? String(e),
         finalizer_status: finalizerStatus,
-        failure_reason: `finalizer: ${e?.message ?? String(e)}`,
+        failure_reason: permanent ? `finalizer: ${e?.message ?? String(e)}` : null,
         worker_lease_id: null,
         worker_lease_expires_at: null,
       }).eq("id", job.id);
-      events.push({ jobId: job.id, kind: "failed", detail: finalizerStatus });
-      return "failed";
+      events.push({ jobId: job.id, kind: permanent ? "failed" : "chunk_err", detail: finalizerStatus });
+      return permanent ? "failed" : "in_progress";
     }
     return "completed";
   }

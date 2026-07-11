@@ -59,6 +59,7 @@ import { Route as AuthenticatedAdminEngineBetaRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
 import { Route as AuthenticatedForecastsLabIndexRouteImport } from './routes/_authenticated/forecasts.lab.index'
 import { Route as ApiPublicHooksScheduleLockJobsRouteImport } from './routes/api/public/hooks/schedule-lock-jobs'
+import { Route as ApiPublicHooksRunSimWorkerRouteImport } from './routes/api/public/hooks/run-sim-worker'
 import { Route as ApiPublicHooksRunLockWorkerRouteImport } from './routes/api/public/hooks/run-lock-worker'
 import { Route as ApiPublicHooksRunGradingWorkerRouteImport } from './routes/api/public/hooks/run-grading-worker'
 import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
@@ -347,6 +348,12 @@ const ApiPublicHooksScheduleLockJobsRoute =
     path: '/api/public/hooks/schedule-lock-jobs',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksRunSimWorkerRoute =
+  ApiPublicHooksRunSimWorkerRouteImport.update({
+    id: '/api/public/hooks/run-sim-worker',
+    path: '/api/public/hooks/run-sim-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRunLockWorkerRoute =
   ApiPublicHooksRunLockWorkerRouteImport.update({
     id: '/api/public/hooks/run-lock-worker',
@@ -500,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/run-sim-worker': typeof ApiPublicHooksRunSimWorkerRoute
   '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -563,6 +571,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/run-sim-worker': typeof ApiPublicHooksRunSimWorkerRoute
   '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/forecasts/lab': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -631,6 +640,7 @@ export interface FileRoutesById {
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
+  '/api/public/hooks/run-sim-worker': typeof ApiPublicHooksRunSimWorkerRoute
   '/api/public/hooks/schedule-lock-jobs': typeof ApiPublicHooksScheduleLockJobsRoute
   '/_authenticated/forecasts/lab/': typeof AuthenticatedForecastsLabIndexRoute
 }
@@ -698,6 +708,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/run-sim-worker'
     | '/api/public/hooks/schedule-lock-jobs'
     | '/forecasts/lab/'
   fileRoutesByTo: FileRoutesByTo
@@ -761,6 +772,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/run-sim-worker'
     | '/api/public/hooks/schedule-lock-jobs'
     | '/forecasts/lab'
   id:
@@ -828,6 +840,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
+    | '/api/public/hooks/run-sim-worker'
     | '/api/public/hooks/schedule-lock-jobs'
     | '/_authenticated/forecasts/lab/'
   fileRoutesById: FileRoutesById
@@ -847,6 +860,7 @@ export interface RootRouteChildren {
   ApiPublicHooksReplaceInflatedAlphaRoute: typeof ApiPublicHooksReplaceInflatedAlphaRoute
   ApiPublicHooksRunGradingWorkerRoute: typeof ApiPublicHooksRunGradingWorkerRoute
   ApiPublicHooksRunLockWorkerRoute: typeof ApiPublicHooksRunLockWorkerRoute
+  ApiPublicHooksRunSimWorkerRoute: typeof ApiPublicHooksRunSimWorkerRoute
   ApiPublicHooksScheduleLockJobsRoute: typeof ApiPublicHooksScheduleLockJobsRoute
 }
 
@@ -1202,6 +1216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksScheduleLockJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/run-sim-worker': {
+      id: '/api/public/hooks/run-sim-worker'
+      path: '/api/public/hooks/run-sim-worker'
+      fullPath: '/api/public/hooks/run-sim-worker'
+      preLoaderRoute: typeof ApiPublicHooksRunSimWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/run-lock-worker': {
       id: '/api/public/hooks/run-lock-worker'
       path: '/api/public/hooks/run-lock-worker'
@@ -1474,6 +1495,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicHooksReplaceInflatedAlphaRoute,
   ApiPublicHooksRunGradingWorkerRoute: ApiPublicHooksRunGradingWorkerRoute,
   ApiPublicHooksRunLockWorkerRoute: ApiPublicHooksRunLockWorkerRoute,
+  ApiPublicHooksRunSimWorkerRoute: ApiPublicHooksRunSimWorkerRoute,
   ApiPublicHooksScheduleLockJobsRoute: ApiPublicHooksScheduleLockJobsRoute,
 }
 export const routeTree = rootRouteImport

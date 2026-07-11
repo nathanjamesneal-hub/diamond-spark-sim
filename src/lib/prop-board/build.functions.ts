@@ -135,7 +135,7 @@ export const getPropBoardLive = createServerFn({ method: "GET" })
         "id, player_id, game_id, game_pk, market, threshold, projected_mean, event_probability, sim_count, stderr, confidence, form_direction, form_prob_adjustment, form_sample_size, form_reliability, projection_stage, engine_status, inputs_hash, model_version, run_status, batting_order, opponent_team_id, team_id, player_type, completed_at, created_at",
       )
       .eq("slate_date", slateDate)
-      .in("run_status", ["completed", "success", "ok"])
+      .in("run_status", ["current","completed","success","ok"])
       .in("market", SUPPORTED_MARKETS as unknown as string[]);
     if (simErr) throw new Error(`prop-board sims: ${simErr.message}`);
 
