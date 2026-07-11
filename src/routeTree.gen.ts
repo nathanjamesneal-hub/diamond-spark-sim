@@ -49,6 +49,7 @@ import { Route as AuthenticatedForecastsLabRouteImport } from './routes/_authent
 import { Route as AuthenticatedForecastsConsensusRouteImport } from './routes/_authenticated/forecasts.consensus'
 import { Route as AuthenticatedAdminSimQueueSmokeRouteImport } from './routes/_authenticated/_admin/sim-queue-smoke'
 import { Route as AuthenticatedAdminResearchLeadersRouteImport } from './routes/_authenticated/_admin/research-leaders'
+import { Route as AuthenticatedAdminRefreshHealthRouteImport } from './routes/_authenticated/_admin/refresh-health'
 import { Route as AuthenticatedAdminReconciliationRouteImport } from './routes/_authenticated/_admin/reconciliation'
 import { Route as AuthenticatedAdminPetriResultsRouteImport } from './routes/_authenticated/_admin/petri-results'
 import { Route as AuthenticatedAdminPetriRouteImport } from './routes/_authenticated/_admin/petri'
@@ -60,6 +61,8 @@ import { Route as ApiPublicHooksScheduleLockJobsRouteImport } from './routes/api
 import { Route as ApiPublicHooksRunLockWorkerRouteImport } from './routes/api/public/hooks/run-lock-worker'
 import { Route as ApiPublicHooksRunGradingWorkerRouteImport } from './routes/api/public/hooks/run-grading-worker'
 import { Route as ApiPublicHooksReplaceInflatedAlphaRouteImport } from './routes/api/public/hooks/replace-inflated-alpha'
+import { Route as ApiPublicHooksRefreshProjectionsRouteImport } from './routes/api/public/hooks/refresh-projections'
+import { Route as ApiPublicHooksRefreshMarketRouteImport } from './routes/api/public/hooks/refresh-market'
 import { Route as ApiPublicHooksRefreshLiveActualsRouteImport } from './routes/api/public/hooks/refresh-live-actuals'
 import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/public/hooks/refresh-lineups'
 import { Route as ApiPublicHooksOrchestrateTestRouteImport } from './routes/api/public/hooks/orchestrate-test'
@@ -285,6 +288,12 @@ const AuthenticatedAdminResearchLeadersRoute =
     path: '/research-leaders',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminRefreshHealthRoute =
+  AuthenticatedAdminRefreshHealthRouteImport.update({
+    id: '/refresh-health',
+    path: '/refresh-health',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminReconciliationRoute =
   AuthenticatedAdminReconciliationRouteImport.update({
     id: '/reconciliation',
@@ -347,6 +356,18 @@ const ApiPublicHooksReplaceInflatedAlphaRoute =
   ApiPublicHooksReplaceInflatedAlphaRouteImport.update({
     id: '/api/public/hooks/replace-inflated-alpha',
     path: '/api/public/hooks/replace-inflated-alpha',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksRefreshProjectionsRoute =
+  ApiPublicHooksRefreshProjectionsRouteImport.update({
+    id: '/api/public/hooks/refresh-projections',
+    path: '/api/public/hooks/refresh-projections',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksRefreshMarketRoute =
+  ApiPublicHooksRefreshMarketRouteImport.update({
+    id: '/api/public/hooks/refresh-market',
+    path: '/api/public/hooks/refresh-market',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksRefreshLiveActualsRoute =
@@ -438,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/refresh-health': typeof AuthenticatedAdminRefreshHealthRoute
   '/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -458,6 +480,8 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/refresh-market': typeof ApiPublicHooksRefreshMarketRoute
+  '/api/public/hooks/refresh-projections': typeof ApiPublicHooksRefreshProjectionsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
@@ -497,6 +521,7 @@ export interface FileRoutesByTo {
   '/petri': typeof AuthenticatedAdminPetriRoute
   '/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/refresh-health': typeof AuthenticatedAdminRefreshHealthRoute
   '/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -516,6 +541,8 @@ export interface FileRoutesByTo {
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/refresh-market': typeof ApiPublicHooksRefreshMarketRoute
+  '/api/public/hooks/refresh-projections': typeof ApiPublicHooksRefreshProjectionsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
@@ -559,6 +586,7 @@ export interface FileRoutesById {
   '/_authenticated/_admin/petri': typeof AuthenticatedAdminPetriRoute
   '/_authenticated/_admin/petri-results': typeof AuthenticatedAdminPetriResultsRoute
   '/_authenticated/_admin/reconciliation': typeof AuthenticatedAdminReconciliationRoute
+  '/_authenticated/_admin/refresh-health': typeof AuthenticatedAdminRefreshHealthRoute
   '/_authenticated/_admin/research-leaders': typeof AuthenticatedAdminResearchLeadersRoute
   '/_authenticated/_admin/sim-queue-smoke': typeof AuthenticatedAdminSimQueueSmokeRoute
   '/_authenticated/forecasts/consensus': typeof AuthenticatedForecastsConsensusRoute
@@ -579,6 +607,8 @@ export interface FileRoutesById {
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
   '/api/public/hooks/refresh-lineups': typeof ApiPublicHooksRefreshLineupsRoute
   '/api/public/hooks/refresh-live-actuals': typeof ApiPublicHooksRefreshLiveActualsRoute
+  '/api/public/hooks/refresh-market': typeof ApiPublicHooksRefreshMarketRoute
+  '/api/public/hooks/refresh-projections': typeof ApiPublicHooksRefreshProjectionsRoute
   '/api/public/hooks/replace-inflated-alpha': typeof ApiPublicHooksReplaceInflatedAlphaRoute
   '/api/public/hooks/run-grading-worker': typeof ApiPublicHooksRunGradingWorkerRoute
   '/api/public/hooks/run-lock-worker': typeof ApiPublicHooksRunLockWorkerRoute
@@ -621,6 +651,7 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
+    | '/refresh-health'
     | '/research-leaders'
     | '/sim-queue-smoke'
     | '/forecasts/consensus'
@@ -641,6 +672,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/refresh-market'
+    | '/api/public/hooks/refresh-projections'
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
@@ -680,6 +713,7 @@ export interface FileRouteTypes {
     | '/petri'
     | '/petri-results'
     | '/reconciliation'
+    | '/refresh-health'
     | '/research-leaders'
     | '/sim-queue-smoke'
     | '/forecasts/consensus'
@@ -699,6 +733,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/refresh-market'
+    | '/api/public/hooks/refresh-projections'
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
@@ -741,6 +777,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_admin/petri'
     | '/_authenticated/_admin/petri-results'
     | '/_authenticated/_admin/reconciliation'
+    | '/_authenticated/_admin/refresh-health'
     | '/_authenticated/_admin/research-leaders'
     | '/_authenticated/_admin/sim-queue-smoke'
     | '/_authenticated/forecasts/consensus'
@@ -761,6 +798,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/orchestrate-test'
     | '/api/public/hooks/refresh-lineups'
     | '/api/public/hooks/refresh-live-actuals'
+    | '/api/public/hooks/refresh-market'
+    | '/api/public/hooks/refresh-projections'
     | '/api/public/hooks/replace-inflated-alpha'
     | '/api/public/hooks/run-grading-worker'
     | '/api/public/hooks/run-lock-worker'
@@ -777,6 +816,8 @@ export interface RootRouteChildren {
   ApiPublicHooksOrchestrateTestRoute: typeof ApiPublicHooksOrchestrateTestRoute
   ApiPublicHooksRefreshLineupsRoute: typeof ApiPublicHooksRefreshLineupsRoute
   ApiPublicHooksRefreshLiveActualsRoute: typeof ApiPublicHooksRefreshLiveActualsRoute
+  ApiPublicHooksRefreshMarketRoute: typeof ApiPublicHooksRefreshMarketRoute
+  ApiPublicHooksRefreshProjectionsRoute: typeof ApiPublicHooksRefreshProjectionsRoute
   ApiPublicHooksReplaceInflatedAlphaRoute: typeof ApiPublicHooksReplaceInflatedAlphaRoute
   ApiPublicHooksRunGradingWorkerRoute: typeof ApiPublicHooksRunGradingWorkerRoute
   ApiPublicHooksRunLockWorkerRoute: typeof ApiPublicHooksRunLockWorkerRoute
@@ -1065,6 +1106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminResearchLeadersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/_admin/refresh-health': {
+      id: '/_authenticated/_admin/refresh-health'
+      path: '/refresh-health'
+      fullPath: '/refresh-health'
+      preLoaderRoute: typeof AuthenticatedAdminRefreshHealthRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/_admin/reconciliation': {
       id: '/_authenticated/_admin/reconciliation'
       path: '/reconciliation'
@@ -1142,6 +1190,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksReplaceInflatedAlphaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/refresh-projections': {
+      id: '/api/public/hooks/refresh-projections'
+      path: '/api/public/hooks/refresh-projections'
+      fullPath: '/api/public/hooks/refresh-projections'
+      preLoaderRoute: typeof ApiPublicHooksRefreshProjectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/refresh-market': {
+      id: '/api/public/hooks/refresh-market'
+      path: '/api/public/hooks/refresh-market'
+      fullPath: '/api/public/hooks/refresh-market'
+      preLoaderRoute: typeof ApiPublicHooksRefreshMarketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/refresh-live-actuals': {
       id: '/api/public/hooks/refresh-live-actuals'
       path: '/api/public/hooks/refresh-live-actuals'
@@ -1215,6 +1277,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminPetriRoute: typeof AuthenticatedAdminPetriRoute
   AuthenticatedAdminPetriResultsRoute: typeof AuthenticatedAdminPetriResultsRoute
   AuthenticatedAdminReconciliationRoute: typeof AuthenticatedAdminReconciliationRoute
+  AuthenticatedAdminRefreshHealthRoute: typeof AuthenticatedAdminRefreshHealthRoute
   AuthenticatedAdminResearchLeadersRoute: typeof AuthenticatedAdminResearchLeadersRoute
   AuthenticatedAdminSimQueueSmokeRoute: typeof AuthenticatedAdminSimQueueSmokeRoute
   AuthenticatedAdminLabFormShadowRoute: typeof AuthenticatedAdminLabFormShadowRoute
@@ -1229,6 +1292,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminPetriResultsRoute: AuthenticatedAdminPetriResultsRoute,
     AuthenticatedAdminReconciliationRoute:
       AuthenticatedAdminReconciliationRoute,
+    AuthenticatedAdminRefreshHealthRoute: AuthenticatedAdminRefreshHealthRoute,
     AuthenticatedAdminResearchLeadersRoute:
       AuthenticatedAdminResearchLeadersRoute,
     AuthenticatedAdminSimQueueSmokeRoute: AuthenticatedAdminSimQueueSmokeRoute,
@@ -1360,6 +1424,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksOrchestrateTestRoute: ApiPublicHooksOrchestrateTestRoute,
   ApiPublicHooksRefreshLineupsRoute: ApiPublicHooksRefreshLineupsRoute,
   ApiPublicHooksRefreshLiveActualsRoute: ApiPublicHooksRefreshLiveActualsRoute,
+  ApiPublicHooksRefreshMarketRoute: ApiPublicHooksRefreshMarketRoute,
+  ApiPublicHooksRefreshProjectionsRoute: ApiPublicHooksRefreshProjectionsRoute,
   ApiPublicHooksReplaceInflatedAlphaRoute:
     ApiPublicHooksReplaceInflatedAlphaRoute,
   ApiPublicHooksRunGradingWorkerRoute: ApiPublicHooksRunGradingWorkerRoute,
