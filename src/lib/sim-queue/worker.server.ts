@@ -69,164 +69,19 @@ type SimJobRow = {
   status: string;
   attempts: number;
   max_attempts: number;
-  chunk_progress: Record<string, unknown>;
-  engine_status: "scaffold_unvalidated" | "validated";
+  chunk_progress: Record<string, { done?: boolean; at?: string; delta?: ChunkDelta }>;
+  engine_status: "scaffold_unvalidated" | "diamond_mc_candidate" | "validated";
   worker_lease_id: string | null;
   worker_lease_expires_at: string | null;
   started_at: string | null;
+  projection_stage: "early" | "updated" | "lineup_confirmed" | "final_pregame" | null;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLACEHOLDER simulator.
-//
-// Produces coherent-shaped, deterministic rows so the plumbing test can prove
-// idempotency, chunk resumability, and current/stale flips against real data.
-// It is NOT calibrated, NOT correlated across players, and NOT a projection.
+// Worker core.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type PlaceholderPlayer = {
-  player_id: string;
-  player_type: "bat" | "pit";
-  team_id: string | null;
-  opponent_team_id: string | null;
-  batting_order: number | null;
-  handedness: string | null;
-};
 
-type PlaceholderMarket = { market: string; threshold: number | null };
-
-const HITTER_MARKETS: PlaceholderMarket[] = [
-  { market: "1plus_hit", threshold: null },
-  { market: "2plus_hits", threshold: null },
-  { market: "total_bases", threshold: 1.5 },
-  { market: "hr", threshold: null },
-];
-const PITCHER_MARKETS: PlaceholderMarket[] = [
-  { market: "k", threshold: 5.5 },
-  { market: "outs", threshold: 15.5 },
-  { market: "er", threshold: 2.5 },
-];
-
-function seededRand(seed: string, key: string): number {
-  const h = createHash("sha256").update(`${seed}::${key}`).digest();
-  // Take 4 bytes → 0..1
-  const n = h.readUInt32BE(0) / 0xffffffff;
-  return n;
-}
-
-async function loadRoster(admin: SupabaseClient, job: SimJobRow): Promise<PlaceholderPlayer[]> {
-  const { data: lineups } = await admin
-    .from("lineups")
-    .select("game_id, team_id, player_id, batting_order")
-    .eq("game_id", job.game_id);
-  const { data: starters } = await admin
-    .from("starting_pitchers")
-    .select("game_id, team_id, player_id")
-    .eq("game_id", job.game_id);
-
-  const players: PlaceholderPlayer[] = [];
-  // We need home/away split so opponent_team is meaningful.
-  const { data: gameRow } = await admin
-    .from("games")
-    .select("home_team_id, away_team_id")
-    .eq("id", job.game_id)
-    .maybeSingle();
-  const home = gameRow?.home_team_id ?? null;
-  const away = gameRow?.away_team_id ?? null;
-  const opp = (teamId: string | null) => (teamId === home ? away : teamId === away ? home : null);
-
-  for (const l of lineups ?? []) {
-    players.push({
-      player_id: l.player_id,
-      player_type: "bat",
-      team_id: l.team_id,
-      opponent_team_id: opp(l.team_id),
-      batting_order: l.batting_order ?? null,
-      handedness: null,
-    });
-  }
-  for (const s of starters ?? []) {
-    players.push({
-      player_id: s.player_id,
-      player_type: "pit",
-      team_id: s.team_id,
-      opponent_team_id: opp(s.team_id),
-      batting_order: null,
-      handedness: null,
-    });
-  }
-  return players;
-}
-
-/**
- * PLACEHOLDER. Do not treat outputs as projections.
- *
- * Contract preserved for the real engine:
- *   in:  (job, chunkIndex, players, aggregatorState)
- *   out: updated aggregatorState that, when finalized, becomes the per-player rows.
- */
-function simulateChunkPlaceholder(
-  job: SimJobRow,
-  chunkIndex: number,
-  players: PlaceholderPlayer[],
-  state: Map<string, { market: string; threshold: number | null; hits: number; sum: number; n: number; playerType: "bat" | "pit"; teamId: string | null; oppTeamId: string | null; battingOrder: number | null; handedness: string | null }>,
-): void {
-  const chunkN = job.chunk_size;
-  const seed = job.seed ?? job.id;
-
-  for (const p of players) {
-    const markets = p.player_type === "bat" ? HITTER_MARKETS : PITCHER_MARKETS;
-    for (const m of markets) {
-      const key = `${p.player_id}|${m.market}`;
-      let s = state.get(key);
-      if (!s) {
-        s = {
-          market: m.market,
-          threshold: m.threshold,
-          hits: 0,
-          sum: 0,
-          n: 0,
-          playerType: p.player_type,
-          teamId: p.team_id,
-          oppTeamId: p.opponent_team_id,
-          battingOrder: p.batting_order,
-          handedness: p.handedness,
-        };
-        state.set(key, s);
-      }
-      // Coherent-shaped deterministic draws — NOT calibrated.
-      // Mean is a stable function of (player, market); each chunk adds `chunkN`
-      // "observations" drawn around that mean using seeded jitter.
-      const meanBase =
-        m.market === "1plus_hit" ? 0.62 :
-        m.market === "2plus_hits" ? 0.24 :
-        m.market === "total_bases" ? 1.35 :
-        m.market === "hr" ? 0.13 :
-        m.market === "k" ? 6.2 :
-        m.market === "outs" ? 16.5 :
-        m.market === "er" ? 2.7 : 0.5;
-
-      const jitter = (seededRand(seed, `${key}|${chunkIndex}|mean`) - 0.5) * 0.2;
-      const meanThisChunk = Math.max(0, meanBase * (1 + jitter));
-
-      // Approximate: assume every "sim" contributes one value ≈ meanThisChunk with a
-      // small deterministic spread. hits count uses the same value vs threshold.
-      const spread = seededRand(seed, `${key}|${chunkIndex}|spread`) * 0.3;
-      const perDraw = meanThisChunk;
-      const hitProb = m.threshold == null
-        ? Math.min(1, Math.max(0, meanThisChunk))
-        : Math.min(1, Math.max(0, meanThisChunk > m.threshold ? 0.5 + spread : 0.5 - spread));
-
-      s.sum += perDraw * chunkN;
-      s.hits += Math.round(hitProb * chunkN);
-      s.n += chunkN;
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Worker core (real).
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJobRow | null> {
   const leaseExpires = new Date(Date.now() + LEASE_MS).toISOString();
