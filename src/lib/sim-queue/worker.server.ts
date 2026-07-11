@@ -501,6 +501,12 @@ async function runJob(
     let finalizerStatus = "ok";
     try {
       const written = await writeOutputs(admin, job, state);
+      if (written === 0) {
+        // Guardrail: a job MUST NOT complete with zero output rows. Common
+        // cause: empty lineups/starters at execution time. Mark as failed so
+        // it retries once the roster is populated (or hits max_attempts).
+        throw new Error("finalizer: zero output rows (empty roster or aggregator)");
+      }
       await admin.from("sim_jobs").update({
         status: "completed",
         chunks_done: chunksDone,
@@ -509,7 +515,7 @@ async function runJob(
         worker_lease_id: null,
         worker_lease_expires_at: null,
         finalizer_status: `wrote ${written} rows`,
-        // engine_status stays 'scaffold_unvalidated'. NEVER promote in the scaffold worker.
+        // engine_status stays whatever the executed simulator set. NEVER promote here.
       }).eq("id", job.id);
       events.push({ jobId: job.id, kind: "completed", detail: `rows=${written}` });
     } catch (e: any) {
