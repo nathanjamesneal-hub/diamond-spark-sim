@@ -1281,6 +1281,45 @@ export type Database = {
           },
         ]
       }
+      market_refresh_runs: {
+        Row: {
+          considered_games: number
+          created_at: string
+          details: Json
+          finished_at: string | null
+          id: string
+          skipped_reason: string | null
+          slate_date: string
+          started_at: string
+          unchanged_rows: number
+          updated_rows: number
+        }
+        Insert: {
+          considered_games?: number
+          created_at?: string
+          details?: Json
+          finished_at?: string | null
+          id?: string
+          skipped_reason?: string | null
+          slate_date: string
+          started_at?: string
+          unchanged_rows?: number
+          updated_rows?: number
+        }
+        Update: {
+          considered_games?: number
+          created_at?: string
+          details?: Json
+          finished_at?: string | null
+          id?: string
+          skipped_reason?: string | null
+          slate_date?: string
+          started_at?: string
+          unchanged_rows?: number
+          updated_rows?: number
+        }
+        Relationships: []
+      }
       model_versions: {
         Row: {
           active: boolean
@@ -2016,6 +2055,80 @@ export type Database = {
         }
         Relationships: []
       }
+      projection_refresh_state: {
+        Row: {
+          change_reason: string | null
+          created_at: string
+          current_projection_stage: string | null
+          game_id: string
+          game_lifecycle_status: string
+          game_pk: number | null
+          id: string
+          last_checked_at: string | null
+          last_market_update_at: string | null
+          last_model_update_at: string | null
+          latest_inputs_hash: string | null
+          latest_sim_job_id: string | null
+          lineup_status: string | null
+          next_action: string | null
+          pitcher_status: string | null
+          scheduled_first_pitch_at: string | null
+          slate_date: string
+          updated_at: string
+          waiting_reason: string | null
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string
+          current_projection_stage?: string | null
+          game_id: string
+          game_lifecycle_status?: string
+          game_pk?: number | null
+          id?: string
+          last_checked_at?: string | null
+          last_market_update_at?: string | null
+          last_model_update_at?: string | null
+          latest_inputs_hash?: string | null
+          latest_sim_job_id?: string | null
+          lineup_status?: string | null
+          next_action?: string | null
+          pitcher_status?: string | null
+          scheduled_first_pitch_at?: string | null
+          slate_date: string
+          updated_at?: string
+          waiting_reason?: string | null
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string
+          current_projection_stage?: string | null
+          game_id?: string
+          game_lifecycle_status?: string
+          game_pk?: number | null
+          id?: string
+          last_checked_at?: string | null
+          last_market_update_at?: string | null
+          last_model_update_at?: string | null
+          latest_inputs_hash?: string | null
+          latest_sim_job_id?: string | null
+          lineup_status?: string | null
+          next_action?: string | null
+          pitcher_status?: string | null
+          scheduled_first_pitch_at?: string | null
+          slate_date?: string
+          updated_at?: string
+          waiting_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projection_refresh_state_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projection_results: {
         Row: {
           game_id: string
@@ -2262,6 +2375,7 @@ export type Database = {
       sim_jobs: {
         Row: {
           attempts: number
+          change_reason: string | null
           chunk_progress: Json
           chunk_size: number
           chunks_done: number
@@ -2275,6 +2389,7 @@ export type Database = {
           game_id: string
           game_pk: number
           id: string
+          input_effective_time: string | null
           inputs_hash: string
           label: string
           last_error: string | null
@@ -2283,6 +2398,7 @@ export type Database = {
           max_attempts: number
           model_version: string
           notes: string | null
+          projection_stage: string | null
           queued_at: string
           seed: string | null
           seed_meta: Json
@@ -2297,6 +2413,7 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          change_reason?: string | null
           chunk_progress?: Json
           chunk_size: number
           chunks_done?: number
@@ -2310,6 +2427,7 @@ export type Database = {
           game_id: string
           game_pk: number
           id?: string
+          input_effective_time?: string | null
           inputs_hash: string
           label: string
           last_error?: string | null
@@ -2318,6 +2436,7 @@ export type Database = {
           max_attempts?: number
           model_version: string
           notes?: string | null
+          projection_stage?: string | null
           queued_at?: string
           seed?: string | null
           seed_meta?: Json
@@ -2332,6 +2451,7 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          change_reason?: string | null
           chunk_progress?: Json
           chunk_size?: number
           chunks_done?: number
@@ -2345,6 +2465,7 @@ export type Database = {
           game_id?: string
           game_pk?: number
           id?: string
+          input_effective_time?: string | null
           inputs_hash?: string
           label?: string
           last_error?: string | null
@@ -2353,6 +2474,7 @@ export type Database = {
           max_attempts?: number
           model_version?: string
           notes?: string | null
+          projection_stage?: string | null
           queued_at?: string
           seed?: string | null
           seed_meta?: Json
@@ -2406,6 +2528,7 @@ export type Database = {
           projected_bf: number | null
           projected_mean: number
           projected_pa: number | null
+          projection_stage: string | null
           run_status: string
           sim_count: number
           sim_job_id: string
@@ -2445,6 +2568,7 @@ export type Database = {
           projected_bf?: number | null
           projected_mean: number
           projected_pa?: number | null
+          projection_stage?: string | null
           run_status?: string
           sim_count: number
           sim_job_id: string
@@ -2484,6 +2608,7 @@ export type Database = {
           projected_bf?: number | null
           projected_mean?: number
           projected_pa?: number | null
+          projection_stage?: string | null
           run_status?: string
           sim_count?: number
           sim_job_id?: string
