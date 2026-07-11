@@ -520,16 +520,21 @@ async function runJob(
       events.push({ jobId: job.id, kind: "completed", detail: `rows=${written}` });
     } catch (e: any) {
       finalizerStatus = `err:${e?.message ?? String(e)}`;
+      const permanent = (job.attempts ?? 0) >= (job.max_attempts ?? 3);
       await admin.from("sim_jobs").update({
-        status: "failed",
+        // Retry the finalizer up to max_attempts; permanent failure only after that.
+        status: permanent ? "failed" : "queued",
+        // Reset chunks_done so the retry re-aggregates and re-runs the finalizer.
+        chunks_done: permanent ? chunksDone : 0,
+        chunk_progress: permanent ? job.chunk_progress : {},
         last_error: e?.message ?? String(e),
         finalizer_status: finalizerStatus,
-        failure_reason: `finalizer: ${e?.message ?? String(e)}`,
+        failure_reason: permanent ? `finalizer: ${e?.message ?? String(e)}` : null,
         worker_lease_id: null,
         worker_lease_expires_at: null,
       }).eq("id", job.id);
-      events.push({ jobId: job.id, kind: "failed", detail: finalizerStatus });
-      return "failed";
+      events.push({ jobId: job.id, kind: permanent ? "failed" : "chunk_err", detail: finalizerStatus });
+      return permanent ? "failed" : "in_progress";
     }
     return "completed";
   }
