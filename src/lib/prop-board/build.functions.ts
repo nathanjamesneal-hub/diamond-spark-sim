@@ -276,7 +276,7 @@ export const getPropBoardLive = createServerFn({ method: "GET" })
         inputsHash: r.inputs_hash,
         modelVersion: r.model_version,
         lastUpdated: r.completed_at,
-        isPreview: (engineStatus ?? "").toLowerCase() === "scaffold_unvalidated",
+        isPreview: (() => { const es = (engineStatus ?? "").toLowerCase(); return es === "scaffold_unvalidated" || es === "diamond_mc_candidate"; })(),
         battingOrder: r.batting_order ?? null,
         score: scoreOut.score,
         tier,
