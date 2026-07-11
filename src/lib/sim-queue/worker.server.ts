@@ -97,7 +97,7 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
     // (game, tier); older enqueues for the same key would be superseded by
     // verifyInputsFresh and marked stale, wasting worker ticks.
     .order("queued_at", { ascending: false })
-    .limit(5);
+    .limit(25);
 
   for (const c of candidates ?? []) {
     if ((c.attempts ?? 0) >= (c.max_attempts ?? 3)) continue;
