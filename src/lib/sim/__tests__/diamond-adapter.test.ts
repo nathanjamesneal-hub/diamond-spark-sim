@@ -6,7 +6,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { simulate } from "../engine";
+import { simulate } from "../engine.ts";
 import {
   DIAMOND_ADAPTER_VERSION,
   DIAMOND_ENGINE_STATUS,
@@ -18,7 +18,7 @@ import {
   simulateDiamondChunk,
   type AggState,
   type DiamondRoster,
-} from "../diamond-adapter.server";
+} from "../diamond-adapter.server.ts";
 
 function makeRoster(overrides?: Partial<{
   homeContact: number; homePower: number; awayContact: number; awayPower: number;
