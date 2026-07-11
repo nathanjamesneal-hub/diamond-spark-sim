@@ -102,7 +102,8 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
   for (const c of candidates ?? []) {
     if ((c.attempts ?? 0) >= (c.max_attempts ?? 3)) continue;
     const newLeaseId = randomUUID();
-    const { data: swapped } = await admin
+    // CAS: match the exact lease we observed (null or specific stale id).
+    let query = admin
       .from("sim_jobs")
       .update({
         worker_lease_id: newLeaseId,
@@ -112,12 +113,15 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
         attempts: (c.attempts ?? 0) + 1,
         last_progress_at: new Date().toISOString(),
       })
-      .eq("id", c.id)
-      // CAS: only claim if the lease we saw is still what's there.
-      .is("worker_lease_id", c.worker_lease_id === null ? null : undefined)
-      .select("*")
-      .maybeSingle();
+      .eq("id", c.id);
+    if (c.worker_lease_id === null) {
+      query = query.is("worker_lease_id", null);
+    } else {
+      query = query.eq("worker_lease_id", c.worker_lease_id);
+    }
+    const { data: swapped } = await query.select("*").maybeSingle();
     if (swapped) return swapped as SimJobRow;
+
   }
   return null;
 }
