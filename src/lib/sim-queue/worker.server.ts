@@ -151,9 +151,11 @@ async function verifyInputsFresh(admin: SupabaseClient, job: SimJobRow): Promise
 async function writeOutputs(
   admin: SupabaseClient,
   job: SimJobRow,
-  state: Map<string, any>,
+  state: AggState,
 ): Promise<number> {
   const rows: Array<Record<string, unknown>> = [];
+  const stageOut = job.projection_stage ?? "legacy_unknown";
+  const projectionStageValid = ["early", "updated", "lineup_confirmed", "final_pregame"].includes(stageOut) ? stageOut : null;
   for (const [key, s] of state) {
     const playerId = key.split("|")[0];
     const mean = s.n > 0 ? s.sum / s.n : 0;
@@ -162,18 +164,21 @@ async function writeOutputs(
     const stderr = s.n > 0 ? Math.sqrt(Math.max(0, eventProb * (1 - eventProb) / s.n)) : 0;
     // Confidence: shrink toward 0 when the sample is tiny; 20K full run ~= 1.0.
     const confidence = Math.min(1, Math.max(0, 1 - stderr * 6));
+    const pcts = percentilesFromHist(s.hist);
+    const side = s.threshold == null ? null : "over"; // adapter emits Over-side probabilities
 
     rows.push({
       sim_job_id: job.id,
       game_id: job.game_id,
       game_pk: job.game_pk,
       slate_date: job.slate_date,
-      model_version: `${job.model_version}+${SCAFFOLD_ENGINE_VERSION}`,
+      model_version: `${job.model_version}+${DIAMOND_ADAPTER_VERSION}`,
       inputs_hash: job.inputs_hash,
       sim_tier: job.tier,
       sim_count: s.n,
       run_status: "current",
-      engine_status: "scaffold_unvalidated",
+      engine_status: DIAMOND_ENGINE_STATUS,
+      projection_stage: projectionStageValid,
       player_id: playerId,
       player_type: s.playerType,
       team_id: s.teamId,
@@ -187,19 +192,25 @@ async function writeOutputs(
       threshold: s.threshold,
       projected_mean: mean,
       event_probability: eventProb,
-      baseline_mean: mean,                 // scaffold has no separate baseline
+      baseline_mean: mean,
       baseline_event_probability: eventProb,
       form_adjustment: 0,
       form_prob_adjustment: 0,
-      percentile_summary: null,
+      percentile_summary: { ...pcts, side },
       stderr,
       confidence,
       form_sample_size: null,
       form_reliability: null,
       form_direction: "neutral",
       driver_metadata: {
-        note: "SCAFFOLD placeholder — not a projection",
-        engine: SCAFFOLD_ENGINE_VERSION,
+        engine: DIAMOND_ADAPTER_VERSION,
+        engine_status: DIAMOND_ENGINE_STATUS,
+        source: "diamond-mc-candidate",
+        note: "Real Monte Carlo per-PA simulation via engine.ts. Preview tier until calibrated.",
+        pitcher_rates: "league-average with deterministic per-pitcher jitter",
+        batter_rates: "derived from player_dna (contact/power/speed/discipline)",
+        correlation: "per-game baserunner state links H/HR/RBI/R/TB; iterations independent; no cross-game correlation",
+        stage_source: job.projection_stage ? "sim_jobs.projection_stage" : "legacy_unknown",
       },
       completed_at: new Date().toISOString(),
     });
@@ -223,6 +234,7 @@ async function writeOutputs(
 
   return rows.length;
 }
+
 
 async function markChunkStart(admin: SupabaseClient, job: SimJobRow, chunkIndex: number, attempt: number): Promise<string> {
   const id = randomUUID();
