@@ -78,6 +78,17 @@ export type PitcherDist = {
   outs: PlayerStatDist; // outs recorded
 };
 
+export type BatterSamples = {
+  playerId: number;
+  name: string;
+  H: number[]; HR: number[]; RBI: number[]; R: number[];
+  BB: number[]; K: number[]; TB: number[];
+};
+export type PitcherSamples = {
+  playerId: number; name: string;
+  K: number[]; BB: number[]; ER: number[]; H: number[]; outs: number[];
+};
+
 export type SimResult = {
   iterations: number;
   homeWinProb: number;
@@ -99,7 +110,17 @@ export type SimResult = {
   awayPitcher: PitcherDist;
   nrfi: number; // P(no run in first inning, either team)
   yrfi: number;
+  /** Raw per-iteration sample arrays. Length = iterations for each field.
+   *  Used by the Diamond MC adapter to compute arbitrary thresholds and
+   *  percentiles without re-running the sim. */
+  samples: {
+    homeBatters: BatterSamples[];
+    awayBatters: BatterSamples[];
+    homePitcher: PitcherSamples;
+    awayPitcher: PitcherSamples;
+  };
 };
+
 
 // ---------- RNG ----------
 
