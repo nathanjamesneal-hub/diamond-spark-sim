@@ -31,6 +31,7 @@ import { Route as AuthenticatedLeaderboardsRouteImport } from './routes/_authent
 import { Route as AuthenticatedLabRouteImport } from './routes/_authenticated/lab'
 import { Route as AuthenticatedHittersRouteImport } from './routes/_authenticated/hitters'
 import { Route as AuthenticatedForecastsRouteImport } from './routes/_authenticated/forecasts'
+import { Route as AuthenticatedFeaturedRouteImport } from './routes/_authenticated/featured'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedDiamondScoresRouteImport } from './routes/_authenticated/diamond-scores'
 import { Route as AuthenticatedDiamondConsensusRouteImport } from './routes/_authenticated/diamond-consensus'
@@ -68,6 +69,7 @@ import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksOrchestrateTestRouteImport } from './routes/api/public/hooks/orchestrate-test'
 import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
 import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
+import { Route as ApiPublicHooksBuildRecommendationsRouteImport } from './routes/api/public/hooks/build-recommendations'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 import { Route as AuthenticatedForecastsLabAlphaRouteImport } from './routes/_authenticated/forecasts.lab.alpha'
@@ -184,6 +186,11 @@ const AuthenticatedHittersRoute = AuthenticatedHittersRouteImport.update({
 const AuthenticatedForecastsRoute = AuthenticatedForecastsRouteImport.update({
   id: '/forecasts',
   path: '/forecasts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFeaturedRoute = AuthenticatedFeaturedRouteImport.update({
+  id: '/featured',
+  path: '/featured',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
@@ -400,6 +407,12 @@ const ApiPublicHooksLockLiveForecastsRoute =
     path: '/api/public/hooks/lock-live-forecasts',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksBuildRecommendationsRoute =
+  ApiPublicHooksBuildRecommendationsRouteImport.update({
+    id: '/api/public/hooks/build-recommendations',
+    path: '/api/public/hooks/build-recommendations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksBeforeUserCreatedRoute =
   ApiPublicHooksBeforeUserCreatedRouteImport.update({
     id: '/api/public/hooks/before-user-created',
@@ -434,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/featured': typeof AuthenticatedFeaturedRoute
   '/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
@@ -475,6 +489,7 @@ export interface FileRoutesByFullPath {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -497,6 +512,7 @@ export interface FileRoutesByTo {
   '/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/featured': typeof AuthenticatedFeaturedRoute
   '/hitters': typeof AuthenticatedHittersRoute
   '/lab': typeof AuthenticatedLabRoute
   '/leaderboards': typeof AuthenticatedLeaderboardsRoute
@@ -536,6 +552,7 @@ export interface FileRoutesByTo {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -560,6 +577,7 @@ export interface FileRoutesById {
   '/_authenticated/diamond-consensus': typeof AuthenticatedDiamondConsensusRoute
   '/_authenticated/diamond-scores': typeof AuthenticatedDiamondScoresRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
+  '/_authenticated/featured': typeof AuthenticatedFeaturedRoute
   '/_authenticated/forecasts': typeof AuthenticatedForecastsRouteWithChildren
   '/_authenticated/hitters': typeof AuthenticatedHittersRoute
   '/_authenticated/lab': typeof AuthenticatedLabRoute
@@ -602,6 +620,7 @@ export interface FileRoutesById {
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -626,6 +645,7 @@ export interface FileRouteTypes {
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/explore'
+    | '/featured'
     | '/forecasts'
     | '/hitters'
     | '/lab'
@@ -667,6 +687,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -689,6 +710,7 @@ export interface FileRouteTypes {
     | '/diamond-consensus'
     | '/diamond-scores'
     | '/explore'
+    | '/featured'
     | '/hitters'
     | '/lab'
     | '/leaderboards'
@@ -728,6 +750,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -751,6 +774,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diamond-consensus'
     | '/_authenticated/diamond-scores'
     | '/_authenticated/explore'
+    | '/_authenticated/featured'
     | '/_authenticated/forecasts'
     | '/_authenticated/hitters'
     | '/_authenticated/lab'
@@ -793,6 +817,7 @@ export interface FileRouteTypes {
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -811,6 +836,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
+  ApiPublicHooksBuildRecommendationsRoute: typeof ApiPublicHooksBuildRecommendationsRoute
   ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
   ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
   ApiPublicHooksOrchestrateTestRoute: typeof ApiPublicHooksOrchestrateTestRoute
@@ -978,6 +1004,13 @@ declare module '@tanstack/react-router' {
       path: '/forecasts'
       fullPath: '/forecasts'
       preLoaderRoute: typeof AuthenticatedForecastsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/featured': {
+      id: '/_authenticated/featured'
+      path: '/featured'
+      fullPath: '/featured'
+      preLoaderRoute: typeof AuthenticatedFeaturedRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/explore': {
@@ -1239,6 +1272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksLockLiveForecastsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/build-recommendations': {
+      id: '/api/public/hooks/build-recommendations'
+      path: '/api/public/hooks/build-recommendations'
+      fullPath: '/api/public/hooks/build-recommendations'
+      preLoaderRoute: typeof ApiPublicHooksBuildRecommendationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/before-user-created': {
       id: '/api/public/hooks/before-user-created'
       path: '/api/public/hooks/before-user-created'
@@ -1348,6 +1388,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiamondConsensusRoute: typeof AuthenticatedDiamondConsensusRoute
   AuthenticatedDiamondScoresRoute: typeof AuthenticatedDiamondScoresRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
+  AuthenticatedFeaturedRoute: typeof AuthenticatedFeaturedRoute
   AuthenticatedForecastsRoute: typeof AuthenticatedForecastsRouteWithChildren
   AuthenticatedHittersRoute: typeof AuthenticatedHittersRoute
   AuthenticatedLabRoute: typeof AuthenticatedLabRoute
@@ -1384,6 +1425,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiamondConsensusRoute: AuthenticatedDiamondConsensusRoute,
   AuthenticatedDiamondScoresRoute: AuthenticatedDiamondScoresRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
+  AuthenticatedFeaturedRoute: AuthenticatedFeaturedRoute,
   AuthenticatedForecastsRoute: AuthenticatedForecastsRouteWithChildren,
   AuthenticatedHittersRoute: AuthenticatedHittersRoute,
   AuthenticatedLabRoute: AuthenticatedLabRoute,
@@ -1419,6 +1461,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
+  ApiPublicHooksBuildRecommendationsRoute:
+    ApiPublicHooksBuildRecommendationsRoute,
   ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
   ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
   ApiPublicHooksOrchestrateTestRoute: ApiPublicHooksOrchestrateTestRoute,
