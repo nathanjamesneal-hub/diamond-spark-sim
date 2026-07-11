@@ -232,7 +232,10 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
     .select("id, worker_lease_id, worker_lease_expires_at, status, attempts, max_attempts")
     .in("status", ["queued", "running"])
     .or(`worker_lease_id.is.null,worker_lease_expires_at.lt.${staleBefore}`)
-    .order("queued_at", { ascending: true })
+    // Newest-first so we always pick the current inputs_hash for each
+    // (game, tier); older enqueues for the same key would be superseded by
+    // verifyInputsFresh and marked stale, wasting worker ticks.
+    .order("queued_at", { ascending: false })
     .limit(5);
 
   for (const c of candidates ?? []) {
