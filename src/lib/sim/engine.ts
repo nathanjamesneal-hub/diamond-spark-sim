@@ -619,5 +619,25 @@ export function simulate(input: SimInput): SimResult {
     },
     nrfi: nrfiCount / iters,
     yrfi: 1 - nrfiCount / iters,
+    samples: {
+      homeBatters: input.home.lineup.map((b, i) => ({
+        playerId: b.id, name: b.name,
+        H: homeBatterAcc[i].H, HR: homeBatterAcc[i].HR, RBI: homeBatterAcc[i].RBI,
+        R: homeBatterAcc[i].R, BB: homeBatterAcc[i].BB, K: homeBatterAcc[i].K, TB: homeBatterAcc[i].TB,
+      })),
+      awayBatters: input.away.lineup.map((b, i) => ({
+        playerId: b.id, name: b.name,
+        H: awayBatterAcc[i].H, HR: awayBatterAcc[i].HR, RBI: awayBatterAcc[i].RBI,
+        R: awayBatterAcc[i].R, BB: awayBatterAcc[i].BB, K: awayBatterAcc[i].K, TB: awayBatterAcc[i].TB,
+      })),
+      homePitcher: {
+        playerId: input.home.starter.id, name: input.home.starter.name,
+        K: homePitcherAcc.K, BB: homePitcherAcc.BB, ER: homePitcherAcc.ER, H: homePitcherAcc.H, outs: homePitcherAcc.outs,
+      },
+      awayPitcher: {
+        playerId: input.away.starter.id, name: input.away.starter.name,
+        K: awayPitcherAcc.K, BB: awayPitcherAcc.BB, ER: awayPitcherAcc.ER, H: awayPitcherAcc.H, outs: awayPitcherAcc.outs,
+      },
+    },
   };
 }
