@@ -311,14 +311,23 @@ async function runJob(
     return "stale";
   }
 
-  // Rebuild aggregator from any completed chunks by re-running them (deterministic seed makes
-  // this cheap for the scaffold; the real engine will persist chunk aggregates instead).
-  const players = await loadRoster(admin, job);
-  const state = new Map<string, any>();
-  const alreadyDone: Set<number> = new Set(
-    Object.keys(job.chunk_progress ?? {}).map((k) => Number(k)).filter((n) => Number.isFinite(n)),
-  );
-  for (const idx of alreadyDone) simulateChunkPlaceholder(job, idx, players, state);
+  // Load real Diamond roster (lineups + starters + player_dna).
+  let roster: DiamondRoster;
+  try {
+    roster = await loadDiamondRoster(admin, job);
+  } catch (e: any) {
+    events.push({ jobId: job.id, kind: "chunk_err", detail: `roster: ${e?.message ?? String(e)}` });
+    throw e;
+  }
+  // Rehydrate aggregator from persisted per-chunk deltas — no replay needed.
+  const state: AggState = new Map();
+  const alreadyDone: Set<number> = new Set();
+  for (const [k, v] of Object.entries(job.chunk_progress ?? {})) {
+    const n = Number(k);
+    if (!Number.isFinite(n)) continue;
+    if (v?.done) alreadyDone.add(n);
+    if (v?.delta) mergeDelta(state, v.delta);
+  }
 
   let chunksDone = job.chunks_done;
   let executed = 0;
@@ -327,22 +336,24 @@ async function runJob(
     if (alreadyDone.has(idx)) continue;
     if (executed >= MAX_CHUNKS_PER_TICK) break;
 
-    const attempt = 1; // scaffold: chunks are re-tried at the job level, not per-chunk
+    const attempt = 1;
     const chunkRunId = await markChunkStart(admin, job, idx, attempt);
     const startedAt = Date.now();
     try {
+      let delta: ChunkDelta = [];
       await withTimeout(
-        Promise.resolve().then(() => simulateChunkPlaceholder(job, idx, players, state)),
+        Promise.resolve().then(() => { delta = simulateDiamondChunk(job, idx, roster, state); }),
         CHUNK_TIMEOUT_MS,
         `chunk ${idx}`,
       );
       await markChunkResult(admin, chunkRunId, "completed", startedAt);
       chunksDone++;
       alreadyDone.add(idx);
-      const progress = { ...(job.chunk_progress ?? {}), [String(idx)]: { done: true, at: new Date().toISOString() } };
+      const progress = { ...(job.chunk_progress ?? {}), [String(idx)]: { done: true, at: new Date().toISOString(), delta } };
       await persistProgress(admin, job, chunksDone, progress);
       await refreshLease(admin, job);
       events.push({ jobId: job.id, kind: "chunk_ok", chunkIndex: idx, attempt });
+
       executed++;
     } catch (e: any) {
       const msg = e?.message ?? String(e);
