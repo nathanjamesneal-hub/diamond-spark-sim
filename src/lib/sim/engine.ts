@@ -10,8 +10,8 @@
  *
  * Baserunner state machine: 24 base-out states, league-average advancement.
  */
-import { LEAGUE, log5, normalize, type Rates } from "./league";
-import { parkFactor, type ParkFactor } from "./park-factors";
+import { LEAGUE, log5, normalize, type Rates } from "./league.ts";
+import { parkFactor, type ParkFactor } from "./park-factors.ts";
 
 export type BatterProfile = {
   id: number;

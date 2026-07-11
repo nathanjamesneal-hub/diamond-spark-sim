@@ -31,8 +31,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 
-import { simulate, type BatterProfile, type PitcherProfile, type SimInput, type TeamSim } from "./engine";
-import { LEAGUE } from "./league";
+import { simulate, type BatterProfile, type PitcherProfile, type SimInput, type TeamSim } from "./engine.ts";
+import { LEAGUE } from "./league.ts";
 
 export const DIAMOND_ADAPTER_VERSION = "diamond-mc-candidate-0.1";
 export const DIAMOND_ENGINE_STATUS = "diamond_mc_candidate";
