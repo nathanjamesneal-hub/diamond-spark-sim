@@ -15,7 +15,7 @@
  * Server-only. Loaded lazily inside server-function handlers.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   DIAMOND_ADAPTER_VERSION,
   DIAMOND_ENGINE_STATUS,
