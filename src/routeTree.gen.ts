@@ -68,6 +68,7 @@ import { Route as ApiPublicHooksRefreshLineupsRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksOrchestrateTestRouteImport } from './routes/api/public/hooks/orchestrate-test'
 import { Route as ApiPublicHooksOrchestrateSlateRouteImport } from './routes/api/public/hooks/orchestrate-slate'
 import { Route as ApiPublicHooksLockLiveForecastsRouteImport } from './routes/api/public/hooks/lock-live-forecasts'
+import { Route as ApiPublicHooksBuildRecommendationsRouteImport } from './routes/api/public/hooks/build-recommendations'
 import { Route as ApiPublicHooksBeforeUserCreatedRouteImport } from './routes/api/public/hooks/before-user-created'
 import { Route as AuthenticatedForecastsLabMeansRouteImport } from './routes/_authenticated/forecasts.lab.means'
 import { Route as AuthenticatedForecastsLabAlphaRouteImport } from './routes/_authenticated/forecasts.lab.alpha'
@@ -400,6 +401,12 @@ const ApiPublicHooksLockLiveForecastsRoute =
     path: '/api/public/hooks/lock-live-forecasts',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksBuildRecommendationsRoute =
+  ApiPublicHooksBuildRecommendationsRouteImport.update({
+    id: '/api/public/hooks/build-recommendations',
+    path: '/api/public/hooks/build-recommendations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksBeforeUserCreatedRoute =
   ApiPublicHooksBeforeUserCreatedRouteImport.update({
     id: '/api/public/hooks/before-user-created',
@@ -475,6 +482,7 @@ export interface FileRoutesByFullPath {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -536,6 +544,7 @@ export interface FileRoutesByTo {
   '/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -602,6 +611,7 @@ export interface FileRoutesById {
   '/_authenticated/forecasts/lab/alpha': typeof AuthenticatedForecastsLabAlphaRoute
   '/_authenticated/forecasts/lab/means': typeof AuthenticatedForecastsLabMeansRoute
   '/api/public/hooks/before-user-created': typeof ApiPublicHooksBeforeUserCreatedRoute
+  '/api/public/hooks/build-recommendations': typeof ApiPublicHooksBuildRecommendationsRoute
   '/api/public/hooks/lock-live-forecasts': typeof ApiPublicHooksLockLiveForecastsRoute
   '/api/public/hooks/orchestrate-slate': typeof ApiPublicHooksOrchestrateSlateRoute
   '/api/public/hooks/orchestrate-test': typeof ApiPublicHooksOrchestrateTestRoute
@@ -667,6 +677,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -728,6 +739,7 @@ export interface FileRouteTypes {
     | '/forecasts/lab/alpha'
     | '/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -793,6 +805,7 @@ export interface FileRouteTypes {
     | '/_authenticated/forecasts/lab/alpha'
     | '/_authenticated/forecasts/lab/means'
     | '/api/public/hooks/before-user-created'
+    | '/api/public/hooks/build-recommendations'
     | '/api/public/hooks/lock-live-forecasts'
     | '/api/public/hooks/orchestrate-slate'
     | '/api/public/hooks/orchestrate-test'
@@ -811,6 +824,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksBeforeUserCreatedRoute: typeof ApiPublicHooksBeforeUserCreatedRoute
+  ApiPublicHooksBuildRecommendationsRoute: typeof ApiPublicHooksBuildRecommendationsRoute
   ApiPublicHooksLockLiveForecastsRoute: typeof ApiPublicHooksLockLiveForecastsRoute
   ApiPublicHooksOrchestrateSlateRoute: typeof ApiPublicHooksOrchestrateSlateRoute
   ApiPublicHooksOrchestrateTestRoute: typeof ApiPublicHooksOrchestrateTestRoute
@@ -1239,6 +1253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksLockLiveForecastsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/build-recommendations': {
+      id: '/api/public/hooks/build-recommendations'
+      path: '/api/public/hooks/build-recommendations'
+      fullPath: '/api/public/hooks/build-recommendations'
+      preLoaderRoute: typeof ApiPublicHooksBuildRecommendationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/before-user-created': {
       id: '/api/public/hooks/before-user-created'
       path: '/api/public/hooks/before-user-created'
@@ -1419,6 +1440,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksBeforeUserCreatedRoute: ApiPublicHooksBeforeUserCreatedRoute,
+  ApiPublicHooksBuildRecommendationsRoute:
+    ApiPublicHooksBuildRecommendationsRoute,
   ApiPublicHooksLockLiveForecastsRoute: ApiPublicHooksLockLiveForecastsRoute,
   ApiPublicHooksOrchestrateSlateRoute: ApiPublicHooksOrchestrateSlateRoute,
   ApiPublicHooksOrchestrateTestRoute: ApiPublicHooksOrchestrateTestRoute,

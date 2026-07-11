@@ -107,11 +107,11 @@ async function loadFeaturedRunFor(
       rejectReason: l.reject_reason,
     };
   };
-  const legs = (legsRes.data ?? []).map(mapLeg);
-  const bestBet = legs.find((l) => l.tier === "best_bet") ?? null;
-  const featured = legs.filter((l) => l.tier === "featured").sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  const unvalidatedPreview = legs.filter((l) => l.tier === "unvalidated_preview").sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  const rejected = legs.filter((l) => l.tier === "rejected");
+  const legs: FeaturedLeg[] = (legsRes.data ?? []).map(mapLeg);
+  const bestBet = legs.find((l: FeaturedLeg) => l.tier === "best_bet") ?? null;
+  const featured = legs.filter((l: FeaturedLeg) => l.tier === "featured").sort((a: FeaturedLeg, b: FeaturedLeg) => (a.rank ?? 99) - (b.rank ?? 99));
+  const unvalidatedPreview = legs.filter((l: FeaturedLeg) => l.tier === "unvalidated_preview").sort((a: FeaturedLeg, b: FeaturedLeg) => (a.rank ?? 99) - (b.rank ?? 99));
+  const rejected = legs.filter((l: FeaturedLeg) => l.tier === "rejected");
 
   return {
     runId: run.id, state: run.state, slateDate: run.slate_date, generatedAt: run.generated_at,
