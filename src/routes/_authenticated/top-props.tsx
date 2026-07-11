@@ -142,7 +142,7 @@ function BoardRow({ row, rank }: { row: PropBoardRow; rank: number }) {
         <td className="px-2 py-2 text-center">
           {row.reasons.length > 0 ? (
             <span title={row.reasons.map(reasonLabel).join(" · ")}>
-              <AlertTriangle className={`inline size-3 ${row.excluded ? "text-rose-400" : "text-amber-400"}`} />
+              <AlertTriangle className={`inline size-3 ${row.tier === "excluded" ? "text-rose-400" : "text-amber-400"}`} />
             </span>
           ) : null}
         </td>
@@ -181,7 +181,7 @@ function BoardRow({ row, rank }: { row: PropBoardRow; rank: number }) {
                 ) : (
                   <ul className="space-y-0.5">
                     {row.reasons.map((r) => (
-                      <li key={r} className={row.excluded && ["missing_probability","missing_mean","stale_output","newer_sim_pending","game_started","below_watchlist_probability"].includes(r) ? "text-rose-400" : "text-amber-400"}>
+                      <li key={r} className={row.tier === "excluded" && ["missing_probability","missing_mean","stale_output","newer_sim_pending","game_started","below_watchlist_probability"].includes(r) ? "text-rose-400" : "text-amber-400"}>
                         · {reasonLabel(r)}
                       </li>
                     ))}
