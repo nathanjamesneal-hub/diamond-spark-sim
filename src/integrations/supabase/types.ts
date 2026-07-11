@@ -368,12 +368,15 @@ export type Database = {
           game_state_class: string | null
           id: string
           inputs_hash: string | null
+          lock_flavor: string | null
           lock_mode: string
           lock_reason: string | null
           meta: Json
           notes: string | null
+          projection_stage: string | null
           provenance_status: string
           scheduled_first_pitch: string | null
+          sim_job_id: string | null
           slate_date: string
         }
         Insert: {
@@ -390,12 +393,15 @@ export type Database = {
           game_state_class?: string | null
           id?: string
           inputs_hash?: string | null
+          lock_flavor?: string | null
           lock_mode?: string
           lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          projection_stage?: string | null
           provenance_status?: string
           scheduled_first_pitch?: string | null
+          sim_job_id?: string | null
           slate_date: string
         }
         Update: {
@@ -412,12 +418,15 @@ export type Database = {
           game_state_class?: string | null
           id?: string
           inputs_hash?: string | null
+          lock_flavor?: string | null
           lock_mode?: string
           lock_reason?: string | null
           meta?: Json
           notes?: string | null
+          projection_stage?: string | null
           provenance_status?: string
           scheduled_first_pitch?: string | null
+          sim_job_id?: string | null
           slate_date?: string
         }
         Relationships: [
@@ -1199,15 +1208,21 @@ export type Database = {
           game_pk: number
           hard_stop_at: string
           id: string
+          inputs_hash: string | null
           last_error: string | null
           lateness_seconds: number | null
           lease_until: string | null
+          lineup_confirmed_away: boolean | null
+          lineup_confirmed_home: boolean | null
           lock_at: string
+          lock_flavor: string | null
           meta: Json
           outcome: string | null
           outcome_reason: string | null
           preflight_at: string
+          projection_stage: string | null
           scheduled_first_pitch: string
+          sim_job_id: string | null
           slate_date: string
           snapshot_id: string | null
           started_at: string | null
@@ -1224,15 +1239,21 @@ export type Database = {
           game_pk: number
           hard_stop_at: string
           id?: string
+          inputs_hash?: string | null
           last_error?: string | null
           lateness_seconds?: number | null
           lease_until?: string | null
+          lineup_confirmed_away?: boolean | null
+          lineup_confirmed_home?: boolean | null
           lock_at: string
+          lock_flavor?: string | null
           meta?: Json
           outcome?: string | null
           outcome_reason?: string | null
           preflight_at: string
+          projection_stage?: string | null
           scheduled_first_pitch: string
+          sim_job_id?: string | null
           slate_date: string
           snapshot_id?: string | null
           started_at?: string | null
@@ -1249,15 +1270,21 @@ export type Database = {
           game_pk?: number
           hard_stop_at?: string
           id?: string
+          inputs_hash?: string | null
           last_error?: string | null
           lateness_seconds?: number | null
           lease_until?: string | null
+          lineup_confirmed_away?: boolean | null
+          lineup_confirmed_home?: boolean | null
           lock_at?: string
+          lock_flavor?: string | null
           meta?: Json
           outcome?: string | null
           outcome_reason?: string | null
           preflight_at?: string
+          projection_stage?: string | null
           scheduled_first_pitch?: string
+          sim_job_id?: string | null
           slate_date?: string
           snapshot_id?: string | null
           started_at?: string | null
@@ -2312,6 +2339,235 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_legs: {
+        Row: {
+          created_at: string
+          diamond_probability: number | null
+          edge_pp: number | null
+          engine_status: string | null
+          expected_value: number | null
+          form: Json
+          game_id: string | null
+          id: string
+          line: number | null
+          market: string
+          matchup: Json
+          novig_probability: number | null
+          player_id: string | null
+          projection_stage: string | null
+          rank: number | null
+          recommendation_score: number | null
+          reject_details: Json | null
+          reject_reason: string | null
+          run_id: string
+          side: string
+          sim_job_id: string | null
+          sim_output_id: string | null
+          sportsbook_price: number | null
+          tier: string
+          uncertainty: Json
+          why: Json
+        }
+        Insert: {
+          created_at?: string
+          diamond_probability?: number | null
+          edge_pp?: number | null
+          engine_status?: string | null
+          expected_value?: number | null
+          form?: Json
+          game_id?: string | null
+          id?: string
+          line?: number | null
+          market: string
+          matchup?: Json
+          novig_probability?: number | null
+          player_id?: string | null
+          projection_stage?: string | null
+          rank?: number | null
+          recommendation_score?: number | null
+          reject_details?: Json | null
+          reject_reason?: string | null
+          run_id: string
+          side: string
+          sim_job_id?: string | null
+          sim_output_id?: string | null
+          sportsbook_price?: number | null
+          tier: string
+          uncertainty?: Json
+          why?: Json
+        }
+        Update: {
+          created_at?: string
+          diamond_probability?: number | null
+          edge_pp?: number | null
+          engine_status?: string | null
+          expected_value?: number | null
+          form?: Json
+          game_id?: string | null
+          id?: string
+          line?: number | null
+          market?: string
+          matchup?: Json
+          novig_probability?: number | null
+          player_id?: string | null
+          projection_stage?: string | null
+          rank?: number | null
+          recommendation_score?: number | null
+          reject_details?: Json | null
+          reject_reason?: string | null
+          run_id?: string
+          side?: string
+          sim_job_id?: string | null
+          sim_output_id?: string | null
+          sportsbook_price?: number | null
+          tier?: string
+          uncertainty?: Json
+          why?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_legs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_legs_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_legs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "recommendation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_runs: {
+        Row: {
+          candidate_pool_size: number
+          created_at: string
+          formula_version: string
+          game_id: string | null
+          generated_at: string
+          id: string
+          meta: Json
+          model_version: string
+          selected_count: number
+          slate_date: string
+          snapshot_id: string | null
+          state: string
+          status: string
+          superseded_at: string | null
+          superseded_by: string | null
+        }
+        Insert: {
+          candidate_pool_size?: number
+          created_at?: string
+          formula_version: string
+          game_id?: string | null
+          generated_at?: string
+          id?: string
+          meta?: Json
+          model_version: string
+          selected_count?: number
+          slate_date: string
+          snapshot_id?: string | null
+          state: string
+          status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+        }
+        Update: {
+          candidate_pool_size?: number
+          created_at?: string
+          formula_version?: string
+          game_id?: string | null
+          generated_at?: string
+          id?: string
+          meta?: Json
+          model_version?: string
+          selected_count?: number
+          slate_date?: string
+          snapshot_id?: string | null
+          state?: string
+          status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_runs_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_runs_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "engine_beta_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_runs_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "recommendation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_tickets: {
+        Row: {
+          created_at: string
+          estimated_combined_probability: number | null
+          id: string
+          kind: string
+          leg_ids: string[]
+          min_leg_probability: number | null
+          min_recommendation_score: number | null
+          notes: Json
+          run_id: string
+        }
+        Insert: {
+          created_at?: string
+          estimated_combined_probability?: number | null
+          id?: string
+          kind: string
+          leg_ids: string[]
+          min_leg_probability?: number | null
+          min_recommendation_score?: number | null
+          notes?: Json
+          run_id: string
+        }
+        Update: {
+          created_at?: string
+          estimated_combined_probability?: number | null
+          id?: string
+          kind?: string
+          leg_ids?: string[]
+          min_leg_probability?: number | null
+          min_recommendation_score?: number | null
+          notes?: Json
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_tickets_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "recommendation_runs"
             referencedColumns: ["id"]
           },
         ]
