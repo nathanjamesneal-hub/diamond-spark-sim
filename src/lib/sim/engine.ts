@@ -10,8 +10,8 @@
  *
  * Baserunner state machine: 24 base-out states, league-average advancement.
  */
-import { LEAGUE, log5, normalize, type Rates } from "./league";
-import { parkFactor, type ParkFactor } from "./park-factors";
+import { LEAGUE, log5, normalize, type Rates } from "./league.ts";
+import { parkFactor, type ParkFactor } from "./park-factors.ts";
 
 export type BatterProfile = {
   id: number;
@@ -78,6 +78,17 @@ export type PitcherDist = {
   outs: PlayerStatDist; // outs recorded
 };
 
+export type BatterSamples = {
+  playerId: number;
+  name: string;
+  H: number[]; HR: number[]; RBI: number[]; R: number[];
+  BB: number[]; K: number[]; TB: number[];
+};
+export type PitcherSamples = {
+  playerId: number; name: string;
+  K: number[]; BB: number[]; ER: number[]; H: number[]; outs: number[];
+};
+
 export type SimResult = {
   iterations: number;
   homeWinProb: number;
@@ -99,7 +110,17 @@ export type SimResult = {
   awayPitcher: PitcherDist;
   nrfi: number; // P(no run in first inning, either team)
   yrfi: number;
+  /** Raw per-iteration sample arrays. Length = iterations for each field.
+   *  Used by the Diamond MC adapter to compute arbitrary thresholds and
+   *  percentiles without re-running the sim. */
+  samples: {
+    homeBatters: BatterSamples[];
+    awayBatters: BatterSamples[];
+    homePitcher: PitcherSamples;
+    awayPitcher: PitcherSamples;
+  };
 };
+
 
 // ---------- RNG ----------
 
@@ -598,5 +619,25 @@ export function simulate(input: SimInput): SimResult {
     },
     nrfi: nrfiCount / iters,
     yrfi: 1 - nrfiCount / iters,
+    samples: {
+      homeBatters: input.home.lineup.map((b, i) => ({
+        playerId: b.id, name: b.name,
+        H: homeBatterAcc[i].H, HR: homeBatterAcc[i].HR, RBI: homeBatterAcc[i].RBI,
+        R: homeBatterAcc[i].R, BB: homeBatterAcc[i].BB, K: homeBatterAcc[i].K, TB: homeBatterAcc[i].TB,
+      })),
+      awayBatters: input.away.lineup.map((b, i) => ({
+        playerId: b.id, name: b.name,
+        H: awayBatterAcc[i].H, HR: awayBatterAcc[i].HR, RBI: awayBatterAcc[i].RBI,
+        R: awayBatterAcc[i].R, BB: awayBatterAcc[i].BB, K: awayBatterAcc[i].K, TB: awayBatterAcc[i].TB,
+      })),
+      homePitcher: {
+        playerId: input.home.starter.id, name: input.home.starter.name,
+        K: homePitcherAcc.K, BB: homePitcherAcc.BB, ER: homePitcherAcc.ER, H: homePitcherAcc.H, outs: homePitcherAcc.outs,
+      },
+      awayPitcher: {
+        playerId: input.away.starter.id, name: input.away.starter.name,
+        K: awayPitcherAcc.K, BB: awayPitcherAcc.BB, ER: awayPitcherAcc.ER, H: awayPitcherAcc.H, outs: awayPitcherAcc.outs,
+      },
+    },
   };
 }

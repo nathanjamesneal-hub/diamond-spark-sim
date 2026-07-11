@@ -1,32 +1,38 @@
 /**
- * Diamond Official Simulation — Phase 3a durable worker (SCAFFOLD).
+ * Diamond Official Simulation — durable worker.
  *
- * ⚠️  Every run this worker produces is marked `engine_status = 'scaffold_unvalidated'`
- *     on both `sim_jobs` and `sim_player_outputs`. The `simulateChunk` implementation
- *     below is a deterministic PLACEHOLDER used only to validate queue plumbing:
- *     lease pickup, chunk resumability, progress persistence, idempotent writes,
- *     current/stale flips, retry, timeout, and finalizer logging.
+ * Runs one tick of the queue: claims sim_jobs, executes chunks of real Monte
+ * Carlo iterations via the `diamond-adapter.server` adapter (which wraps the
+ * full-game engine in `src/lib/sim/engine.ts`), persists per-chunk deltas so
+ * subsequent ticks resume without replay, then finalizes into
+ * `sim_player_outputs`.
  *
- *     Scaffold rows MUST be filtered out of every downstream consumer
- *     (Form Movers, Projection Leaders, Prop Leaders, Diamond Consensus,
- *     auto-lock, and final grading). They are labeled "Pipeline Test /
- *     Uncalibrated" in every UI surface. Do not use them for projections,
- *     rankings, or historical model claims.
+ * Engine tag: `diamond_mc_candidate`. NOT `validated` — Prop Board treats
+ * these rows as Preview until documented calibration evidence lands.
  *
- *     Only Phase 3b's real Monte Carlo engine may set `engine_status = 'validated'`.
- *     When it lands, replace ONLY `simulateChunk` — the queue contract,
- *     outputs schema, audit trail, and immutability rules must stay unchanged.
- *
+ * Legacy scaffold rows created by the old `simulateChunkPlaceholder` remain
+ * in the table for historical audit; new jobs never call the placeholder.
  * Server-only. Loaded lazily inside server-function handlers.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import {
+  DIAMOND_ADAPTER_VERSION,
+  DIAMOND_ENGINE_STATUS,
+  loadDiamondRoster,
+  mergeDelta,
+  percentilesFromHist,
+  simulateDiamondChunk,
+  type AggState,
+  type ChunkDelta,
+  type DiamondRoster,
+} from "@/lib/sim/diamond-adapter.server";
 
 const LEASE_MS = 90_000;              // 90s per pickup; refreshed after each chunk
 const STALE_LEASE_MS = 120_000;       // leases older than this may be reclaimed
-const CHUNK_TIMEOUT_MS = 60_000;      // per-chunk wall-clock guard (scaffold work is trivial)
+const CHUNK_TIMEOUT_MS = 60_000;      // per-chunk wall-clock guard
 const MAX_CHUNKS_PER_TICK = 4;        // bounded work per invocation so a tick stays short
-const SCAFFOLD_ENGINE_VERSION = "scaffold-uncalibrated-0.1";
+
 
 export type WorkerTickResult = {
   ok: boolean;
@@ -63,164 +69,19 @@ type SimJobRow = {
   status: string;
   attempts: number;
   max_attempts: number;
-  chunk_progress: Record<string, unknown>;
-  engine_status: "scaffold_unvalidated" | "validated";
+  chunk_progress: Record<string, { done?: boolean; at?: string; delta?: ChunkDelta }>;
+  engine_status: "scaffold_unvalidated" | "diamond_mc_candidate" | "validated";
   worker_lease_id: string | null;
   worker_lease_expires_at: string | null;
   started_at: string | null;
+  projection_stage: "early" | "updated" | "lineup_confirmed" | "final_pregame" | null;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLACEHOLDER simulator.
-//
-// Produces coherent-shaped, deterministic rows so the plumbing test can prove
-// idempotency, chunk resumability, and current/stale flips against real data.
-// It is NOT calibrated, NOT correlated across players, and NOT a projection.
+// Worker core.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type PlaceholderPlayer = {
-  player_id: string;
-  player_type: "bat" | "pit";
-  team_id: string | null;
-  opponent_team_id: string | null;
-  batting_order: number | null;
-  handedness: string | null;
-};
 
-type PlaceholderMarket = { market: string; threshold: number | null };
-
-const HITTER_MARKETS: PlaceholderMarket[] = [
-  { market: "1plus_hit", threshold: null },
-  { market: "2plus_hits", threshold: null },
-  { market: "total_bases", threshold: 1.5 },
-  { market: "hr", threshold: null },
-];
-const PITCHER_MARKETS: PlaceholderMarket[] = [
-  { market: "k", threshold: 5.5 },
-  { market: "outs", threshold: 15.5 },
-  { market: "er", threshold: 2.5 },
-];
-
-function seededRand(seed: string, key: string): number {
-  const h = createHash("sha256").update(`${seed}::${key}`).digest();
-  // Take 4 bytes → 0..1
-  const n = h.readUInt32BE(0) / 0xffffffff;
-  return n;
-}
-
-async function loadRoster(admin: SupabaseClient, job: SimJobRow): Promise<PlaceholderPlayer[]> {
-  const { data: lineups } = await admin
-    .from("lineups")
-    .select("game_id, team_id, player_id, batting_order")
-    .eq("game_id", job.game_id);
-  const { data: starters } = await admin
-    .from("starting_pitchers")
-    .select("game_id, team_id, player_id")
-    .eq("game_id", job.game_id);
-
-  const players: PlaceholderPlayer[] = [];
-  // We need home/away split so opponent_team is meaningful.
-  const { data: gameRow } = await admin
-    .from("games")
-    .select("home_team_id, away_team_id")
-    .eq("id", job.game_id)
-    .maybeSingle();
-  const home = gameRow?.home_team_id ?? null;
-  const away = gameRow?.away_team_id ?? null;
-  const opp = (teamId: string | null) => (teamId === home ? away : teamId === away ? home : null);
-
-  for (const l of lineups ?? []) {
-    players.push({
-      player_id: l.player_id,
-      player_type: "bat",
-      team_id: l.team_id,
-      opponent_team_id: opp(l.team_id),
-      batting_order: l.batting_order ?? null,
-      handedness: null,
-    });
-  }
-  for (const s of starters ?? []) {
-    players.push({
-      player_id: s.player_id,
-      player_type: "pit",
-      team_id: s.team_id,
-      opponent_team_id: opp(s.team_id),
-      batting_order: null,
-      handedness: null,
-    });
-  }
-  return players;
-}
-
-/**
- * PLACEHOLDER. Do not treat outputs as projections.
- *
- * Contract preserved for the real engine:
- *   in:  (job, chunkIndex, players, aggregatorState)
- *   out: updated aggregatorState that, when finalized, becomes the per-player rows.
- */
-function simulateChunkPlaceholder(
-  job: SimJobRow,
-  chunkIndex: number,
-  players: PlaceholderPlayer[],
-  state: Map<string, { market: string; threshold: number | null; hits: number; sum: number; n: number; playerType: "bat" | "pit"; teamId: string | null; oppTeamId: string | null; battingOrder: number | null; handedness: string | null }>,
-): void {
-  const chunkN = job.chunk_size;
-  const seed = job.seed ?? job.id;
-
-  for (const p of players) {
-    const markets = p.player_type === "bat" ? HITTER_MARKETS : PITCHER_MARKETS;
-    for (const m of markets) {
-      const key = `${p.player_id}|${m.market}`;
-      let s = state.get(key);
-      if (!s) {
-        s = {
-          market: m.market,
-          threshold: m.threshold,
-          hits: 0,
-          sum: 0,
-          n: 0,
-          playerType: p.player_type,
-          teamId: p.team_id,
-          oppTeamId: p.opponent_team_id,
-          battingOrder: p.batting_order,
-          handedness: p.handedness,
-        };
-        state.set(key, s);
-      }
-      // Coherent-shaped deterministic draws — NOT calibrated.
-      // Mean is a stable function of (player, market); each chunk adds `chunkN`
-      // "observations" drawn around that mean using seeded jitter.
-      const meanBase =
-        m.market === "1plus_hit" ? 0.62 :
-        m.market === "2plus_hits" ? 0.24 :
-        m.market === "total_bases" ? 1.35 :
-        m.market === "hr" ? 0.13 :
-        m.market === "k" ? 6.2 :
-        m.market === "outs" ? 16.5 :
-        m.market === "er" ? 2.7 : 0.5;
-
-      const jitter = (seededRand(seed, `${key}|${chunkIndex}|mean`) - 0.5) * 0.2;
-      const meanThisChunk = Math.max(0, meanBase * (1 + jitter));
-
-      // Approximate: assume every "sim" contributes one value ≈ meanThisChunk with a
-      // small deterministic spread. hits count uses the same value vs threshold.
-      const spread = seededRand(seed, `${key}|${chunkIndex}|spread`) * 0.3;
-      const perDraw = meanThisChunk;
-      const hitProb = m.threshold == null
-        ? Math.min(1, Math.max(0, meanThisChunk))
-        : Math.min(1, Math.max(0, meanThisChunk > m.threshold ? 0.5 + spread : 0.5 - spread));
-
-      s.sum += perDraw * chunkN;
-      s.hits += Math.round(hitProb * chunkN);
-      s.n += chunkN;
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Worker core (real).
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJobRow | null> {
   const leaseExpires = new Date(Date.now() + LEASE_MS).toISOString();
@@ -236,12 +97,13 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
     // (game, tier); older enqueues for the same key would be superseded by
     // verifyInputsFresh and marked stale, wasting worker ticks.
     .order("queued_at", { ascending: false })
-    .limit(5);
+    .limit(25);
 
   for (const c of candidates ?? []) {
     if ((c.attempts ?? 0) >= (c.max_attempts ?? 3)) continue;
     const newLeaseId = randomUUID();
-    const { data: swapped } = await admin
+    // CAS: match the exact lease we observed (null or specific stale id).
+    let query = admin
       .from("sim_jobs")
       .update({
         worker_lease_id: newLeaseId,
@@ -251,12 +113,15 @@ async function claimJob(admin: SupabaseClient, workerId: string): Promise<SimJob
         attempts: (c.attempts ?? 0) + 1,
         last_progress_at: new Date().toISOString(),
       })
-      .eq("id", c.id)
-      // CAS: only claim if the lease we saw is still what's there.
-      .is("worker_lease_id", c.worker_lease_id === null ? null : undefined)
-      .select("*")
-      .maybeSingle();
+      .eq("id", c.id);
+    if (c.worker_lease_id === null) {
+      query = query.is("worker_lease_id", null);
+    } else {
+      query = query.eq("worker_lease_id", c.worker_lease_id);
+    }
+    const { data: swapped } = await query.select("*").maybeSingle();
     if (swapped) return swapped as SimJobRow;
+
   }
   return null;
 }
@@ -290,9 +155,11 @@ async function verifyInputsFresh(admin: SupabaseClient, job: SimJobRow): Promise
 async function writeOutputs(
   admin: SupabaseClient,
   job: SimJobRow,
-  state: Map<string, any>,
+  state: AggState,
 ): Promise<number> {
   const rows: Array<Record<string, unknown>> = [];
+  const stageOut = job.projection_stage ?? "legacy_unknown";
+  const projectionStageValid = ["early", "updated", "lineup_confirmed", "final_pregame"].includes(stageOut) ? stageOut : null;
   for (const [key, s] of state) {
     const playerId = key.split("|")[0];
     const mean = s.n > 0 ? s.sum / s.n : 0;
@@ -301,18 +168,21 @@ async function writeOutputs(
     const stderr = s.n > 0 ? Math.sqrt(Math.max(0, eventProb * (1 - eventProb) / s.n)) : 0;
     // Confidence: shrink toward 0 when the sample is tiny; 20K full run ~= 1.0.
     const confidence = Math.min(1, Math.max(0, 1 - stderr * 6));
+    const pcts = percentilesFromHist(s.hist);
+    const side = s.threshold == null ? null : "over"; // adapter emits Over-side probabilities
 
     rows.push({
       sim_job_id: job.id,
       game_id: job.game_id,
       game_pk: job.game_pk,
       slate_date: job.slate_date,
-      model_version: `${job.model_version}+${SCAFFOLD_ENGINE_VERSION}`,
+      model_version: `${job.model_version}+${DIAMOND_ADAPTER_VERSION}`,
       inputs_hash: job.inputs_hash,
       sim_tier: job.tier,
       sim_count: s.n,
       run_status: "current",
-      engine_status: "scaffold_unvalidated",
+      engine_status: DIAMOND_ENGINE_STATUS,
+      projection_stage: projectionStageValid,
       player_id: playerId,
       player_type: s.playerType,
       team_id: s.teamId,
@@ -326,19 +196,25 @@ async function writeOutputs(
       threshold: s.threshold,
       projected_mean: mean,
       event_probability: eventProb,
-      baseline_mean: mean,                 // scaffold has no separate baseline
+      baseline_mean: mean,
       baseline_event_probability: eventProb,
       form_adjustment: 0,
       form_prob_adjustment: 0,
-      percentile_summary: null,
+      percentile_summary: { ...pcts, side },
       stderr,
       confidence,
       form_sample_size: null,
       form_reliability: null,
       form_direction: "neutral",
       driver_metadata: {
-        note: "SCAFFOLD placeholder — not a projection",
-        engine: SCAFFOLD_ENGINE_VERSION,
+        engine: DIAMOND_ADAPTER_VERSION,
+        engine_status: DIAMOND_ENGINE_STATUS,
+        source: "diamond-mc-candidate",
+        note: "Real Monte Carlo per-PA simulation via engine.ts. Preview tier until calibrated.",
+        pitcher_rates: "league-average with deterministic per-pitcher jitter",
+        batter_rates: "derived from player_dna (contact/power/speed/discipline)",
+        correlation: "per-game baserunner state links H/HR/RBI/R/TB; iterations independent; no cross-game correlation",
+        stage_source: job.projection_stage ? "sim_jobs.projection_stage" : "legacy_unknown",
       },
       completed_at: new Date().toISOString(),
     });
@@ -362,6 +238,7 @@ async function writeOutputs(
 
   return rows.length;
 }
+
 
 async function markChunkStart(admin: SupabaseClient, job: SimJobRow, chunkIndex: number, attempt: number): Promise<string> {
   const id = randomUUID();
@@ -438,14 +315,23 @@ async function runJob(
     return "stale";
   }
 
-  // Rebuild aggregator from any completed chunks by re-running them (deterministic seed makes
-  // this cheap for the scaffold; the real engine will persist chunk aggregates instead).
-  const players = await loadRoster(admin, job);
-  const state = new Map<string, any>();
-  const alreadyDone: Set<number> = new Set(
-    Object.keys(job.chunk_progress ?? {}).map((k) => Number(k)).filter((n) => Number.isFinite(n)),
-  );
-  for (const idx of alreadyDone) simulateChunkPlaceholder(job, idx, players, state);
+  // Load real Diamond roster (lineups + starters + player_dna).
+  let roster: DiamondRoster;
+  try {
+    roster = await loadDiamondRoster(admin, job);
+  } catch (e: any) {
+    events.push({ jobId: job.id, kind: "chunk_err", detail: `roster: ${e?.message ?? String(e)}` });
+    throw e;
+  }
+  // Rehydrate aggregator from persisted per-chunk deltas — no replay needed.
+  const state: AggState = new Map();
+  const alreadyDone: Set<number> = new Set();
+  for (const [k, v] of Object.entries(job.chunk_progress ?? {})) {
+    const n = Number(k);
+    if (!Number.isFinite(n)) continue;
+    if (v?.done) alreadyDone.add(n);
+    if (v?.delta) mergeDelta(state, v.delta);
+  }
 
   let chunksDone = job.chunks_done;
   let executed = 0;
@@ -454,22 +340,24 @@ async function runJob(
     if (alreadyDone.has(idx)) continue;
     if (executed >= MAX_CHUNKS_PER_TICK) break;
 
-    const attempt = 1; // scaffold: chunks are re-tried at the job level, not per-chunk
+    const attempt = 1;
     const chunkRunId = await markChunkStart(admin, job, idx, attempt);
     const startedAt = Date.now();
     try {
+      let delta: ChunkDelta = [];
       await withTimeout(
-        Promise.resolve().then(() => simulateChunkPlaceholder(job, idx, players, state)),
+        Promise.resolve().then(() => { delta = simulateDiamondChunk(job, idx, roster, state); }),
         CHUNK_TIMEOUT_MS,
         `chunk ${idx}`,
       );
       await markChunkResult(admin, chunkRunId, "completed", startedAt);
       chunksDone++;
       alreadyDone.add(idx);
-      const progress = { ...(job.chunk_progress ?? {}), [String(idx)]: { done: true, at: new Date().toISOString() } };
+      const progress = { ...(job.chunk_progress ?? {}), [String(idx)]: { done: true, at: new Date().toISOString(), delta } };
       await persistProgress(admin, job, chunksDone, progress);
       await refreshLease(admin, job);
       events.push({ jobId: job.id, kind: "chunk_ok", chunkIndex: idx, attempt });
+
       executed++;
     } catch (e: any) {
       const msg = e?.message ?? String(e);

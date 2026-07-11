@@ -304,8 +304,9 @@ export function scoreCandidate(inp: ScoreInputs): ScoreOutput {
   if (inp.formDirection === "falling" && (inp.formReliability ?? 0) > 0.5) reasons.push("negative_recent_form");
   if ((inp.formSampleSize ?? 0) < 5 && (inp.formSampleSize ?? 0) > 0) reasons.push("small_form_sample");
 
-  const isPreview = (inp.engineStatus ?? "").toLowerCase() === "scaffold_unvalidated";
-  if (isPreview) reasons.push("preview_engine_unvalidated");
+  const esNorm = (inp.engineStatus ?? "").toLowerCase();
+  const isPreview = esNorm === "scaffold_unvalidated" || esNorm === "diamond_mc_candidate";
+  if (isPreview) reasons.push(esNorm === "diamond_mc_candidate" ? "preview_diamond_mc_candidate" : "preview_engine_unvalidated");
 
   const rawScore =
     weightsApplied.probability * components.probability +
