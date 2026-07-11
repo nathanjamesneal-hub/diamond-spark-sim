@@ -1,104 +1,26 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { ForecastsTabBar } from "@/components/forecasts-tab-bar";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { getDiamondScores, type DiamondHitterCard, type DiamondPitcherCard } from "@/lib/projections.functions";
-import { SimMethodologyTooltip } from "@/components/diamond/sim-methodology-tooltip";
-import { getMarketSimulationMetrics, type MarketKey, type MarketRole } from "@/lib/forecast/sim-metrics";
-
-
-
-type PropType = "hit" | "tb" | "hr" | "rbi" | "runs" | "sb" | "k" | "win" | "qs";
-
-type PropRow = {
-  key: string;
-  player_name: string;
-  mlb_id: number | null;
-  team_abbrev: string;
-  opp_abbrev: string;
-  game_id: string;
-  batting_order: number | null;
-  propType: PropType;
-  label: string;
-  line: string;
-  probability: number;
-  diamond_score: number | null;
-  lineup_badge: string;
-  is_pitcher: boolean;
-  is_preview: boolean;
-  /** Persisted Monte Carlo mean for this propType's market (from the same selected snapshot). */
-  meanValue: number | null;
-  meanUnit: string;
-  meanSourcePath: string | null;
-  meanUnavailableReason: string | null;
-};
-
-const PROP_MARKET: Record<PropType, { role: MarketRole; market: MarketKey; unit: string } | null> = {
-  hit:  { role: "hitter",  market: "H",   unit: "H" },
-  tb:   { role: "hitter",  market: "TB",  unit: "TB" },
-  hr:   { role: "hitter",  market: "HR",  unit: "HR" },
-  rbi:  { role: "hitter",  market: "RBI", unit: "RBI" },
-  runs: { role: "hitter",  market: "R",   unit: "R" },
-  sb:   { role: "hitter",  market: "SB",  unit: "SB" },
-  k:    { role: "pitcher", market: "K",   unit: "K" },
-  // No count mean is stored for win/qs — they remain probability-only.
-  win:  null,
-  qs:   null,
-};
-
-
-const PROP_META: Record<PropType, { label: string; line: string; hero: string }> = {
-  hit:  { label: "Hits",          line: "1+ H",      hero: "Safest Hit" },
-  tb:   { label: "Total Bases",   line: "2+ TB",     hero: "Top Total Bases" },
-  hr:   { label: "Home Runs",     line: "1+ HR",     hero: "Top HR" },
-  rbi:  { label: "RBI",           line: "1+ RBI",    hero: "Top RBI" },
-  runs: { label: "Runs",          line: "1+ R",      hero: "Top Runs" },
-  sb:   { label: "Stolen Bases",  line: "1+ SB",     hero: "Top SB" },
-  k:    { label: "Strikeouts",    line: "Pitcher K", hero: "Top Strikeouts" },
-  win:  { label: "Pitcher Win",   line: "W",         hero: "Top Pitcher Win" },
-  qs:   { label: "Quality Start", line: "QS",        hero: "Top Quality Start" },
-};
-
-// Display-only normalization: map propType aliases to canonical category keys.
-// Does not change the engine, scoring, or persisted data.
-const PROP_ALIASES: Record<string, PropType> = {
-  h: "hit", hit: "hit", hits: "hit",
-  tb: "tb", "total base": "tb", "total bases": "tb", total_base: "tb", total_bases: "tb",
-  hr: "hr", "home run": "hr", "home runs": "hr", home_run: "hr", home_runs: "hr", homer: "hr", homers: "hr",
-  rbi: "rbi", rbis: "rbi", "runs batted in": "rbi",
-  r: "runs", run: "runs", runs: "runs", runs_scored: "runs", "runs scored": "runs",
-  sb: "sb", "stolen base": "sb", "stolen bases": "sb", stolen_base: "sb", stolen_bases: "sb",
-  k: "k", ks: "k", so: "k", strikeout: "k", strikeouts: "k",
-  "pitcher k": "k", "pitcher ks": "k", "pitcher strikeout": "k", "pitcher strikeouts": "k",
-  pitcher_k: "k", pitcher_ks: "k", pitcher_strikeout: "k", pitcher_strikeouts: "k",
-  w: "win", win: "win", wins: "win", pitcher_win: "win", "pitcher win": "win",
-  qs: "qs", "quality start": "qs", "quality starts": "qs", quality_start: "qs", quality_starts: "qs", qualitystart: "qs",
-};
-
-const CANONICAL_PROPS: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
-
-function normalizePropType(raw: string | null | undefined): PropType | null {
-  if (!raw) return null;
-  const key = String(raw).trim().toLowerCase();
-  if (key in PROP_ALIASES) return PROP_ALIASES[key];
-  if ((CANONICAL_PROPS as string[]).includes(key)) return key as PropType;
-  return null;
-}
+import { getPropBoardLive, type PropBoardRow, type PropBoardPayload } from "@/lib/prop-board/build.functions";
+import { SUPPORTED_MARKETS, type PropMarket, MARKET_META } from "@/lib/prop-board/score";
+import { ChevronDown, ChevronRight, AlertTriangle, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const searchSchema = z.object({
   date: z.string().optional(),
-  prop: fallback(z.enum(["all", "hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"]), "all").default("all"),
-  min: fallback(z.coerce.number().min(0).max(100), 60).default(60),
-  team: z.string().optional(),
-  sort: fallback(z.enum(["probability", "diamond"]), "probability").default("probability"),
+  market: fallback(z.enum(["all", ...SUPPORTED_MARKETS]), "all").default("all"),
+  role: fallback(z.enum(["all", "hitter", "pitcher"]), "all").default("all"),
+  tier: fallback(z.enum(["all", "heavy", "strong", "watchlist", "preview"]), "all").default("all"),
+  confirmed: fallback(z.enum(["all", "confirmed"]), "all").default("all"),
+  q: z.string().optional(),
 });
 
-function diamondQuery(date: string | undefined) {
+function boardQuery(date: string | undefined) {
   return queryOptions({
-    queryKey: ["diamond-scores", date ?? "today"],
-    queryFn: () => getDiamondScores({ data: date ? { date } : {} }),
+    queryKey: ["prop-board-live", date ?? "today"],
+    queryFn: () => getPropBoardLive({ data: date ? { date } : {} }),
     staleTime: 60_000,
     retry: 2,
   });
@@ -108,468 +30,373 @@ export const Route = createFileRoute("/_authenticated/top-props")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Top Props — Diamond" },
-      { name: "description", content: "Highest-probability player props for today's MLB slate from the Diamond Engine." },
-      { property: "og:title", content: "Top Props — Diamond" },
-      { property: "og:description", content: "The strongest hitter and pitcher props ranked by Diamond Engine probability." },
+      { title: "Prop Board — Diamond" },
+      { name: "description", content: "Unified Diamond Prop Board — Monte Carlo probability, recent form, matchup, opportunity, and uncertainty combined into a transparent prop-quality score." },
+      { property: "og:title", content: "Prop Board — Diamond" },
+      { property: "og:description", content: "Ranked player-prop board built from persisted Monte Carlo distributions and Risers & Fallers signals." },
     ],
   }),
   validateSearch: zodValidator(searchSchema),
   loaderDeps: ({ search }) => ({ date: search.date }),
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(diamondQuery(deps.date)),
-  component: TopPropsPage,
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(boardQuery(deps.date)),
+  component: PropBoardPage,
   errorComponent: ({ error, reset }) => {
     const router = useRouter();
     return (
       <div className="p-8 text-sm text-muted-foreground space-y-2">
-        <div>Couldn't load Top Props: {error.message}</div>
-        <button
-          onClick={() => { reset(); router.invalidate(); }}
-          className="rounded-md border border-border/60 px-3 py-1 text-xs uppercase tracking-widest"
-        >Retry</button>
+        <div>Couldn't load Prop Board: {error.message}</div>
+        <button onClick={() => { reset(); router.invalidate(); }} className="rounded-md border border-border/60 px-3 py-1 text-xs uppercase tracking-widest">Retry</button>
       </div>
     );
   },
   notFoundComponent: () => <div className="p-8">Nothing here.</div>,
 });
 
-function badgeLabel(b: string): string {
-  if (b === "official") return "Official";
-  if (b === "locked") return "Locked";
-  if (b === "aggregated") return "Aggregated";
-  return "Projected";
-}
-
-// Pick the first numeric field present from a list of alias keys.
-// Returns null when none of the keys hold a finite number.
-function pickNumber(obj: Record<string, unknown>, keys: readonly string[]): number | null {
-  for (const k of keys) {
-    const v = obj[k];
-    if (typeof v === "number" && isFinite(v)) return v;
-  }
-  return null;
-}
-
-// Normalize a probability stored as either 0–1 or 0–100 into a 0–1 fraction.
-function toFraction(v: number | null): number | null {
-  if (v == null || !isFinite(v)) return null;
-  if (v < 0) return 0;
-  // Treat anything >1 as a 0–100 percent value.
-  return v > 1 ? Math.min(v / 100, 1) : v;
-}
-
-const HIT_KEYS  = ["hit_probability", "hitProbability", "probHit", "hit_prob", "hits_probability"] as const;
-const TB_KEYS   = ["total_base_probability", "totalBaseProbability", "tb_probability", "tbProbability", "probTB", "tb_prob"] as const;
-const HR_KEYS   = ["hr_probability", "hrProbability", "homeRunProbability", "home_run_probability", "probHR", "hr_prob", "hr", "homeRuns"] as const;
-const RBI_KEYS  = ["rbi_probability", "rbiProbability", "probRBI", "rbi_prob", "rbi", "rbis"] as const;
-const RUNS_KEYS = ["run_probability", "runProbability", "runsProbability", "runs_probability", "probRuns", "run_prob", "runs", "r"] as const;
-const SB_KEYS   = ["sb_probability", "sbProbability", "stolenBaseProbability", "stolen_bases_probability", "probSB", "sb_prob", "sb", "stolenBases"] as const;
-
-let didLogSample = false;
-
-function meanForProp(selectedForecast: DiamondHitterCard["selected_forecast"] | DiamondPitcherCard["selected_forecast"], propType: PropType): { value: number | null; unit: string; sourcePath: string | null; reason: string | null } {
-  const spec = PROP_MARKET[propType];
-  if (!spec) return { value: null, unit: "", sourcePath: null, reason: null };
-  const m = getMarketSimulationMetrics({ selectedForecast, role: spec.role, market: spec.market });
-  return { value: m.mean, unit: spec.unit, sourcePath: m.sourcePath, reason: m.unavailableReason };
-}
-
-function flattenHitter(h: DiamondHitterCard): PropRow[] {
-  const isPreview = h.forecast_status === "preview";
-  const base = {
-    player_name: h.player_name,
-    mlb_id: h.mlb_id,
-    team_abbrev: h.team_abbrev,
-    opp_abbrev: h.opp_abbrev,
-    game_id: h.game_id,
-    batting_order: h.batting_order,
-    diamond_score: h.diamond_score,
-    lineup_badge: badgeLabel(h.badge),
-    is_pitcher: false,
-    is_preview: isPreview,
-  };
-  const raw = h as unknown as Record<string, unknown>;
-
-  if (import.meta.env.DEV && !didLogSample) {
-    didLogSample = true;
-    // eslint-disable-next-line no-console
-    console.log("[top-props] sample hitter keys:", Object.keys(raw));
-  }
-
-  const entries: Array<[PropType, number | null]> = [
-    ["hit",  toFraction(pickNumber(raw, HIT_KEYS))],
-    ["tb",   toFraction(pickNumber(raw, TB_KEYS))],
-    ["hr",   toFraction(pickNumber(raw, HR_KEYS))],
-    ["rbi",  toFraction(pickNumber(raw, RBI_KEYS))],
-    ["runs", toFraction(pickNumber(raw, RUNS_KEYS))],
-    ["sb",   toFraction(pickNumber(raw, SB_KEYS))],
-  ];
-  const rows: PropRow[] = [];
-  for (const [propType, prob] of entries) {
-    if (prob == null) continue;
-    const meta = PROP_META[propType];
-    const mean = meanForProp(h.selected_forecast, propType);
-    // Pregame-eligibility gate: a hitter prop ranks only when the SAME selected
-    // snapshot persists a finite positive Monte Carlo mean for that market.
-    // Probability without a same-run mean (e.g. preview rows where sim_snapshot
-    // wasn't persisted) must NOT appear on ranked boards.
-    if (PROP_MARKET[propType] && !(mean.value != null && isFinite(mean.value) && mean.value > 0)) continue;
-    rows.push({
-      ...base,
-      key: `${h.player_id}:${h.game_id}:${h.model_version}:${propType}`,
-      propType, label: meta.label, line: meta.line,
-      probability: prob,
-      meanValue: mean.value,
-      meanUnit: mean.unit,
-      meanSourcePath: mean.sourcePath,
-      meanUnavailableReason: mean.reason,
-    });
-  }
-  return rows;
-}
-
-function flattenPitcher(p: DiamondPitcherCard): PropRow[] {
-  const isPreview = p.forecast_status === "preview";
-  const base = {
-    player_name: p.player_name,
-    mlb_id: p.mlb_id,
-    team_abbrev: p.team_abbrev,
-    opp_abbrev: p.opp_abbrev,
-    game_id: p.game_id,
-    batting_order: null,
-    diamond_score: p.diamond_score,
-    lineup_badge: badgeLabel(p.badge),
-    is_pitcher: true,
-    is_preview: isPreview,
-  };
-  const rows: PropRow[] = [];
-
-  const pAny = p as unknown as Record<string, unknown>;
-  const K_PROB_KEYS = [
-    "strikeout_probability", "k_probability", "pitcher_k_probability", "pitcher_strikeout_probability",
-    "k_over_5_5_probability", "k_over_6_5_probability", "k_over_4_5_probability", "k_over_3_5_probability",
-  ];
-  for (const key of K_PROB_KEYS) {
-    const v = pAny[key];
-    if (typeof v === "number" && isFinite(v)) {
-      const mean = meanForProp(p.selected_forecast, "k");
-      // Same eligibility rule as hitter props: pitcher K only ranks when the
-      // selected snapshot persists a finite positive K mean from the same run.
-      if (!(mean.value != null && isFinite(mean.value) && mean.value > 0)) break;
-      rows.push({
-        ...base,
-        key: `${p.player_id}:${p.game_id}:${p.model_version}:k:${key}`,
-        propType: "k", label: PROP_META.k.label, line: key.includes("over") ? key.replace("k_over_", "").replace("_probability", "").replace("_", ".") + "+ K" : PROP_META.k.line,
-        probability: v,
-        meanValue: mean.value,
-        meanUnit: mean.unit,
-        meanSourcePath: mean.sourcePath,
-        meanUnavailableReason: mean.reason,
-      });
-      break;
-    }
-  }
-
-  if (p.pitcher_win_probability != null) {
-    rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:win`,
-      propType: "win", label: PROP_META.win.label, line: PROP_META.win.line, probability: p.pitcher_win_probability,
-      meanValue: null, meanUnit: "", meanSourcePath: null, meanUnavailableReason: null });
-  }
-  if (p.quality_start_probability != null) {
-    rows.push({ ...base, key: `${p.player_id}:${p.game_id}:${p.model_version}:qs`,
-      propType: "qs", label: PROP_META.qs.label, line: PROP_META.qs.line, probability: p.quality_start_probability,
-      meanValue: null, meanUnit: "", meanSourcePath: null, meanUnavailableReason: null });
-  }
-  return rows;
-}
-
-
-
-function pct(p: number): string {
+function pct(p: number | null): string {
+  if (p == null || !isFinite(p)) return "—";
   return `${Math.round(p * 100)}%`;
 }
 
-function tierClasses(p: number): string {
-  if (p >= 0.80) return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
-  if (p >= 0.65) return "bg-sky-500/15 text-sky-300 border-sky-500/30";
-  if (p >= 0.50) return "bg-amber-500/15 text-amber-300 border-amber-500/30";
-  return "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
+function tierBadge(tier: PropBoardRow["tier"]): { label: string; cls: string } {
+  switch (tier) {
+    case "heavy":     return { label: "Heavy",   cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" };
+    case "strong":    return { label: "Strong",  cls: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
+    case "watchlist": return { label: "Watch",   cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" };
+    case "preview":   return { label: "Preview", cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" };
+    default:          return { label: "Excluded", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30" };
+  }
 }
 
-function TopPropsPage() {
-  const search = Route.useSearch();
-  const navigate = useNavigate({ from: Route.fullPath });
-  const { data } = useSuspenseQuery(diamondQuery(search.date));
+function FormIcon({ dir }: { dir: PropBoardRow["formDirection"] }) {
+  if (dir === "rising")  return <TrendingUp className="inline size-3 text-emerald-400" />;
+  if (dir === "falling") return <TrendingDown className="inline size-3 text-rose-400" />;
+  return <Minus className="inline size-3 text-muted-foreground" />;
+}
 
-  const setSearch = (patch: Record<string, string | number | undefined>) =>
-    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
+function reasonLabel(r: string): string {
+  return r.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
 
-  const allRows = useMemo<PropRow[]>(() => {
-    const rows: PropRow[] = [];
-    for (const h of data.hitters) rows.push(...flattenHitter(h));
-    for (const p of data.pitchers) rows.push(...flattenPitcher(p));
-    return rows;
-  }, [data.hitters, data.pitchers]);
+function ModeLabel({ mode }: { mode: PropBoardRow["mode"] }) {
+  return (
+    <span className={`mono rounded border px-1 py-0.5 text-[9px] uppercase tracking-wider ${
+      mode === "market_compared"
+        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+        : "border-zinc-500/40 bg-zinc-500/10 text-zinc-400"
+    }`}>
+      {mode === "market_compared" ? "Market Compared" : "Model Only"}
+    </span>
+  );
+}
 
-  // Best-of-the-day strip: highest probability per prop type
-  const heroes = useMemo(() => {
-    const out: Array<{ propType: PropType; row: PropRow | null }> = [];
-    const types: PropType[] = ["hit", "tb", "hr", "rbi", "runs", "sb", "k", "win", "qs"];
-    for (const t of types) {
-      const best = allRows
-        .filter((r) => r.propType === t)
-        .sort((a, b) => b.probability - a.probability)[0];
-      out.push({ propType: t, row: best ?? null });
-    }
-    return out;
-  }, [allRows]);
-
-  // Apply filters (team + min) but NOT prop type — prop type controls which sections show
-  // The user-controlled "min %" slider is calibrated for high-frequency props
-  // (Hits, TB, Win, QS). Low-baseline props (HR, RBI, Runs, SB, K) rarely exceed
-  // 50% even for the best plays of the day, so applying the same threshold wipes
-  // those categories out. Apply min only to high-frequency props; show the rest
-  // ranked as-is so the leaderboard is never empty when real data exists.
-  const HIGH_FREQ: PropType[] = ["hit", "tb", "win", "qs"];
-  const baseFiltered = useMemo(() => {
-    let rows = allRows.slice();
-    if (search.team) rows = rows.filter((r) => r.team_abbrev === search.team);
-    rows = rows.filter((r) =>
-      HIGH_FREQ.includes(r.propType) ? r.probability * 100 >= search.min : true
-    );
-    return rows;
-  }, [allRows, search.team, search.min]);
-
-  const sortRows = (rows: PropRow[]) => {
-    const out = rows.slice();
-    if (search.sort === "diamond") {
-      out.sort((a, b) => (b.diamond_score ?? -1) - (a.diamond_score ?? -1));
-    } else {
-      out.sort((a, b) => b.probability - a.probability);
-    }
-    return out;
+function StageBadge({ stage }: { stage: string | null }) {
+  if (!stage) return null;
+  const map: Record<string, string> = {
+    early: "border-slate-500/40 bg-slate-500/10 text-slate-300",
+    updated: "border-blue-500/40 bg-blue-500/10 text-blue-300",
+    lineup_confirmed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    final_pregame: "border-purple-500/40 bg-purple-500/10 text-purple-300",
   };
+  return (
+    <span className={`mono rounded border px-1 py-0.5 text-[9px] uppercase tracking-wider ${map[stage] ?? "border-zinc-500/40 bg-zinc-500/10 text-zinc-400"}`}>
+      {stage.replace(/_/g, " ")}
+    </span>
+  );
+}
 
-  const categoryOrder: PropType[] = ["hr", "hit", "tb", "rbi", "runs", "sb", "k", "win", "qs"];
-  const visibleCategories = search.prop === "all" ? categoryOrder : [search.prop as PropType];
-
-  const sectionsData = useMemo(() => {
-    const out = visibleCategories
-      .map((propType) => {
-        const rows = sortRows(baseFiltered.filter((r) => r.propType === propType)).slice(0, 25);
-        return { propType, rows };
-      })
-      // Strikeouts will populate when the engine provides real K probability fields;
-      // hide until then unless user explicitly filtered to k.
-      .filter((s) => s.propType !== "k" || s.rows.length > 0 || search.prop === "k");
-
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log("[top-props] rows per category:", Object.fromEntries(out.map((s) => [s.propType, s.rows.length])));
-    }
-    return out;
-  }, [baseFiltered, search.sort, search.prop]);
-
-
-  const totalShown = sectionsData.reduce((n, s) => n + s.rows.length, 0);
-
-  const teams = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of allRows) if (r.team_abbrev) set.add(r.team_abbrev);
-    return Array.from(set).sort();
-  }, [allRows]);
-
+function BoardRow({ row, rank }: { row: PropBoardRow; rank: number }) {
+  const [open, setOpen] = useState(false);
+  const tb = tierBadge(row.tier);
   return (
     <>
-      <ForecastsTabBar />
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-display text-2xl font-bold tracking-wide">Top Props</h1>
-        <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-          Category-by-category Top 25 leaderboards from today's Diamond simulation engine. Date: {data.date}
-          <SimMethodologyTooltip className="ml-1" />
-        </p>
-      </header>
-
-
-      {/* Best of the Day */}
-      <section className="space-y-2">
-        <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Best of the Day</div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-          {heroes.map(({ propType, row }) => (
-            <div key={propType} className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                {PROP_META[propType].hero}
-              </div>
-              {row ? (
-                <Link
-                  to={row.mlb_id ? "/players/$playerId" : "/top-props"}
-                  params={row.mlb_id ? { playerId: String(row.mlb_id) } : undefined}
-                  className="mt-1 block"
-                >
-                  <div className="text-sm font-semibold leading-tight truncate">{row.player_name}</div>
-                  <div className="mono text-[10px] text-muted-foreground">
-                    {row.team_abbrev} vs {row.opp_abbrev}
-                  </div>
-                  <div className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(row.probability)}`}>
-                    {pct(row.probability)} · {PROP_META[propType].line}
-                  </div>
-                </Link>
-              ) : (
-                <div className="mt-2 text-xs text-muted-foreground">No data</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Filters */}
-      <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card/30 p-3">
-        <div className="flex items-center gap-1">
-          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Prop</span>
-          <select
-            value={search.prop}
-            onChange={(e) => setSearch({ prop: e.target.value })}
-            className="rounded-md border border-border/60 bg-background px-2 py-1 text-sm"
-          >
-            <option value="all">All</option>
-            <option value="hr">HR 1+</option>
-            <option value="hit">Hit 1+</option>
-            <option value="tb">TB 2+</option>
-            <option value="rbi">RBI 1+</option>
-            <option value="runs">Runs 1+</option>
-            <option value="sb">SB 1+</option>
-            <option value="k">Strikeouts</option>
-            <option value="win">Pitcher Win</option>
-            <option value="qs">Quality Start</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Team</span>
-          <select
-            value={search.team ?? ""}
-            onChange={(e) => setSearch({ team: e.target.value || undefined })}
-            className="rounded-md border border-border/60 bg-background px-2 py-1 text-sm"
-          >
-            <option value="">All teams</option>
-            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Min %</span>
-          <input
-            type="range" min={0} max={95} step={5}
-            value={search.min}
-            onChange={(e) => setSearch({ min: Number(e.target.value) })}
-            className="w-32"
-          />
-          <span className="mono w-10 text-xs">{search.min}%</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Sort</span>
-          <select
-            value={search.sort}
-            onChange={(e) => setSearch({ sort: e.target.value })}
-            className="rounded-md border border-border/60 bg-background px-2 py-1 text-sm"
-          >
-            <option value="probability">Probability</option>
-            <option value="diamond">Diamond Score</option>
-          </select>
-        </div>
-        <div className="ml-auto mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {totalShown} shown · {allRows.length} total
-        </div>
-      </section>
-
-      {/* Category sections */}
-      <div className="space-y-6">
-        {sectionsData.map(({ propType, rows }) => (
-          <section key={propType} className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-lg font-bold tracking-wide">
-                {PROP_META[propType].label} <span className="mono text-[10px] text-muted-foreground">{PROP_META[propType].line}</span>
-              </h2>
-              <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Top {Math.min(25, rows.length)} · {rows.length} qualified
-              </span>
-            </div>
-
-            {rows.length === 0 ? (
-              <div className="rounded-lg border border-border/60 bg-card/30 p-4 text-center text-sm text-muted-foreground">
-                No qualified plays for this category.
-              </div>
+      <tr className="border-t border-border/40 hover:bg-secondary/40">
+        <td className="px-2 py-2 mono text-xs text-muted-foreground">{rank}</td>
+        <td className="px-2 py-2">
+          <button onClick={() => setOpen((v) => !v)} className="text-left">
+            {open ? <ChevronDown className="inline size-3" /> : <ChevronRight className="inline size-3" />}
+            {row.mlbId ? (
+              <Link to="/players/$playerId" params={{ playerId: String(row.mlbId) }} className="ml-1 font-medium hover:underline">
+                {row.playerName}
+              </Link>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-border/60">
-                <table className="table-modern w-full text-sm">
-                  <thead className="bg-card/50 text-muted-foreground">
-                    <tr className="mono text-[10px] uppercase tracking-widest">
-                      <th className="px-3 py-2 text-left">#</th>
-                      <th className="px-3 py-2 text-left">Player</th>
-                      <th className="px-3 py-2 text-left">Team</th>
-                      <th className="px-3 py-2 text-left">Opp</th>
-                      <th className="px-3 py-2 text-left">Line</th>
-                      <th className="px-3 py-2 text-right">
-                        <span className="inline-flex items-center gap-1">Mean <SimMethodologyTooltip /></span>
-                      </th>
-                      <th className="px-3 py-2 text-right">MC Prob</th>
-                      <th className="px-3 py-2 text-right">DS</th>
-                      <th className="px-3 py-2 text-right">Conf</th>
-                      <th className="px-3 py-2 text-left">Edge</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={r.key} className="border-t border-border/40 hover:bg-secondary/40">
-                        <td className="px-3 py-2 mono text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="px-3 py-2">
-                          {r.mlb_id ? (
-                            <Link to="/players/$playerId" params={{ playerId: String(r.mlb_id) }} className="font-medium hover:underline">
-                              {r.player_name}
-                            </Link>
-                          ) : (
-                            <span className="font-medium">{r.player_name}</span>
-                          )}
-                          {r.batting_order ? (
-                            <span className="mono ml-2 text-[10px] text-muted-foreground">#{r.batting_order}</span>
-                          ) : null}
-                          {r.is_pitcher ? <span className="mono ml-2 text-[10px] text-edge">SP</span> : null}
-                        </td>
-                        <td className="px-3 py-2 mono text-xs">{r.team_abbrev}</td>
-                        <td className="px-3 py-2 mono text-xs text-muted-foreground">{r.opp_abbrev}</td>
-                        <td className="px-3 py-2 mono text-xs">{r.line}</td>
-                        <td className="px-3 py-2 mono text-right text-xs">
-                          {r.meanValue != null ? (
-                            <span title={r.meanSourcePath ?? undefined}>
-                              {r.meanValue.toFixed(2)} <span className="text-muted-foreground">{r.meanUnit}</span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground italic" title={r.meanUnavailableReason ?? "Probability-only market; no count mean expected"}>—</span>
-                          )}
-                          {r.is_preview ? (
-                            <span className="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-400">Preview</span>
-                          ) : null}
-                        </td>
-
-                        <td className="px-3 py-2 text-right">
-                          <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierClasses(r.probability)}`}>
-                            {pct(r.probability)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 mono text-right text-xs">{r.diamond_score != null ? Math.round(r.diamond_score) : "—"}</td>
-                        <td className="px-3 py-2 mono text-right text-xs text-muted-foreground">{r.lineup_badge}</td>
-                        <td className="px-3 py-2 mono text-[10px] text-muted-foreground italic">—</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
+              <span className="ml-1 font-medium">{row.playerName}</span>
             )}
-          </section>
-        ))}
-      </div>
-    </div>
+            {row.battingOrder ? <span className="mono ml-2 text-[10px] text-muted-foreground">#{row.battingOrder}</span> : null}
+            {row.isPitcher ? <span className="mono ml-1 text-[10px] text-edge">SP</span> : null}
+          </button>
+        </td>
+        <td className="px-2 py-2 mono text-xs">{row.teamAbbrev}</td>
+        <td className="px-2 py-2 mono text-xs text-muted-foreground">{row.oppAbbrev}</td>
+        <td className="px-2 py-2 mono text-xs">{row.line}</td>
+        <td className="px-2 py-2 mono text-right text-xs">
+          {row.projectedMean != null ? `${row.projectedMean.toFixed(2)} ${row.meanUnit}` : "—"}
+        </td>
+        <td className="px-2 py-2 text-right">
+          <span className={`inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tb.cls}`}>{pct(row.eventProbability)}</span>
+        </td>
+        <td className="px-2 py-2 mono text-right text-xs">{Math.round(row.score)}</td>
+        <td className="px-2 py-2 text-center"><FormIcon dir={row.formDirection} /></td>
+        <td className="px-2 py-2 mono text-center text-xs">{row.matchupGrade != null ? Math.round(row.matchupGrade) : <span className="text-muted-foreground italic">n/a</span>}</td>
+        <td className="px-2 py-2 mono text-center text-xs">{row.lineupStatus}</td>
+        <td className="px-2 py-2 text-center"><span className={`mono rounded border px-1 py-0.5 text-[9px] uppercase tracking-wider ${tb.cls}`}>{tb.label}</span></td>
+        <td className="px-2 py-2 text-center">
+          {row.reasons.length > 0 ? (
+            <span title={row.reasons.map(reasonLabel).join(" · ")}>
+              <AlertTriangle className={`inline size-3 ${row.tier === "excluded" ? "text-rose-400" : "text-amber-400"}`} />
+            </span>
+          ) : null}
+        </td>
+      </tr>
+      {open ? (
+        <tr className="border-t border-border/20 bg-card/30">
+          <td colSpan={13} className="px-4 py-3 text-xs">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Score components</div>
+                <ul className="space-y-0.5">
+                  <li>Probability: <b>{(row.components.probability * 100).toFixed(0)}%</b></li>
+                  <li>Mean vs Line: <b>{(row.components.meanVsLine * 100).toFixed(0)}%</b></li>
+                  <li>Opportunity: <b>{(row.components.opportunity * 100).toFixed(0)}%</b></li>
+                  <li>Form: <b>{(row.components.form * 100).toFixed(0)}%</b> · sample {row.formSampleSize ?? 0}</li>
+                  <li>Matchup: <b>{row.components.matchup != null ? `${(row.components.matchup * 100).toFixed(0)}%` : "unavailable"}</b></li>
+                  <li>Stability: <b>{(row.components.stability * 100).toFixed(0)}%</b></li>
+                </ul>
+              </div>
+              <div>
+                <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Sim provenance</div>
+                <ul className="space-y-0.5 text-muted-foreground">
+                  <li>Sims: <b>{row.simCount?.toLocaleString() ?? "—"}</b></li>
+                  <li>StdErr: <b>{row.stderr != null ? row.stderr.toFixed(3) : "—"}</b></li>
+                  <li>Confidence: <b>{row.confidence != null ? row.confidence.toFixed(2) : "—"}</b></li>
+                  <li>Stage: <StageBadge stage={row.projectionStage} /></li>
+                  <li>Mode: <ModeLabel mode={row.mode} /></li>
+                  <li className="truncate">Inputs: <span className="mono">{row.inputsHash?.slice(0, 8) ?? "—"}</span></li>
+                  <li>Updated: {new Date(row.lastUpdated).toLocaleTimeString()}</li>
+                </ul>
+              </div>
+              <div>
+                <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Why here · what could change</div>
+                {row.reasons.length === 0 ? (
+                  <div className="text-muted-foreground">No warnings. Clean qualifying inputs.</div>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {row.reasons.map((r) => (
+                      <li key={r} className={row.tier === "excluded" && ["missing_probability","missing_mean","stale_output","newer_sim_pending","game_started","below_watchlist_probability"].includes(r) ? "text-rose-400" : "text-amber-400"}>
+                        · {reasonLabel(r)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      ) : null}
     </>
   );
 }
 
+function BoardTable({ rows, emptyText }: { rows: PropBoardRow[]; emptyText: string }) {
+  if (rows.length === 0) {
+    return <div className="rounded-lg border border-border/60 bg-card/30 p-4 text-center text-xs text-muted-foreground">{emptyText}</div>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border/60">
+      <table className="w-full text-sm">
+        <thead className="bg-card/50 text-muted-foreground">
+          <tr className="mono text-[10px] uppercase tracking-widest">
+            <th className="px-2 py-2 text-left">#</th>
+            <th className="px-2 py-2 text-left">Player</th>
+            <th className="px-2 py-2 text-left">Tm</th>
+            <th className="px-2 py-2 text-left">Opp</th>
+            <th className="px-2 py-2 text-left">Line</th>
+            <th className="px-2 py-2 text-right">Mean</th>
+            <th className="px-2 py-2 text-right">Prob</th>
+            <th className="px-2 py-2 text-right">Score</th>
+            <th className="px-2 py-2 text-center">Form</th>
+            <th className="px-2 py-2 text-center">Mtch</th>
+            <th className="px-2 py-2 text-center">Lineup</th>
+            <th className="px-2 py-2 text-center">Tier</th>
+            <th className="px-2 py-2 text-center">!</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => <BoardRow key={r.key} row={r} rank={i + 1} />)}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PropBoardPage() {
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { data } = useSuspenseQuery(boardQuery(search.date));
+
+  const setSearch = (patch: Record<string, string | undefined>) =>
+    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }), replace: true });
+
+  const filteredBoards = useMemo(() => {
+    const q = (search.q ?? "").trim().toLowerCase();
+    return data.boards
+      .filter((b) => search.market === "all" || b.market === search.market)
+      .filter((b) => search.role === "all" || b.role === search.role)
+      .map((b) => {
+        const filterRow = (r: PropBoardRow) => {
+          if (search.confirmed === "confirmed" && r.lineupStatus !== "confirmed") return false;
+          if (q && !r.playerName.toLowerCase().includes(q) && !r.teamAbbrev.toLowerCase().includes(q)) return false;
+          return true;
+        };
+        const heavy = b.heavy.filter(filterRow);
+        const strong = b.strong.filter(filterRow);
+        const watchlist = b.watchlist.filter(filterRow);
+        const preview = b.preview.filter(filterRow);
+        const excluded = b.excluded.filter(filterRow);
+        return { ...b, heavy, strong, watchlist, preview, excluded };
+      });
+  }, [data.boards, search.market, search.role, search.confirmed, search.q]);
+
+  return (
+    <>
+      <ForecastsTabBar />
+      <div className="mx-auto max-w-7xl px-3 py-4 md:px-6 md:py-6 space-y-5">
+        <header className="space-y-1">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h1 className="font-display text-2xl font-bold tracking-wide">Prop Board</h1>
+            <span className="mono rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-emerald-300">Live</span>
+            <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{data.slateDate}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Unified ranking from persisted Monte Carlo distributions, Risers &amp; Fallers signals, matchup grades, and opportunity certainty.
+            Probability is the strongest input. Missing matchup or sportsbook data stays honest — never replaced with fake neutral scores.
+          </p>
+        </header>
+
+        {/* Best of the day */}
+        <section className="space-y-2">
+          <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">Best of the Day</div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-7">
+            {data.bestOf.map((b) => {
+              const meta = MARKET_META[b.market];
+              return (
+                <div key={b.market} className="rounded-lg border border-border/60 bg-card/40 p-2">
+                  <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">{b.label}</div>
+                  {b.row ? (
+                    <div className="mt-1">
+                      <div className="text-sm font-semibold leading-tight truncate">{b.row.playerName}</div>
+                      <div className="mono text-[10px] text-muted-foreground">{b.row.teamAbbrev} vs {b.row.oppAbbrev}</div>
+                      <div className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-xs font-bold ${tierBadge(b.row.tier).cls}`}>
+                        {pct(b.row.eventProbability)} · {meta.line}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-muted-foreground">No qualified play</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Totals + filters */}
+        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card/30 p-3 text-xs">
+          <div className="flex flex-wrap gap-2 mono">
+            <span className="text-emerald-300">Heavy {data.totals.heavy}</span>
+            <span className="text-sky-300">Strong {data.totals.strong}</span>
+            <span className="text-amber-300">Watch {data.totals.watchlist}</span>
+            <span className="text-violet-300">Preview {data.totals.preview}</span>
+            <span className="text-zinc-400">Excl {data.totals.excluded}</span>
+            <span className="text-muted-foreground">of {data.totals.considered}</span>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <select value={search.market} onChange={(e) => setSearch({ market: e.target.value })} className="rounded-md border border-border/60 bg-background px-2 py-1">
+              <option value="all">All markets</option>
+              {SUPPORTED_MARKETS.map((m) => <option key={m} value={m}>{MARKET_META[m].label}</option>)}
+            </select>
+            <select value={search.role} onChange={(e) => setSearch({ role: e.target.value })} className="rounded-md border border-border/60 bg-background px-2 py-1">
+              <option value="all">Hitters + Pitchers</option>
+              <option value="hitter">Hitters</option>
+              <option value="pitcher">Pitchers</option>
+            </select>
+            <select value={search.tier} onChange={(e) => setSearch({ tier: e.target.value })} className="rounded-md border border-border/60 bg-background px-2 py-1">
+              <option value="all">All tiers</option>
+              <option value="heavy">Heavy only</option>
+              <option value="strong">Strong+</option>
+              <option value="watchlist">Watchlist+</option>
+              <option value="preview">Include Preview</option>
+            </select>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={search.confirmed === "confirmed"} onChange={(e) => setSearch({ confirmed: e.target.checked ? "confirmed" : "all" })} />
+              Confirmed only
+            </label>
+            <input
+              value={search.q ?? ""}
+              onChange={(e) => setSearch({ q: e.target.value || undefined })}
+              placeholder="Search player/team"
+              className="rounded-md border border-border/60 bg-background px-2 py-1"
+            />
+          </div>
+        </section>
+
+        {/* Boards */}
+        <div className="space-y-6">
+          {filteredBoards.map((b) => {
+            const showHeavy = search.tier === "all" || search.tier === "heavy" || search.tier === "strong" || search.tier === "watchlist" || search.tier === "preview";
+            const showStrong = search.tier === "all" || search.tier === "strong" || search.tier === "watchlist" || search.tier === "preview";
+            const showWatch = search.tier === "all" || search.tier === "watchlist" || search.tier === "preview";
+            const showPreview = search.tier === "all" || search.tier === "preview";
+            return (
+              <section key={b.market} className="space-y-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-display text-lg font-bold tracking-wide">
+                    {b.label} <span className="mono text-[10px] text-muted-foreground">{b.line}</span>
+                  </h2>
+                  <span className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {b.heavy.length + b.strong.length + b.watchlist.length + b.preview.length} qualified · {b.excluded.length} excluded
+                  </span>
+                </div>
+                {b.unavailable ? (
+                  <div className="rounded-lg border border-border/60 bg-card/30 p-4 text-center text-xs text-muted-foreground">{b.unavailable}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {showHeavy && b.heavy.length > 0 && (
+                      <div>
+                        <div className="mono text-[10px] uppercase tracking-widest text-emerald-300 mb-1">Heavy Confidence</div>
+                        <BoardTable rows={b.heavy} emptyText="No heavy plays." />
+                      </div>
+                    )}
+                    {showStrong && b.strong.length > 0 && (
+                      <div>
+                        <div className="mono text-[10px] uppercase tracking-widest text-sky-300 mb-1">Strong</div>
+                        <BoardTable rows={b.strong} emptyText="No strong plays." />
+                      </div>
+                    )}
+                    {showWatch && b.watchlist.length > 0 && (
+                      <div>
+                        <div className="mono text-[10px] uppercase tracking-widest text-amber-300 mb-1">Watchlist</div>
+                        <BoardTable rows={b.watchlist} emptyText="No watchlist plays." />
+                      </div>
+                    )}
+                    {showPreview && b.preview.length > 0 && (
+                      <div>
+                        <div className="mono text-[10px] uppercase tracking-widest text-violet-300 mb-1">
+                          Preview — scaffold_unvalidated engine · not promoted for grading
+                        </div>
+                        <BoardTable rows={b.preview} emptyText="No preview plays." />
+                      </div>
+                    )}
+                    {b.heavy.length + b.strong.length + b.watchlist.length + b.preview.length === 0 && (
+                      <div className="rounded-lg border border-border/60 bg-card/30 p-4 text-center text-xs text-muted-foreground">
+                        No qualified plays match the current filters.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
